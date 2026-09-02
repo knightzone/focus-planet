@@ -1,0 +1,129 @@
+<template>
+  <view class="page">
+    <view class="game-header">
+      <view><text class="round-label">集中注意训练</text><text class="game-title">找到相同图形</text></view>
+      <view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view>
+    </view>
+    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+
+    <view class="target-card">
+      <text class="target-label">请找到</text>
+      <view class="target-symbol"><text class="target-symbol-value">{{ targetSymbol }}</text></view>
+    </view>
+
+    <view v-if="!started" class="instruction">
+      <YoungChildCue kind="match"></YoungChildCue>
+      <text class="instruction-title">观察目标，再从下面找到一样的图形</text>
+      <text class="instruction-copy">每一轮只有一个正确答案，图形数量会随当前难度调整。</text>
+      <button class="tap-target primary" @click="begin">▶ 开始配对</button>
+    </view>
+
+    <view v-else class="option-grid">
+      <view v-for="(symbol, index) in options" :key="index" class="option-card" @click="choose(symbol)">
+        <text class="option-symbol tap-content">{{ symbol }}</text>
+      </view>
+    </view>
+
+    <view class="feedback-space">
+      <text v-if="feedback != ''" :class="feedback == '正确' ? 'good' : 'again'">{{ feedback }}</text>
+    </view>
+    <view class="footer-stats">
+      <view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view>
+      <view class="footer-stat"><text class="footer-value">{{ errors }}</text><text class="footer-label">错误</text></view>
+      <view class="footer-stat"><text class="footer-value">{{ reactionLabel }}</text><text class="footer-label">平均反应</text></view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+
+const SHAPES = ['●', '■', '▲', '◆', '★', '✚']
+const started = ref(false)
+const totalRounds = ref(12)
+const optionCount = ref(4)
+const roundIndex = ref(0)
+const targetSymbol = ref('●')
+const options = ref([] as string[])
+const acceptingAnswer = ref(false)
+const feedback = ref('')
+const correct = ref(0)
+const errors = ref(0)
+const reactions = ref([] as number[])
+let appearedAt = 0
+let gameStartedAt = 0
+let nextTimer = 0
+
+const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
+const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
+const reactionLabel = computed((): string => {
+  if (reactions.value.length == 0) return '--'
+  const total = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
+  return Math.round(total / reactions.value.length).toString() + 'ms'
+})
+
+function configureDifficulty() {
+  const age = getGameTuningAge('shape-match')
+  if (age <= 6) { totalRounds.value = 10; optionCount.value = 3 }
+  else if (age <= 9) { totalRounds.value = 12; optionCount.value = 4 }
+  else if (age <= 12) { totalRounds.value = 16; optionCount.value = 5 }
+  else { totalRounds.value = 20; optionCount.value = 6 }
+}
+
+function shuffled(values: string[]): string[] {
+  const result = values.slice()
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1)); const value = result[i]; result[i] = result[j]; result[j] = value
+  }
+  return result
+}
+
+function clearTimer() { if (nextTimer > 0) clearTimeout(nextTimer) }
+function finishGame() {
+  clearTimer()
+  const accuracy = Math.round((correct.value / totalRounds.value) * 100)
+  const reactionTotal = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
+  const average = reactions.value.length == 0 ? 0 : Math.round(reactionTotal / reactions.value.length)
+  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  uni.redirectTo({ url: '/pages/result/result?gameId=shape-match&dimensionId=focused&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() })
+}
+
+function prepareRound() {
+  if (roundIndex.value >= totalRounds.value) { finishGame(); return }
+  targetSymbol.value = SHAPES[Math.floor(Math.random() * SHAPES.length)]
+  const pool = shuffled(SHAPES.filter((item: string): boolean => item != targetSymbol.value))
+  const roundOptions = pool.slice(0, optionCount.value - 1)
+  roundOptions.push(targetSymbol.value)
+  options.value = shuffled(roundOptions)
+  feedback.value = ''; acceptingAnswer.value = true; appearedAt = Date.now()
+}
+
+function begin() { started.value = true; gameStartedAt = Date.now(); prepareRound() }
+
+function choose(symbol: string) {
+  if (!acceptingAnswer.value) return
+  acceptingAnswer.value = false
+  reactions.value.push(Date.now() - appearedAt)
+  if (symbol == targetSymbol.value) { correct.value += 1; feedback.value = '正确' }
+  else { errors.value += 1; feedback.value = '再仔细看看' }
+  nextTimer = setTimeout(() => { roundIndex.value += 1; prepareRound() }, 480)
+}
+
+onLoad((_options: OnLoadOptions) => configureDifficulty())
+onUnload(() => clearTimer())
+</script>
+
+<style>
+.page { flex: 1; padding: 20px; }
+.game-header { flex-direction: row; justify-content: space-between; align-items: center; }.round-label { color: #5b8def; font-size: 12px; font-weight: 700; }.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #eaf0ff; align-items: center; justify-content: center; }.counter-value { color: #4b75c7; font-size: 13px; font-weight: 700; }
+.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; background-color: #5b8def; }
+.target-card { margin-top: 16px; height: 155px; border-radius: 24px; background-color: #dfe9ff; align-items: center; justify-content: center; }.target-label { color: #7180a0; font-size: 11px; }.target-symbol { margin-top: 5px; width: 86px; height: 86px; border-radius: 24px; background-color: #ffffff; align-items: center; justify-content: center; }.target-symbol-value { color: #5b8def; font-size: 55px; }
+.instruction { margin-top: 16px; padding: 26px 20px; border-radius: 22px; background-color: #ffffff; align-items: center; }.instruction-title { color: #344059; font-size: 16px; font-weight: 700; text-align: center; }.instruction-copy { margin-top: 8px; color: #818a9f; font-size: 11px; line-height: 18px; text-align: center; }.primary { margin-top: 18px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #5b8def; color: #ffffff; font-size: 14px; font-weight: 700; }
+.option-grid { margin-top: 12px; flex-direction: row; flex-wrap: wrap; justify-content: center; }.option-card { margin: 6px; width: 28%; height: 86px; border-radius: 19px; background-color: #ffffff; align-items: center; justify-content: center; }.option-symbol { color: #52617d; font-size: 43px; }
+.feedback-space { height: 32px; align-items: center; justify-content: center; }.good { color: #338e72; font-size: 12px; font-weight: 700; }.again { color: #c65b66; font-size: 12px; font-weight: 700; }
+.footer-stats { flex-direction: row; }.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 17px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+</style>

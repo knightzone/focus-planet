@@ -1,0 +1,44 @@
+<template><view class="page">
+  <view class="header"><view><text class="dimension">持续注意训练</text><text class="title">听音节奏</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
+  <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+  <view class="tip"><text class="tip-title">听一听，再按顺序点图案</text><text class="tip-copy">声音会一个接一个出现</text></view>
+  <view class="stage">
+    <view class="speaker" :class="playing ? 'speaker-on' : ''"><text class="speaker-symbol">♫</text></view>
+    <text class="state">{{ stateLabel }}</text>
+    <view class="answers"><button v-for="cue in cues" :key="cue.id" class="tap-target answer" :disabled="!accepting" @click="choose(cue.id)"><text class="answer-symbol tap-content">{{ cue.icon }}</text></button></view>
+    <button class="tap-target replay" :disabled="playing" @click="replay">▶ 再听一次</button>
+    <text class="feedback" :class="feedback == '真棒' ? 'good' : 'again'">{{ feedback }}</text>
+  </view>
+  <view class="stats"><view class="stat"><text class="value">{{ correct }}</text><text class="label">完成</text></view><view class="stat"><text class="value">{{ errors }}</text><text class="label">重试</text></view></view>
+</view></template>
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+type Cue = { id: string, icon: string }
+const cues: Cue[] = [{ id: 'star', icon: '✦' }, { id: 'moon', icon: '☾' }, { id: 'planet', icon: '●' }]
+const totalRounds = ref(8), roundIndex = ref(0), sequenceLength = ref(2), sequence = ref([] as string[]), inputIndex = ref(0)
+const accepting = ref(false), playing = ref(false), feedback = ref(''), correct = ref(0), errors = ref(0)
+const audio = ref<InnerAudioContext | null>(null)
+let gameStartedAt = 0, playTimer = 0, nextTimer = 0
+const displayRound = computed((): number => Math.min(totalRounds.value, roundIndex.value + 1))
+const progressWidth = computed((): string => Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%')
+const stateLabel = computed((): string => playing.value ? '仔细听' : accepting.value ? '轮到你了' : '准备下一组')
+function configure() { const age = getGameTuningAge('audio-sequence'); if (age <= 6) { sequenceLength.value = 2; totalRounds.value = 6 } else if (age <= 9) { sequenceLength.value = 3; totalRounds.value = 8 } else { sequenceLength.value = 4; totalRounds.value = 10 } }
+function cuePath(id: string): string { return '/static/audio/cues/' + id + '.wav' }
+function stopAudio() { if (audio.value != null) audio.value!.stop() }
+function playCue(id: string) { if (audio.value == null) audio.value = uni.createInnerAudioContext(); else audio.value!.stop(); audio.value!.src = cuePath(id); audio.value!.play() }
+function playStep(index: number) { if (index >= sequence.value.length) { playing.value = false; accepting.value = true; return }; playCue(sequence.value[index]); playTimer = setTimeout(() => playStep(index + 1), 720) }
+function playSequence() { accepting.value = false; playing.value = true; inputIndex.value = 0; feedback.value = ''; playStep(0) }
+function makeSequence() { const next = [] as string[]; for (let i = 0; i < sequenceLength.value; i++) next.push(cues[Math.floor(Math.random() * cues.length)].id); sequence.value = next; playSequence() }
+function finish() { stopAudio(); const accuracy = Math.round((correct.value / Math.max(1, correct.value + errors.value)) * 100); const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=audio-sequence&dimensionId=sustained&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + duration.toString() }) }
+function nextRound() { roundIndex.value += 1; if (roundIndex.value >= totalRounds.value) finish(); else makeSequence() }
+function replay() { if (!playing.value) playSequence() }
+function choose(id: string) { if (!accepting.value) return; if (id != sequence.value[inputIndex.value]) { errors.value += 1; feedback.value = '再听一次'; accepting.value = false; nextTimer = setTimeout(() => playSequence(), 650); return }; inputIndex.value += 1; if (inputIndex.value >= sequence.value.length) { correct.value += 1; accepting.value = false; feedback.value = '真棒'; nextTimer = setTimeout(() => nextRound(), 650) } }
+function clearResources() { if (playTimer > 0) clearTimeout(playTimer); if (nextTimer > 0) clearTimeout(nextTimer); stopAudio() }
+onLoad((_options: OnLoadOptions) => { configure(); gameStartedAt = Date.now(); nextTimer = setTimeout(() => makeSequence(), 450) })
+onUnload(() => { clearResources(); if (audio.value != null) audio.value!.destroy(); audio.value = null })
+</script>
+<style>
+.page { flex: 1; padding: 20px; }.header { flex-direction: row; justify-content: space-between; align-items: center; }.dimension { color: #348d74; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #e3f6ef; align-items: center; justify-content: center; }.counter-value { color: #348d74; font-size: 13px; font-weight: 700; }.progress { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; background-color: #55c9a5; }.tip { margin-top: 14px; padding: 15px; border-radius: 18px; background-color: #eaf8f3; }.tip-title { color: #315f52; font-size: 14px; font-weight: 700; }.tip-copy { margin-top: 4px; color: #6c9589; font-size: 10px; }.stage { margin-top: 16px; height: 410px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; }.speaker { width: 112px; height: 112px; border-radius: 56px; background-color: #dff3ed; align-items: center; justify-content: center; }.speaker-on { background-color: #55c9a5; }.speaker-symbol { color: #ffffff; font-size: 46px; }.state { margin-top: 12px; color: #52617a; font-size: 15px; font-weight: 700; }.answers { margin-top: 22px; flex-direction: row; }.answer { margin: 0 6px; padding: 0; width: 78px; height: 78px; border-radius: 20px; background-color: #edf8f5; align-items: center; justify-content: center; }.answer-symbol { color: #3a9b80; font-size: 35px; }.replay { margin-top: 18px; width: 132px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #e4f4ef; color: #348d74; font-size: 12px; }.feedback { margin-top: 13px; height: 20px; font-size: 12px; font-weight: 700; }.good { color: #338e72; }.again { color: #c65b66; }.stats { margin-top: 14px; flex-direction: row; }.stat { flex: 1; align-items: center; }.value { color: #25314a; font-size: 18px; font-weight: 700; }.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+</style>

@@ -1,0 +1,89 @@
+<template>
+  <view class="page">
+    <view class="header"><view><text class="dimension">{{ dimensionLabel }}</text><text class="title">{{ gameName }}</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
+    <view class="progress"><view class="progress-fill" :style="{ width: progressWidth, backgroundColor: accentColor }"></view></view>
+    <view class="mission"><text class="mission-title">{{ missionTitle }}</text><text class="mission-tip">{{ missionTip }}</text></view>
+
+    <view v-if="!started" class="instruction"><YoungChildCue :kind="mode == 'light-tracking' ? 'track' : 'tap'"></YoungChildCue><text class="intro-copy">{{ introCopy }}</text><button class="tap-target primary" :style="{ backgroundColor: accentColor }" @click="begin">▶ 开始训练</button></view>
+
+    <view v-else-if="mode == 'light-tracking'" class="light-board">
+      <view v-for="index in 9" :key="index" class="light-cell" @click="tapLight(index - 1)"><image v-if="activeCell == index - 1" class="moving-firefly tap-content" src="/static/images/runtime/game-objects/firefly-tracking-v1.png" mode="aspectFit"></image></view>
+    </view>
+
+    <view v-else class="road-board">
+      <view class="roadside"><view class="roadside-cue" :class="roadsideTarget ? 'cue-target' : 'cue-ignore'" @click="tapRoadside"><text class="roadside-symbol tap-content" :class="roadsideTarget ? 'roadside-symbol-target' : 'roadside-symbol-ignore'">{{ roadsideTarget ? '✦' : '●' }}</text></view></view>
+      <view class="lanes">
+        <view class="lane" @click="chooseLane('left')"><text class="lane-label tap-content">左</text><view v-if="obstacleLane == 'left'" class="obstacle tap-content"><text class="obstacle-symbol">×</text></view><view v-if="chosenLane == 'left'" class="car tap-content"><text class="car-symbol">▲</text></view></view>
+        <view class="lane" @click="chooseLane('right')"><text class="lane-label tap-content">右</text><view v-if="obstacleLane == 'right'" class="obstacle tap-content"><text class="obstacle-symbol">×</text></view><view v-if="chosenLane == 'right'" class="car tap-content"><text class="car-symbol">▲</text></view></view>
+      </view>
+      <text v-if="mode == 'little-driver'" class="dual-tip">避开障碍，同时点击路边金色星星</text>
+    </view>
+
+    <view class="feedback"><text v-if="feedback != ''" :class="feedback == '正确' ? 'good' : 'again'">{{ feedback }}</text></view>
+    <view class="stats"><view class="stat-item"><text class="value">{{ correct }}</text><text class="label">正确</text></view><view class="stat-item"><text class="value">{{ errors }}</text><text class="label">错误</text></view><view class="stat-item"><text class="value">{{ omissions }}</text><text class="label">遗漏</text></view></view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+import { getGameName } from '../../utils/catalog.uts'
+
+const mode = ref('light-tracking'), gameName = ref('萤火虫追踪'), dimensionId = ref('focused')
+const started = ref(false), totalRounds = ref(12), roundIndex = ref(0), roundDuration = ref(1200)
+const activeCell = ref(4), obstacleLane = ref('left'), chosenLane = ref(''), roadsideTarget = ref(false), roadsideDone = ref(false)
+const accepting = ref(false), feedback = ref(''), correct = ref(0), errors = ref(0), omissions = ref(0), reactions = ref([] as number[])
+let shownAt = 0, gameStartedAt = 0, roundTimer = 0, nextTimer = 0
+const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
+const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
+const dimensionLabel = computed((): string => mode.value == 'light-tracking' ? '集中注意训练' : mode.value == 'car-patrol' ? '持续注意训练' : '分配注意训练')
+const accentColor = computed((): string => mode.value == 'light-tracking' ? '#5B8DEF' : mode.value == 'car-patrol' ? '#55C9A5' : '#F17C8D')
+const missionTitle = computed((): string => mode.value == 'light-tracking' ? '找到每次飞到新位置的小萤火虫' : mode.value == 'car-patrol' ? '选择没有障碍的车道' : '避障，同时收集路边金色星星')
+const missionTip = computed((): string => mode.value == 'light-tracking' ? '看准位置再点击，不要抢点' : mode.value == 'little-driver' ? '蓝色圆点不要点击' : '保持稳定，不要抢点')
+const introCopy = computed((): string => mode.value == 'light-tracking' ? '小萤火虫会在九宫格中飞来飞去，请追踪它的位置并快速点击。' : mode.value == 'car-patrol' ? '观察左右车道，选择安全的一边继续前进。' : '一边选择安全车道，一边留意路边是否出现金色星星。')
+
+function configureDifficulty() { const age = getGameTuningAge(mode.value); if (age <= 6) { totalRounds.value = 10; roundDuration.value = 1600 } else if (age <= 9) { totalRounds.value = 14; roundDuration.value = 1350 } else if (age <= 12) { totalRounds.value = 18; roundDuration.value = 1100 } else { totalRounds.value = 22; roundDuration.value = 900 } }
+function clearTimers() { if (roundTimer > 0) clearTimeout(roundTimer); if (nextTimer > 0) clearTimeout(nextTimer) }
+function finish() { clearTimers(); const attempts = correct.value + errors.value + omissions.value; const accuracy = Math.round((correct.value / Math.max(1, attempts)) * 100); const sum = reactions.value.reduce((a: number, b: number): number => a + b, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=' + mode.value + '&dimensionId=' + dimensionId.value + '&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&omissions=' + omissions.value.toString() }) }
+function prepare() {
+  if (roundIndex.value >= totalRounds.value) { finish(); return }
+  feedback.value = ''; accepting.value = true; chosenLane.value = ''; roadsideDone.value = false; shownAt = Date.now()
+  if (mode.value == 'light-tracking') { let next = Math.floor(Math.random() * 9); while (next == activeCell.value) next = Math.floor(Math.random() * 9); activeCell.value = next }
+  else { obstacleLane.value = Math.random() < 0.5 ? 'left' : 'right'; roadsideTarget.value = mode.value == 'little-driver' && Math.random() < 0.45 }
+  roundTimer = setTimeout(() => {
+    if (!accepting.value) return
+    accepting.value = false
+    if (mode.value == 'little-driver') { if (chosenLane.value == '') omissions.value += 1; if (roadsideTarget.value && !roadsideDone.value) omissions.value += 1 }
+    else omissions.value += 1
+    feedback.value = '错过了'
+    nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 450)
+  }, roundDuration.value)
+}
+function scheduleNext() { if (roundTimer > 0) clearTimeout(roundTimer); nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 450) }
+function completeSingle(success: boolean) { if (!accepting.value) return; accepting.value = false; if (success) { correct.value += 1; reactions.value.push(Date.now() - shownAt); feedback.value = '正确' } else { errors.value += 1; feedback.value = '再看仔细' }; scheduleNext() }
+function begin() { started.value = true; gameStartedAt = Date.now(); prepare() }
+function tapLight(index: number) { if (!accepting.value) return; if (index == activeCell.value) completeSingle(true) else completeSingle(false) }
+function chooseLane(lane: string) {
+  if (!accepting.value || chosenLane.value != '') return; chosenLane.value = lane
+  if (lane == obstacleLane.value) { errors.value += 1; feedback.value = '撞到障碍'; accepting.value = false; scheduleNext() }
+  else if (mode.value == 'car-patrol') completeSingle(true)
+  else { correct.value += 1; reactions.value.push(Date.now() - shownAt); if (!roadsideTarget.value || roadsideDone.value) { accepting.value = false; feedback.value = '正确'; scheduleNext() } }
+}
+function tapRoadside() {
+  if (!accepting.value || mode.value != 'little-driver' || roadsideDone.value) return; roadsideDone.value = true
+  if (roadsideTarget.value) { correct.value += 1; if (chosenLane.value != '') { accepting.value = false; feedback.value = '正确'; scheduleNext() } }
+  else { errors.value += 1; feedback.value = '蓝点不用收集' }
+}
+onLoad((options: UTSJSONObject) => { const option = options['gameId']; mode.value = option == null || option == '' ? 'light-tracking' : option as string; gameName.value = getGameName(mode.value); dimensionId.value = mode.value == 'light-tracking' ? 'focused' : mode.value == 'car-patrol' ? 'sustained' : 'divided'; configureDifficulty() })
+onUnload(() => clearTimers())
+</script>
+
+<style>
+.page { flex: 1; padding: 20px; }.header { flex-direction: row; align-items: center; justify-content: space-between; }.dimension { color: #7b8498; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #edf1f7; align-items: center; justify-content: center; }.counter-value { color: #65718b; font-size: 13px; font-weight: 700; }.progress { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; }.mission { margin-top: 14px; padding: 15px 17px; border-radius: 18px; background-color: #ffffff; }.mission-title { color: #3c485f; font-size: 15px; font-weight: 700; }.mission-tip { margin-top: 4px; color: #858fa3; font-size: 11px; }
+.instruction { margin-top: 16px; padding: 42px 22px; border-radius: 24px; background-color: #ffffff; align-items: center; }.intro-firefly { width: 126px; height: 126px; }.intro-icon { color: #6a7b99; font-size: 58px; }.intro-copy { margin-top: 14px; color: #737e94; font-size: 12px; line-height: 19px; text-align: center; }.primary { margin-top: 20px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; color: #ffffff; font-size: 14px; font-weight: 700; }
+.light-board { margin-top: 14px; padding: 10px; height: 370px; border-radius: 24px; background-color: #dfe9ff; flex-direction: row; flex-wrap: wrap; justify-content: center; align-content: center; }.light-cell { margin: 5px; width: 28%; height: 100px; border-radius: 18px; background-color: #ffffff; align-items: center; justify-content: center; }.moving-firefly { width: 78px; height: 78px; }
+.road-board { margin-top: 14px; height: 370px; border-radius: 24px; background-color: #dbe2eb; position: relative; overflow: hidden; }.roadside { height: 70px; align-items: center; justify-content: center; }.roadside-cue { width: 48px; height: 48px; border-radius: 24px; align-items: center; justify-content: center; }.cue-target { background-color: #fff0c4; }.cue-ignore { background-color: #d5deec; }.roadside-symbol-target { color: #e8ad27; font-size: 29px; }.roadside-symbol-ignore { color: #8094b5; font-size: 24px; }.lanes { flex: 1; flex-direction: row; padding: 0 18px 20px; }.lane { flex: 1; margin: 0 5px; border-radius: 18px; background-color: #ffffff; align-items: center; justify-content: center; position: relative; }.lane-label { position: absolute; top: 12px; color: #8a94a6; font-size: 10px; }.obstacle { width: 62px; height: 62px; border-radius: 16px; background-color: #fde1e5; align-items: center; justify-content: center; }.obstacle-symbol { color: #cf5d6c; font-size: 30px; }.car { position: absolute; bottom: 18px; }.car-symbol { color: #5b8def; font-size: 38px; }.dual-tip { position: absolute; bottom: 4px; width: 100%; text-align: center; color: #718097; font-size: 9px; }
+.feedback { height: 34px; align-items: center; justify-content: center; }.good { color: #338e72; font-size: 12px; font-weight: 700; }.again { color: #c65b66; font-size: 12px; font-weight: 700; }.stats { flex-direction: row; }.stat-item { flex: 1; align-items: center; }.value { color: #25314a; font-size: 17px; font-weight: 700; }.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+</style>

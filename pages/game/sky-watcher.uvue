@@ -1,0 +1,209 @@
+<template>
+  <view class="page">
+    <view class="game-header">
+      <view>
+        <text class="round-label">持续注意训练</text>
+        <text class="game-title">守望金色星球</text>
+      </view>
+      <view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view>
+    </view>
+
+    <view class="progress-track">
+      <view class="progress-fill" :style="{ width: progressWidth }"></view>
+    </view>
+
+    <view class="target-guide">
+      <view class="mini-target"><view class="mini-core"></view><view class="mini-ring"></view></view>
+      <view class="guide-copy">
+        <text class="guide-title">只点击金色星球</text>
+        <text class="guide-text">其他星星和月亮出现时，请安静等待。</text>
+      </view>
+    </view>
+
+    <view class="play-area" @click="tapStimulus">
+      <view class="sky-dot dot-one tap-content"></view>
+      <view class="sky-dot dot-two tap-content"></view>
+      <view class="sky-dot dot-three tap-content"></view>
+
+      <view v-if="!started" class="instruction" @click.stop="begin">
+        <YoungChildCue class="tap-content" kind="watch"></YoungChildCue>
+        <text class="instruction-title tap-content">保持观察</text>
+        <text class="instruction-copy tap-content">目标会短暂出现。看到金色星球就点击，看到其他图形不要点击。</text>
+        <button class="tap-target primary" @click.stop="begin">▶ 开始守望</button>
+      </view>
+
+      <view v-if="started && visible && currentTarget" class="target" @click.stop="tapStimulus">
+        <view class="target-core tap-content"></view><view class="target-ring tap-content"></view>
+      </view>
+      <view v-if="started && visible && !currentTarget && distractorType == 0" class="distractor star" @click.stop="tapStimulus"><text class="star-symbol tap-content">✦</text></view>
+      <view v-if="started && visible && !currentTarget && distractorType == 1" class="distractor moon" @click.stop="tapStimulus"><text class="moon-symbol tap-content">☾</text></view>
+      <view v-if="started && visible && !currentTarget && distractorType == 2" class="distractor comet" @click.stop="tapStimulus"><text class="comet-symbol tap-content">●</text></view>
+
+      <view v-if="started && !visible" class="waiting tap-content"><text class="waiting-text">保持观察…</text></view>
+    </view>
+
+    <view class="footer-stats">
+      <view class="footer-stat"><text class="footer-value">{{ hits }}</text><text class="footer-label">命中</text></view>
+      <view class="footer-stat"><text class="footer-value">{{ omissions }}</text><text class="footer-label">遗漏</text></view>
+      <view class="footer-stat"><text class="footer-value">{{ falseAlarms }}</text><text class="footer-label">误点</text></view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+
+const started = ref(false)
+const visible = ref(false)
+const currentTarget = ref(false)
+const distractorType = ref(0)
+const roundIndex = ref(0)
+const totalRounds = ref(16)
+const showDuration = ref(1000)
+const gapDuration = ref(650)
+const hits = ref(0)
+const omissions = ref(0)
+const falseAlarms = ref(0)
+const responded = ref(false)
+const reactions = ref([] as number[])
+let roundPlan = [] as boolean[]
+let appearedAt = 0
+let gameStartedAt = 0
+let showTimer = 0
+let gapTimer = 0
+
+const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
+const progressWidth = computed((): string => {
+  if (!started.value) return '0%'
+  return Math.min(100, Math.round((roundIndex.value / totalRounds.value) * 100)).toString() + '%'
+})
+
+function configureDifficulty() {
+  const age = getGameTuningAge('sky-watcher')
+  if (age <= 6) {
+    totalRounds.value = 12; showDuration.value = 1250; gapDuration.value = 800
+  } else if (age <= 9) {
+    totalRounds.value = 16; showDuration.value = 1050; gapDuration.value = 680
+  } else if (age <= 12) {
+    totalRounds.value = 20; showDuration.value = 900; gapDuration.value = 580
+  } else {
+    totalRounds.value = 24; showDuration.value = 760; gapDuration.value = 480
+  }
+}
+
+function buildRoundPlan() {
+  roundPlan = [] as boolean[]
+  const targetCount = Math.max(4, Math.round(totalRounds.value * 0.35))
+  for (let i = 0; i < totalRounds.value; i++) roundPlan.push(i < targetCount)
+  for (let i = roundPlan.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const value = roundPlan[i]
+    roundPlan[i] = roundPlan[j]
+    roundPlan[j] = value
+  }
+}
+
+function clearTimers() {
+  if (showTimer > 0) clearTimeout(showTimer)
+  if (gapTimer > 0) clearTimeout(gapTimer)
+}
+
+function finishGame() {
+  clearTimers()
+  const targetTotal = hits.value + omissions.value
+  const distractorTotal = totalRounds.value - targetTotal
+  const targetAccuracy = targetTotal == 0 ? 0 : hits.value / targetTotal
+  const inhibitionAccuracy = distractorTotal == 0 ? 1 : Math.max(0, 1 - falseAlarms.value / distractorTotal)
+  const accuracy = Math.round((targetAccuracy * 0.7 + inhibitionAccuracy * 0.3) * 100)
+  const reactionTotal = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
+  const average = reactions.value.length == 0 ? 0 : Math.round(reactionTotal / reactions.value.length)
+  const score = accuracy
+  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  uni.redirectTo({
+    url: '/pages/result/result?gameId=sky-watcher&dimensionId=sustained&score=' + score.toString() +
+      '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() +
+      '&omissions=' + omissions.value.toString() + '&falseAlarms=' + falseAlarms.value.toString()
+  })
+}
+
+function showNext() {
+  if (roundIndex.value >= totalRounds.value) {
+    finishGame()
+    return
+  }
+  currentTarget.value = roundPlan[roundIndex.value]
+  distractorType.value = Math.floor(Math.random() * 3)
+  responded.value = false
+  visible.value = true
+  appearedAt = Date.now()
+  showTimer = setTimeout(() => {
+    visible.value = false
+    if (currentTarget.value && !responded.value) omissions.value += 1
+    roundIndex.value += 1
+    gapTimer = setTimeout(() => showNext(), gapDuration.value)
+  }, showDuration.value)
+}
+
+function begin() {
+  configureDifficulty()
+  buildRoundPlan()
+  started.value = true
+  gameStartedAt = Date.now()
+  gapTimer = setTimeout(() => showNext(), 500)
+}
+
+function tapStimulus() {
+  if (!started.value || !visible.value || responded.value) return
+  responded.value = true
+  if (currentTarget.value) {
+    hits.value += 1
+    reactions.value.push(Date.now() - appearedAt)
+  } else {
+    falseAlarms.value += 1
+  }
+}
+
+onUnload(() => clearTimers())
+</script>
+
+<style>
+.page { flex: 1; padding: 20px; }
+.game-header { flex-direction: row; justify-content: space-between; align-items: center; }
+.round-label { color: #55a889; font-size: 12px; font-weight: 700; }
+.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #e5f6ef; align-items: center; justify-content: center; }
+.counter-value { color: #3f987a; font-size: 13px; font-weight: 700; }
+.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }
+.progress-fill { height: 8px; border-radius: 4px; background-color: #55c9a5; }
+.target-guide { margin-top: 14px; padding: 11px 14px; border-radius: 15px; background-color: #ffffff; flex-direction: row; align-items: center; }
+.mini-target { width: 40px; height: 40px; position: relative; align-items: center; justify-content: center; }
+.mini-core { width: 27px; height: 27px; border-radius: 14px; background-color: #ffc857; }
+.mini-ring { position: absolute; width: 38px; height: 13px; border: 3px solid #e4a727; border-radius: 50%; transform: rotate(-14deg); }
+.guide-copy { margin-left: 10px; }
+.guide-title { color: #3d485f; font-size: 13px; font-weight: 700; }
+.guide-text { margin-top: 3px; color: #8992a4; font-size: 10px; }
+.play-area { margin-top: 14px; height: 390px; border-radius: 26px; background-color: #1f315e; position: relative; overflow: hidden; align-items: center; justify-content: center; }
+.sky-dot { position: absolute; width: 4px; height: 4px; border-radius: 2px; background-color: #9fb6e5; }
+.dot-one { left: 38px; top: 45px; }.dot-two { right: 52px; top: 92px; }.dot-three { left: 92px; bottom: 55px; }
+.instruction { width: 78%; padding: 23px; border-radius: 23px; background-color: #ffffff; align-items: center; z-index: 3; }
+.sample-target { width: 76px; height: 76px; position: relative; align-items: center; justify-content: center; }
+.sample-core { width: 52px; height: 52px; border-radius: 26px; background-color: #ffc857; }
+.sample-ring { position: absolute; width: 75px; height: 24px; border: 5px solid #e4a727; border-radius: 50%; transform: rotate(-14deg); }
+.instruction-title { margin-top: 12px; color: #25314a; font-size: 19px; font-weight: 700; }
+.instruction-copy { margin-top: 8px; color: #778198; font-size: 12px; line-height: 19px; text-align: center; }
+.primary { margin-top: 17px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #55c9a5; color: #ffffff; font-size: 14px; font-weight: 700; }
+.target { width: 112px; height: 112px; position: relative; align-items: center; justify-content: center; }
+.target-core { width: 76px; height: 76px; border-radius: 38px; background-color: #ffc857; }
+.target-ring { position: absolute; width: 110px; height: 34px; border: 7px solid #e6aa28; border-radius: 50%; transform: rotate(-14deg); }
+.distractor { width: 104px; height: 104px; align-items: center; justify-content: center; }
+.star-symbol { color: #a8bee8; font-size: 74px; }
+.moon-symbol { color: #e9effb; font-size: 80px; }.comet-symbol { color: #80a6e0; font-size: 62px; }
+.waiting-text { color: #879dcc; font-size: 13px; }
+.footer-stats { margin-top: 15px; flex-direction: row; }
+.footer-stat { flex: 1; align-items: center; }
+.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }
+.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+</style>

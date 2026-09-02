@@ -1,0 +1,211 @@
+<template>
+  <view class="page">
+    <view class="game-header">
+      <view>
+        <text class="round-label">选择注意训练</text>
+        <text class="game-title">只看目标颜色</text>
+      </view>
+      <view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view>
+    </view>
+
+    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+
+    <view class="rule-card">
+      <text class="rule-kicker">本局规则</text>
+      <text class="rule-title">{{ readingMode ? '点击文字真正显示的颜色' : '点击星星显示的颜色' }}</text>
+      <text class="rule-tip">{{ readingMode ? '忽略文字写的是什么，只看字的颜色' : '忽略周围的小圆点，只看中间星星' }}</text>
+    </view>
+
+    <view class="play-area">
+      <view class="decor-dot decor-one"></view><view class="decor-dot decor-two"></view>
+      <view class="decor-dot decor-three"></view><view class="decor-dot decor-four"></view>
+
+      <view v-if="!started" class="instruction">
+        <YoungChildCue kind="color"></YoungChildCue>
+        <text class="instruction-title">颜色比文字更重要</text>
+        <text class="instruction-copy">{{ readingMode ? '上面的“黄”是蓝色，所以应该选择蓝色。' : '看到中间的彩色星星，选择相同颜色。' }}</text>
+        <button class="tap-target primary" @click="begin">▶ 开始训练</button>
+      </view>
+
+      <view v-if="started" class="challenge">
+        <text v-if="readingMode" class="color-word" :style="{ color: stimulusColorValue }">{{ wordLabel }}</text>
+        <text v-else class="color-star" :style="{ color: stimulusColorValue }">✦</text>
+        <text class="question">它真正显示的是什么颜色？</text>
+        <view v-if="feedback != ''" class="feedback" :class="feedback == '正确' ? 'feedback-good' : 'feedback-again'">
+          <text class="feedback-text" :class="feedback == '正确' ? 'feedback-text-good' : 'feedback-text-again'">{{ feedback }}</text>
+        </view>
+      </view>
+    </view>
+
+    <view v-if="started" class="answer-grid">
+      <button v-for="color in availableColors" :key="color.id" class="tap-target answer-button" @click="answer(color.id)">
+        <view class="answer-swatch tap-content" :style="{ backgroundColor: color.value }"></view>
+        <text class="answer-label tap-content">{{ color.label }}</text>
+      </button>
+    </view>
+
+    <view class="footer-stats">
+      <view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view>
+      <view class="footer-stat"><text class="footer-value">{{ errors }}</text><text class="footer-label">错误</text></view>
+      <view class="footer-stat"><text class="footer-value">{{ interferenceErrors }}</text><text class="footer-label">干扰错误</text></view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+
+type ColorOption = { id: string, label: string, value: string }
+const COLORS: ColorOption[] = [
+  { id: 'blue', label: '蓝色', value: '#5B8DEF' },
+  { id: 'yellow', label: '黄色', value: '#FFC857' },
+  { id: 'green', label: '绿色', value: '#55C9A5' },
+  { id: 'red', label: '红色', value: '#F17C8D' }
+]
+
+const started = ref(false)
+const readingMode = ref(true)
+const availableColors = ref(COLORS.slice(0, 3))
+const totalRounds = ref(14)
+const roundIndex = ref(0)
+const stimulusColorId = ref('blue')
+const wordColorId = ref('yellow')
+const currentInterference = ref(false)
+const acceptingAnswer = ref(false)
+const feedback = ref('')
+const correct = ref(0)
+const errors = ref(0)
+const interferenceErrors = ref(0)
+const reactions = ref([] as number[])
+let appearedAt = 0
+let gameStartedAt = 0
+let answerTimer = 0
+
+function optionById(id: string): ColorOption {
+  const option = COLORS.find((item: ColorOption): boolean => item.id == id)
+  return option == null ? COLORS[0] : option
+}
+
+const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
+const progressWidth = computed((): string => {
+  if (!started.value) return '0%'
+  return Math.min(100, Math.round((roundIndex.value / totalRounds.value) * 100)).toString() + '%'
+})
+const stimulusColorValue = computed((): string => optionById(stimulusColorId.value).value)
+const wordLabel = computed((): string => optionById(wordColorId.value).label.substring(0, 1))
+
+function configureDifficulty() {
+  const age = getGameTuningAge('color-command')
+  readingMode.value = age >= 7
+  if (age <= 6) { totalRounds.value = 10; availableColors.value = COLORS.slice(0, 2) }
+  else if (age <= 9) { totalRounds.value = 14; availableColors.value = COLORS.slice(0, 3) }
+  else if (age <= 12) { totalRounds.value = 18; availableColors.value = COLORS.slice(0, 4) }
+  else { totalRounds.value = 22; availableColors.value = COLORS.slice(0, 4) }
+}
+
+function randomColorId(): string {
+  return availableColors.value[Math.floor(Math.random() * availableColors.value.length)].id
+}
+
+function differentColorId(id: string): string {
+  let candidate = randomColorId()
+  while (candidate == id) candidate = randomColorId()
+  return candidate
+}
+
+function clearTimer() { if (answerTimer > 0) clearTimeout(answerTimer) }
+
+function finishGame() {
+  clearTimer()
+  const accuracy = Math.round((correct.value / totalRounds.value) * 100)
+  const reactionTotal = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
+  const average = reactions.value.length == 0 ? 0 : Math.round(reactionTotal / reactions.value.length)
+  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  uni.redirectTo({
+    url: '/pages/result/result?gameId=color-command&dimensionId=selective&score=' + accuracy.toString() +
+      '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() +
+      '&interferenceErrors=' + interferenceErrors.value.toString()
+  })
+}
+
+function prepareRound() {
+  if (roundIndex.value >= totalRounds.value) {
+    finishGame()
+    return
+  }
+  stimulusColorId.value = randomColorId()
+  currentInterference.value = readingMode.value && Math.random() < 0.65
+  wordColorId.value = currentInterference.value ? differentColorId(stimulusColorId.value) : stimulusColorId.value
+  feedback.value = ''
+  acceptingAnswer.value = true
+  appearedAt = Date.now()
+}
+
+function begin() {
+  started.value = true
+  gameStartedAt = Date.now()
+  prepareRound()
+}
+
+function answer(colorId: string) {
+  if (!started.value || !acceptingAnswer.value) return
+  acceptingAnswer.value = false
+  reactions.value.push(Date.now() - appearedAt)
+  if (colorId == stimulusColorId.value) {
+    correct.value += 1
+    feedback.value = '正确'
+  } else {
+    errors.value += 1
+    if (currentInterference.value) interferenceErrors.value += 1
+    feedback.value = '只看颜色'
+  }
+  answerTimer = setTimeout(() => {
+    roundIndex.value += 1
+    prepareRound()
+  }, 500)
+}
+
+onLoad((_options: OnLoadOptions) => configureDifficulty())
+onUnload(() => clearTimer())
+</script>
+
+<style>
+.page { flex: 1; padding: 20px; }
+.game-header { flex-direction: row; justify-content: space-between; align-items: center; }
+.round-label { color: #b68418; font-size: 12px; font-weight: 700; }
+.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #fff4d7; align-items: center; justify-content: center; }
+.counter-value { color: #a97810; font-size: 13px; font-weight: 700; }
+.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }
+.progress-fill { height: 8px; border-radius: 4px; background-color: #ffc857; }
+.rule-card { margin-top: 14px; padding: 15px 17px; border-radius: 18px; background-color: #fff7e5; }
+.rule-kicker { color: #998353; font-size: 10px; font-weight: 700; }
+.rule-title { margin-top: 3px; color: #51462f; font-size: 17px; font-weight: 700; }
+.rule-tip { margin-top: 4px; color: #887a5e; font-size: 11px; }
+.play-area { margin-top: 14px; height: 280px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+.decor-dot { position: absolute; width: 19px; height: 19px; border-radius: 10px; opacity: 0.18; }
+.decor-one { left: 24px; top: 32px; background-color: #5b8def; }.decor-two { right: 31px; top: 54px; background-color: #f17c8d; }
+.decor-three { left: 48px; bottom: 38px; background-color: #55c9a5; }.decor-four { right: 57px; bottom: 29px; background-color: #ffc857; }
+.instruction { width: 80%; align-items: center; z-index: 2; }
+.sample-word-value { font-size: 74px; font-weight: 800; }
+.instruction-title { margin-top: 11px; color: #25314a; font-size: 19px; font-weight: 700; }
+.instruction-copy { margin-top: 8px; color: #7b8599; font-size: 12px; line-height: 19px; text-align: center; }
+.primary { margin-top: 18px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #e5aa27; color: #ffffff; font-size: 14px; font-weight: 700; }
+.challenge { align-items: center; z-index: 2; }
+.color-word, .color-star { font-size: 92px; font-weight: 800; }
+.question { margin-top: 5px; color: #747f95; font-size: 13px; }
+.feedback { position: absolute; bottom: 13px; padding: 7px 14px; border-radius: 13px; }
+.feedback-good { background-color: #e6f7f0; }.feedback-again { background-color: #fff0f1; }
+.feedback-text-good { color: #338e72; font-size: 12px; font-weight: 700; }.feedback-text-again { color: #c65b66; font-size: 12px; font-weight: 700; }
+.answer-grid { margin-top: 12px; flex-direction: row; flex-wrap: wrap; justify-content: center; }
+.answer-button { margin: 5px; width: 43%; height: 54px; border-radius: 16px; background-color: #ffffff; flex-direction: row; align-items: center; justify-content: center; }
+.answer-swatch { width: 24px; height: 24px; border-radius: 12px; }
+.answer-label { margin-left: 8px; color: #3d485f; font-size: 13px; font-weight: 700; }
+.footer-stats { margin-top: 12px; flex-direction: row; }
+.footer-stat { flex: 1; align-items: center; }
+.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }
+.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+</style>

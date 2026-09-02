@@ -1,0 +1,119 @@
+<template>
+  <view class="page">
+    <view class="game-header">
+      <view><text class="round-label">选择注意训练</text><text class="game-title">森林寻宝</text></view>
+      <view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view>
+    </view>
+    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+    <view class="mission-card">
+      <text class="mission-label">本轮目标</text>
+      <view class="mission-row"><image class="mission-icon" :src="objectPath(targetItem)" mode="aspectFit"></image><text class="mission-text">还要找到 {{ remaining }} 个</text></view>
+    </view>
+
+    <view v-if="!started" class="instruction">
+      <YoungChildCue kind="search"></YoungChildCue>
+      <text class="instruction-title">在许多物品中找到指定目标</text>
+      <text class="instruction-copy">点击所有相同的卡通目标，其他物品是干扰。</text>
+      <button class="tap-target primary" @click="begin">▶ 开始寻宝</button>
+    </view>
+    <view v-else class="search-board">
+      <view v-for="(item, index) in board" :key="index" class="object-card" :class="foundIndexes.indexOf(index) >= 0 ? 'object-found' : ''" @click="choose(item, index)">
+        <text v-if="foundIndexes.indexOf(index) >= 0" class="found-symbol">✓</text>
+        <image v-else class="object-image" :src="objectPath(item)" mode="aspectFit"></image>
+      </view>
+    </view>
+
+    <view class="feedback-space"><text v-if="feedback != ''" :class="feedback == '找到了' ? 'good' : 'again'">{{ feedback }}</text></view>
+    <view class="footer-stats">
+      <view class="footer-stat"><text class="footer-value">{{ foundTotal }}</text><text class="footer-label">找到</text></view>
+      <view class="footer-stat"><text class="footer-value">{{ errors }}</text><text class="footer-label">误点</text></view>
+      <view class="footer-stat"><text class="footer-value">{{ reactionLabel }}</text><text class="footer-label">平均发现</text></view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+import { GAME_OBJECT_IDS, getGameObjectPath } from '../../utils/game-assets.uts'
+
+const ITEMS = GAME_OBJECT_IDS
+const started = ref(false)
+const totalRounds = ref(4)
+const boardSize = ref(12)
+const targetPerRound = ref(3)
+const roundIndex = ref(0)
+const targetItem = ref('bunny')
+const board = ref([] as string[])
+const foundIndexes = ref([] as number[])
+const remaining = ref(0)
+const foundTotal = ref(0)
+const errors = ref(0)
+const feedback = ref('')
+const reactions = ref([] as number[])
+let roundStartedAt = 0
+let gameStartedAt = 0
+let nextTimer = 0
+
+const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
+const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
+const reactionLabel = computed((): string => {
+  if (reactions.value.length == 0) return '--'
+  const total = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
+  return Math.round(total / reactions.value.length).toString() + 'ms'
+})
+function objectPath(id: string): string { return getGameObjectPath(id) }
+
+function configureDifficulty() {
+  const age = getGameTuningAge('forest-search')
+  if (age <= 6) { totalRounds.value = 3; boardSize.value = 9; targetPerRound.value = 2 }
+  else if (age <= 9) { totalRounds.value = 4; boardSize.value = 12; targetPerRound.value = 3 }
+  else if (age <= 12) { totalRounds.value = 5; boardSize.value = 16; targetPerRound.value = 3 }
+  else { totalRounds.value = 6; boardSize.value = 20; targetPerRound.value = 4 }
+}
+function shuffled(values: string[]): string[] {
+  const result = values.slice()
+  for (let i = result.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const v = result[i]; result[i] = result[j]; result[j] = v }
+  return result
+}
+function clearTimer() { if (nextTimer > 0) clearTimeout(nextTimer) }
+function finishGame() {
+  clearTimer()
+  const accuracy = Math.round((foundTotal.value / Math.max(1, foundTotal.value + errors.value)) * 100)
+  const reactionTotal = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
+  const average = reactions.value.length == 0 ? 0 : Math.round(reactionTotal / reactions.value.length)
+  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  uni.redirectTo({ url: '/pages/result/result?gameId=forest-search&dimensionId=selective&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() })
+}
+function prepareRound() {
+  if (roundIndex.value >= totalRounds.value) { finishGame(); return }
+  targetItem.value = ITEMS[Math.floor(Math.random() * ITEMS.length)]
+  const values = [] as string[]
+  for (let i = 0; i < targetPerRound.value; i++) values.push(targetItem.value)
+  const distractors = ITEMS.filter((item: string): boolean => item != targetItem.value)
+  while (values.length < boardSize.value) values.push(distractors[Math.floor(Math.random() * distractors.length)])
+  board.value = shuffled(values); foundIndexes.value = [] as number[]; remaining.value = targetPerRound.value
+  feedback.value = ''; roundStartedAt = Date.now()
+}
+function begin() { started.value = true; gameStartedAt = Date.now(); prepareRound() }
+function choose(item: string, index: number) {
+  if (foundIndexes.value.indexOf(index) >= 0) return
+  if (item == targetItem.value) {
+    foundIndexes.value.push(index); remaining.value -= 1; foundTotal.value += 1; feedback.value = '找到了'
+    reactions.value.push(Date.now() - roundStartedAt); roundStartedAt = Date.now()
+    if (remaining.value == 0) nextTimer = setTimeout(() => { roundIndex.value += 1; prepareRound() }, 500)
+  } else { errors.value += 1; feedback.value = '这不是目标' }
+}
+onLoad((_options: OnLoadOptions) => configureDifficulty()); onUnload(() => clearTimer())
+</script>
+
+<style>
+.page { flex: 1; padding: 20px; }.game-header { flex-direction: row; justify-content: space-between; align-items: center; }.round-label { color: #3a9a7b; font-size: 12px; font-weight: 700; }.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #e8f7f1; align-items: center; justify-content: center; }.counter-value { color: #378f73; font-size: 13px; font-weight: 700; }.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; background-color: #55c9a5; }
+.mission-card { margin-top: 14px; padding: 14px 18px; border-radius: 18px; background-color: #eaf8f3; }.mission-label { color: #718b82; font-size: 10px; }.mission-row { margin-top: 4px; flex-direction: row; align-items: center; }.mission-icon { width: 44px; height: 44px; border-radius: 11px; }.mission-text { margin-left: 12px; color: #3e6257; font-size: 14px; font-weight: 700; }
+.instruction { margin-top: 16px; padding: 34px 22px; border-radius: 23px; background-color: #ffffff; align-items: center; }.instruction-title { color: #344059; font-size: 16px; font-weight: 700; text-align: center; }.instruction-copy { margin-top: 8px; color: #818a9f; font-size: 11px; line-height: 18px; text-align: center; }.primary { margin-top: 18px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #55c9a5; color: #ffffff; font-size: 14px; font-weight: 700; }
+.search-board { margin-top: 12px; padding: 8px; border-radius: 23px; background-color: #dff2e9; flex-direction: row; flex-wrap: wrap; justify-content: center; }.object-card { margin: 4px; width: 20%; height: 68px; border-radius: 15px; background-color: #ffffff; align-items: center; justify-content: center; overflow: hidden; }.object-image { width: 58px; height: 58px; border-radius: 11px; }.object-found { background-color: #bde6d6; }.found-symbol { color: #2b9270; font-size: 22px; font-weight: 700; }
+.feedback-space { height: 34px; align-items: center; justify-content: center; }.good { color: #338e72; font-size: 12px; font-weight: 700; }.again { color: #c65b66; font-size: 12px; font-weight: 700; }.footer-stats { flex-direction: row; }.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 17px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+</style>

@@ -1,0 +1,46 @@
+<template>
+  <view class="cue">
+    <view v-if="props.kind == 'tap'" class="cue-row">
+      <view class="target gold"><text class="target-symbol">✦</text></view><text class="motion-arrow">→</text><view class="finger"><text class="finger-symbol">☝</text></view>
+    </view>
+    <view v-else-if="props.kind == 'match'" class="cue-row">
+      <view class="shape-box"><text class="shape-symbol">●</text></view><text class="motion-arrow">→</text><view class="choice-pair"><view class="mini-choice"><text class="mini-symbol">▲</text></view><view class="mini-choice selected"><text class="mini-symbol">●</text></view></view>
+    </view>
+    <view v-else-if="props.kind == 'color'" class="cue-row">
+      <view class="target blue"><text class="target-symbol">✦</text></view><text class="motion-arrow">→</text><view class="choice-pair"><view class="color-choice yellow"></view><view class="color-choice blue selected"></view></view>
+    </view>
+    <view v-else-if="props.kind == 'search'" class="cue-row">
+      <image class="object-image" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image><text class="motion-arrow">→</text><view class="choice-pair"><image class="mini-image" src="/static/images/runtime/game-objects/car-yellow-card-v1.png" mode="aspectFit"></image><image class="mini-image selected" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image></view>
+    </view>
+    <view v-else-if="props.kind == 'change'" class="change-cue">
+      <view class="cue-row compact"><image class="mini-image" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image><image class="mini-image" src="/static/images/runtime/game-objects/car-yellow-card-v1.png" mode="aspectFit"></image><image class="mini-image" src="/static/images/runtime/game-objects/boat-blue-card-v1.png" mode="aspectFit"></image></view>
+      <text class="down-arrow">↓</text>
+      <view class="cue-row compact"><image class="mini-image" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image><image class="mini-image selected" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.png" mode="aspectFit"></image><image class="mini-image" src="/static/images/runtime/game-objects/boat-blue-card-v1.png" mode="aspectFit"></image></view>
+    </view>
+    <view v-else-if="props.kind == 'watch'" class="cue-row">
+      <view class="target gold"><text class="target-symbol">●</text></view><text class="motion-arrow">→</text><view class="finger"><text class="finger-symbol">☝</text></view><view class="target muted"><text class="target-symbol">☾</text></view><text class="pause-symbol">Ⅱ</text>
+    </view>
+    <view v-else-if="props.kind == 'listen'" class="listen-cue">
+      <text class="side-arrow">←</text><view class="sound-bubble"><text class="sound-symbol">♫</text></view><text class="side-arrow">→</text>
+      <view class="listen-actions"><view class="listen-choice"><text class="listen-choice-symbol">←</text></view><view class="listen-choice"><text class="listen-choice-symbol">→</text></view></view>
+    </view>
+    <view v-else-if="props.kind == 'breathe'" class="breathe-cue">
+      <view class="planet-small"><text class="planet-symbol">✦</text></view><text class="motion-arrow">↔</text><view class="planet-large"><text class="planet-symbol">✦</text></view>
+    </view>
+    <view v-else-if="props.kind == 'track'" class="cue-row">
+      <view class="track-dot"></view><text class="track-path">· · ·</text><image class="firefly" src="/static/images/runtime/game-objects/firefly-tracking-v1.png" mode="aspectFit"></image><text class="motion-arrow">→</text><view class="finger"><text class="finger-symbol">☝</text></view>
+    </view>
+    <view v-else-if="props.kind == 'traffic'" class="traffic-cue">
+      <view class="traffic-pair"><view class="traffic-light green"></view><view class="action green-action"><text class="action-symbol">✓</text></view></view>
+      <view class="traffic-pair"><view class="traffic-light red"></view><view class="action red-action"><text class="action-symbol">Ⅱ</text></view></view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+const props = defineProps<{ kind: string }>()
+</script>
+
+<style>
+.cue { width: 100%; min-height: 98px; align-items: center; justify-content: center; }.cue-row { flex-direction: row; align-items: center; justify-content: center; }.compact { min-height: 42px; }.target, .shape-box, .finger { width: 58px; height: 58px; border-radius: 18px; align-items: center; justify-content: center; }.gold { background-color: #ffc857; }.blue { background-color: #5b8def; }.muted { margin-left: 14px; background-color: #dce3ee; }.target-symbol { color: #ffffff; font-size: 28px; }.shape-box { background-color: #eef2f8; }.shape-symbol { color: #5b8def; font-size: 29px; }.finger { background-color: #e8f7f1; }.finger-symbol { color: #338e72; font-size: 30px; }.motion-arrow { margin: 0 13px; color: #8a94a7; font-size: 25px; font-weight: 700; }.down-arrow { color: #8a94a7; font-size: 20px; }.choice-pair { flex-direction: row; }.mini-choice, .color-choice { margin: 0 3px; width: 46px; height: 46px; border-radius: 13px; background-color: #eef2f8; align-items: center; justify-content: center; }.mini-symbol { color: #59667e; font-size: 23px; }.selected { border: 3px solid #55c9a5; }.yellow { background-color: #ffc857; }.object-image { width: 66px; height: 66px; border-radius: 14px; }.mini-image { margin: 0 3px; width: 48px; height: 48px; border-radius: 11px; }.change-cue { align-items: center; }.pause-symbol { margin-left: 7px; color: #8390a6; font-size: 25px; }.listen-cue { align-items: center; }.side-arrow { margin: 0 15px; color: #5b8def; font-size: 30px; font-weight: 700; }.sound-bubble { width: 58px; height: 58px; border-radius: 29px; background-color: #eaf0ff; align-items: center; justify-content: center; }.sound-symbol { color: #5b8def; font-size: 30px; }.listen-actions { margin-top: 7px; flex-direction: row; }.listen-choice { margin: 0 5px; width: 43px; height: 30px; border-radius: 10px; background-color: #f0f4fa; align-items: center; justify-content: center; }.listen-choice-symbol { color: #53617c; font-size: 19px; }.breathe-cue { flex-direction: row; align-items: center; }.planet-small, .planet-large { border-radius: 50%; background-color: #55c9a5; align-items: center; justify-content: center; }.planet-small { width: 46px; height: 46px; }.planet-large { width: 74px; height: 74px; }.planet-symbol { color: #ffffff; font-size: 24px; }.track-dot { width: 10px; height: 10px; border-radius: 5px; background-color: #cbd5e5; }.track-path { margin-left: 7px; color: #a6b0c1; font-size: 22px; }.firefly { width: 68px; height: 68px; }.traffic-cue { flex-direction: row; }.traffic-pair { margin: 0 12px; align-items: center; }.traffic-light { width: 45px; height: 45px; border-radius: 23px; }.green { background-color: #55c9a5; }.red { background-color: #f17c8d; }.action { margin-top: 6px; width: 38px; height: 30px; border-radius: 10px; align-items: center; justify-content: center; }.green-action { background-color: #e5f6ef; }.red-action { background-color: #fde9ec; }.action-symbol { color: #53617c; font-size: 20px; font-weight: 700; }
+</style>

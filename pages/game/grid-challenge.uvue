@@ -1,0 +1,84 @@
+<template>
+  <view class="page">
+    <view class="header"><view><text class="dimension">{{ dimensionLabel }}</text><text class="title">{{ gameName }}</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
+    <view class="progress"><view class="progress-fill" :style="{ width: progressWidth, backgroundColor: accentColor }"></view></view>
+    <view class="mission">
+      <text class="mission-title">{{ missionTitle }}</text>
+      <text class="mission-tip">{{ missionTip }}</text>
+    </view>
+
+    <view v-if="!started" class="instruction">
+      <YoungChildCue :kind="mode == 'spot-change' ? 'change' : mode == 'memory-search' ? 'search' : 'match'"></YoungChildCue>
+      <text class="instruction-copy">{{ introCopy }}</text>
+      <button class="tap-target primary" :style="{ backgroundColor: accentColor }" @click="begin">▶ 开始训练</button>
+    </view>
+
+    <view v-else class="board-wrap">
+      <view v-if="phase == 'preview' && mode == 'memory-search'" class="preview-mask"><text class="preview-message">记住这个目标</text><image class="preview-target" :src="objectPath(targetSymbol)" mode="aspectFit"></image></view>
+      <view v-else class="board-stage">
+        <text v-if="phase == 'preview' && mode == 'spot-change'" class="board-preview-message">记住这些卡通图案的位置</text>
+        <view class="board">
+          <view v-for="(symbol, index) in board" :key="index" class="cell" @click="choose(index)"><image class="cell-image tap-content" :src="objectPath(symbol)" mode="aspectFit"></image></view>
+        </view>
+      </view>
+    </view>
+
+    <view class="feedback"><text v-if="feedback != ''" :class="feedback == '正确' ? 'good' : 'again'">{{ feedback }}</text></view>
+    <view class="stats"><view class="stat-item"><text class="value">{{ correct }}</text><text class="label">正确</text></view><view class="stat-item"><text class="value">{{ errors }}</text><text class="label">错误</text></view><view class="stat-item"><text class="value">{{ reactionLabel }}</text><text class="label">平均反应</text></view></view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+import { getGameName } from '../../utils/catalog.uts'
+import { GAME_OBJECT_IDS, getGameObjectPath } from '../../utils/game-assets.uts'
+
+const SYMBOLS = GAME_OBJECT_IDS
+const mode = ref('spot-change'), gameName = ref('找出变化'), dimensionId = ref('sustained')
+const started = ref(false), phase = ref('search'), totalRounds = ref(4), gridSize = ref(9), previewDuration = ref(2200), roundIndex = ref(0)
+const board = ref([] as string[]), originalBoard = ref([] as string[]), targetSymbol = ref('bunny'), answerIndex = ref(0)
+const accepting = ref(false), feedback = ref(''), correct = ref(0), errors = ref(0), reactions = ref([] as number[])
+let shownAt = 0, gameStartedAt = 0, phaseTimer = 0, nextTimer = 0
+const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
+const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
+const dimensionLabel = computed((): string => mode.value == 'spot-change' ? '持续注意训练' : mode.value == 'symbol-detective' ? '选择注意训练' : '分配注意训练')
+const accentColor = computed((): string => mode.value == 'spot-change' ? '#55C9A5' : mode.value == 'symbol-detective' ? '#FFC857' : '#F17C8D')
+const missionTitle = computed((): string => mode.value == 'spot-change' ? '记住卡通网格，然后找出变化' : mode.value == 'symbol-detective' ? '找到唯一不同的卡通物体' : '记住卡通目标，再从网格中找到它')
+const missionTip = computed((): string => phase.value == 'preview' ? '请认真观察' : '点击你认为正确的位置')
+const introCopy = computed((): string => mode.value == 'spot-change' ? '卡通网格会短暂展示，随后一个位置发生变化。' : mode.value == 'symbol-detective' ? '在相同卡通物体中找出唯一不同的一个。' : '先记住卡通目标，再搜索目标并忽略其他物体。')
+const reactionLabel = computed((): string => { if (reactions.value.length == 0) return '--'; const sum = reactions.value.reduce((a: number, b: number): number => a + b, 0); return Math.round(sum / reactions.value.length).toString() + 'ms' })
+function objectPath(id: string): string { return getGameObjectPath(id) }
+
+function configureDifficulty() { const age = getGameTuningAge(mode.value); if (age <= 6) { totalRounds.value = 3; gridSize.value = 9; previewDuration.value = 2200 } else if (age <= 9) { totalRounds.value = 4; gridSize.value = 12; previewDuration.value = 2400 } else if (age <= 12) { totalRounds.value = 5; gridSize.value = 16; previewDuration.value = 2800 } else { totalRounds.value = 6; gridSize.value = 20; previewDuration.value = 3200 } }
+function randomSymbol(except: string): string { let value = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]; while (value == except) value = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]; return value }
+function shuffle(values: string[]): string[] { const result = values.slice(); for (let i = result.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const v = result[i]; result[i] = result[j]; result[j] = v } return result }
+function clearTimers() { if (phaseTimer > 0) clearTimeout(phaseTimer); if (nextTimer > 0) clearTimeout(nextTimer) }
+function finish() { clearTimers(); const accuracy = Math.round((correct.value / totalRounds.value) * 100); const sum = reactions.value.reduce((a: number, b: number): number => a + b, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=' + mode.value + '&dimensionId=' + dimensionId.value + '&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() }) }
+function prepare() {
+  if (roundIndex.value >= totalRounds.value) { finish(); return }
+  feedback.value = ''; accepting.value = false
+  if (mode.value == 'symbol-detective') {
+    const common = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]; targetSymbol.value = randomSymbol(common); answerIndex.value = Math.floor(Math.random() * gridSize.value)
+    const values = [] as string[]; for (let i = 0; i < gridSize.value; i++) values.push(i == answerIndex.value ? targetSymbol.value : common); board.value = values; phase.value = 'search'; accepting.value = true; shownAt = Date.now()
+  } else if (mode.value == 'memory-search') {
+    targetSymbol.value = SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]; phase.value = 'preview'
+    phaseTimer = setTimeout(() => { const values = [] as string[]; values.push(targetSymbol.value); while (values.length < gridSize.value) values.push(randomSymbol(targetSymbol.value)); board.value = shuffle(values); answerIndex.value = board.value.indexOf(targetSymbol.value); phase.value = 'search'; accepting.value = true; shownAt = Date.now() }, 1100)
+  } else {
+    const values = [] as string[]; while (values.length < gridSize.value) values.push(SYMBOLS[Math.floor(Math.random() * SYMBOLS.length)]); originalBoard.value = values; board.value = values.slice(); phase.value = 'preview'
+    phaseTimer = setTimeout(() => { answerIndex.value = Math.floor(Math.random() * gridSize.value); const changed = board.value.slice(); changed[answerIndex.value] = randomSymbol(changed[answerIndex.value]); board.value = changed; phase.value = 'search'; accepting.value = true; shownAt = Date.now() }, previewDuration.value)
+  }
+}
+function begin() { started.value = true; gameStartedAt = Date.now(); prepare() }
+function choose(index: number) { if (!accepting.value) return; accepting.value = false; reactions.value.push(Date.now() - shownAt); if (index == answerIndex.value) { correct.value += 1; feedback.value = '正确' } else { errors.value += 1; feedback.value = '再仔细观察' }; nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 520) }
+onLoad((options: UTSJSONObject) => { const option = options['gameId']; mode.value = option == null || option == '' ? 'spot-change' : option as string; gameName.value = getGameName(mode.value); dimensionId.value = mode.value == 'spot-change' ? 'sustained' : mode.value == 'symbol-detective' ? 'selective' : 'divided'; configureDifficulty() })
+onUnload(() => clearTimers())
+</script>
+
+<style>
+.page { flex: 1; padding: 20px; }.header { flex-direction: row; align-items: center; justify-content: space-between; }.dimension { color: #7b8498; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #edf1f7; align-items: center; justify-content: center; }.counter-value { color: #65718b; font-size: 13px; font-weight: 700; }.progress { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; }
+.mission { margin-top: 14px; padding: 15px 17px; border-radius: 18px; background-color: #ffffff; }.mission-title { color: #3c485f; font-size: 15px; font-weight: 700; }.mission-tip { margin-top: 4px; color: #858fa3; font-size: 11px; }.instruction { margin-top: 16px; padding: 30px 22px; border-radius: 24px; background-color: #ffffff; align-items: center; }.instruction-image { width: 96px; height: 96px; border-radius: 20px; }.instruction-copy { margin-top: 14px; color: #737e94; font-size: 12px; line-height: 19px; text-align: center; }.primary { margin-top: 20px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; color: #ffffff; font-size: 14px; font-weight: 700; }
+.board-wrap { margin-top: 14px; min-height: 360px; border-radius: 24px; background-color: #ffffff; align-items: center; justify-content: center; }.preview-mask { align-items: center; }.preview-message { color: #6e7890; font-size: 14px; }.preview-target { margin-top: 20px; width: 124px; height: 124px; border-radius: 22px; }.board-stage { width: 100%; align-items: center; }.board-preview-message { margin-top: 12px; color: #468b75; font-size: 13px; font-weight: 700; }.board { padding: 10px; width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: center; }.cell { margin: 4px; width: 19%; height: 68px; border-radius: 14px; background-color: #f0f4fa; align-items: center; justify-content: center; overflow: hidden; }.cell-image { width: 58px; height: 58px; border-radius: 11px; }.feedback { height: 34px; align-items: center; justify-content: center; }.good { color: #338e72; font-size: 12px; font-weight: 700; }.again { color: #c65b66; font-size: 12px; font-weight: 700; }.stats { flex-direction: row; }.stat-item { flex: 1; align-items: center; }.value { color: #25314a; font-size: 17px; font-weight: 700; }.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+</style>

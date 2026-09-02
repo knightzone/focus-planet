@@ -1,0 +1,69 @@
+<template>
+  <scroll-view class="page" scroll-y="true">
+    <view class="intro">
+      <text class="title">五维专注力训练</text>
+      <text class="subtitle">年龄只决定首次默认难度，之后会根据每天的最佳表现自动调整。</text>
+    </view>
+
+    <view v-for="dimension in dimensions" :key="dimension.id" class="dimension-block">
+      <view class="dimension-head">
+        <view class="color-mark" :style="{ backgroundColor: dimension.color }"></view>
+        <view class="dimension-copy">
+          <text class="dimension-title">{{ dimension.name }}</text>
+          <text class="dimension-description">{{ dimension.description }}</text>
+        </view>
+      </view>
+      <view class="game-list">
+        <view v-for="game in gameList(dimension.id)" :key="game.id" class="game-row" @click="openGame(game.id, game.status)">
+          <view class="game-index tap-content"><text class="game-index-value">{{ game.name.substring(0, 1) }}</text></view>
+          <view class="game-copy tap-content">
+            <text class="game-name">{{ game.name }}</text>
+            <text class="game-summary">{{ game.summary }} · 难度 {{ difficultyFor(game.id) }}/4</text>
+          </view>
+          <text v-if="game.status == 'ready'" class="ready tap-content">开始</text>
+          <text v-else class="planned tap-content">待开发</text>
+        </view>
+      </view>
+    </view>
+    <view class="bottom-space"></view>
+  </scroll-view>
+</template>
+
+<script setup lang="uts">
+import { DIMENSIONS, gamesForDimension, getGameRoute, TrainingGame } from '../../utils/catalog.uts'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+
+const dimensions = DIMENSIONS
+function gameList(id: string): TrainingGame[] { return gamesForDimension(id) }
+function difficultyFor(id: string): number { return getGameDifficulty(id) }
+function openGame(id: string, status: string) {
+  if (status != 'ready') {
+    uni.showToast({ title: '该训练将在后续版本开放', icon: 'none' })
+    return
+  }
+  uni.navigateTo({ url: getGameRoute(id) })
+}
+</script>
+
+<style>
+.page { height: 100%; }
+.intro { padding: 24px 20px 10px; }
+.title { color: #1f2a44; font-size: 24px; font-weight: 700; }
+.subtitle { margin-top: 8px; color: #6f7a91; font-size: 13px; line-height: 20px; }
+.dimension-block { margin: 14px 16px; padding: 18px; border-radius: 22px; background-color: #ffffff; }
+.dimension-head { flex-direction: row; align-items: center; }
+.color-mark { width: 13px; height: 46px; border-radius: 7px; }
+.dimension-copy { margin-left: 12px; }
+.dimension-title { color: #25314b; font-size: 18px; font-weight: 700; }
+.dimension-description { margin-top: 4px; color: #7a8499; font-size: 12px; }
+.game-list { margin-top: 14px; }
+.game-row { min-height: 72px; padding: 12px 0; border-top: 1px solid #edf0f5; flex-direction: row; align-items: center; }
+.game-index { width: 44px; height: 44px; border-radius: 12px; background-color: #f1f5fb; align-items: center; justify-content: center; }
+.game-index-value { color: #53617c; font-weight: 700; }
+.game-copy { margin-left: 11px; flex: 1; }
+.game-name { color: #2b3650; font-size: 14px; font-weight: 600; }
+.game-summary { margin-top: 4px; color: #8a93a6; font-size: 11px; }
+.ready { color: #5b8def; font-size: 12px; font-weight: 700; }
+.planned { color: #a3aaba; font-size: 11px; }
+.bottom-space { height: 30px; }
+</style>

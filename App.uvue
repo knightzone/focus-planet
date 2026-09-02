@@ -1,0 +1,29 @@
+<script lang="uts">
+export default {
+  onLaunch: function () {
+    console.log('专注星球启动')
+  }
+}
+</script>
+
+<style>
+.page {
+  background-color: #f5f8fc;
+}
+
+.tap-target {
+  min-width: 48px;
+  min-height: 48px;
+}
+
+.tap-link {
+  min-width: 48px;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+}
+
+.tap-content {
+  pointer-events: none;
+}
+</style>

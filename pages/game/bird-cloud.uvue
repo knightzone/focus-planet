@@ -1,0 +1,101 @@
+<template><view class="page">
+  <view class="header"><view><text class="dimension">持续注意训练</text><text class="title">小鸟穿云</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
+  <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+  <view class="tip"><text class="tip-title">点击天空，让小鸟向上飞</text><text class="tip-copy">不点击会下落，连续穿过云门缺口</text></view>
+  <view class="sky" @click="flap">
+    <view class="distance-line distance-one tap-content"></view><view class="distance-line distance-two tap-content"></view>
+    <view class="bird-wrap tap-content" :style="{ top: birdTop }"><image class="bird" src="/static/images/runtime/game-characters/tap-bird-v1.png" mode="aspectFit"></image></view>
+    <view class="gate tap-content" :style="{ left: gateLeft }">
+      <view class="cloud-wall cloud-top" :style="{ height: topWallHeight }"><text class="cloud-mark">☁</text></view>
+      <view class="gap-outline" :style="{ top: gapTop, height: gapHeight }"><text class="gap-mark">○</text></view>
+      <view class="cloud-wall cloud-bottom" :style="{ height: bottomWallHeight }"><text class="cloud-mark">☁</text></view>
+    </view>
+    <view class="tap-hint tap-content"><text class="tap-hint-symbol">↑</text><text class="tap-hint-copy">点天空上升</text></view>
+    <text class="feedback tap-content" :class="feedback == '穿过去了' ? 'good' : 'again'">{{ feedback }}</text>
+  </view>
+  <button class="tap-target flap-button" @click="flap"><text class="flap-symbol tap-content">↑</text><text class="flap-copy tap-content">拍一拍，向上飞</text></button>
+  <view class="stats"><view class="stat"><text class="value">{{ passed }}</text><text class="label">连续通过</text></view><view class="stat"><text class="value">{{ hits }}</text><text class="label">碰云</text></view><view class="stat"><text class="value">{{ levelLabel }}</text><text class="label">速度</text></view></view>
+</view></template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+const GAME_HEIGHT = 390
+const BIRD_SIZE = 66
+const totalRounds = ref(12), roundIndex = ref(0), passed = ref(0), hits = ref(0)
+const birdY = ref(150.0), birdVelocity = ref(0.0), gateX = ref(105.0)
+const gapCenter = ref(195.0), gapSize = ref(150.0), gateSpeed = ref(1.1)
+const gravity = ref(0.42), flapPower = ref(-6.4), gateResolved = ref(false), active = ref(true)
+const feedback = ref(''), feedbackTicks = ref(0), speedLevel = ref(1)
+let gameTimer = 0, gameStartedAt = 0
+const displayRound = computed((): number => Math.min(totalRounds.value, roundIndex.value + 1))
+const progressWidth = computed((): string => Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%')
+const birdTop = computed((): string => Math.round(birdY.value).toString() + 'px')
+const gateLeft = computed((): string => gateX.value.toString() + '%')
+const gapTop = computed((): string => Math.round(gapCenter.value - gapSize.value / 2).toString() + 'px')
+const gapHeight = computed((): string => Math.round(gapSize.value).toString() + 'px')
+const topWallHeight = computed((): string => Math.max(0, Math.round(gapCenter.value - gapSize.value / 2)).toString() + 'px')
+const bottomWallHeight = computed((): string => Math.max(0, Math.round(GAME_HEIGHT - gapCenter.value - gapSize.value / 2)).toString() + 'px')
+const levelLabel = computed((): string => speedLevel.value.toString() + '级')
+function configure() {
+  const age = getGameTuningAge('bird-cloud')
+  if (age <= 6) { totalRounds.value = 10; gapSize.value = 166.0; gateSpeed.value = 0.95; gravity.value = 0.36; flapPower.value = -5.9 }
+  else if (age <= 9) { totalRounds.value = 14; gapSize.value = 150.0; gateSpeed.value = 1.1 }
+  else { totalRounds.value = 18; gapSize.value = 138.0; gateSpeed.value = 1.25; gravity.value = 0.46; flapPower.value = -6.7 }
+}
+function updateDifficulty() {
+  speedLevel.value = Math.floor(roundIndex.value / 4) + 1
+  gateSpeed.value += 0.08
+  gapSize.value = Math.max(104.0, gapSize.value - 2.5)
+}
+function randomizeGap() {
+  const half = gapSize.value / 2
+  const minCenter = half + 28
+  const maxCenter = GAME_HEIGHT - half - 28
+  gapCenter.value = minCenter + Math.random() * (maxCenter - minCenter)
+}
+function resetGate() { gateX.value = 105.0; gateResolved.value = false; randomizeGap() }
+function flap() { if (active.value) birdVelocity.value = flapPower.value }
+function finish() {
+  active.value = false
+  if (gameTimer > 0) clearInterval(gameTimer)
+  const accuracy = Math.round((passed.value / Math.max(1, totalRounds.value)) * 100)
+  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  uni.redirectTo({ url: '/pages/result/result?gameId=bird-cloud&dimensionId=sustained&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + duration.toString() + '&omissions=' + hits.value.toString() })
+}
+function resolveGate() {
+  if (gateResolved.value) return
+  gateResolved.value = true
+  const birdCenter = birdY.value + BIRD_SIZE / 2
+  const gapStart = gapCenter.value - gapSize.value / 2 + 8
+  const gapEnd = gapCenter.value + gapSize.value / 2 - 8
+  if (birdCenter >= gapStart && birdCenter <= gapEnd) { passed.value += 1; feedback.value = '穿过去了' }
+  else { hits.value += 1; feedback.value = '碰到云了' }
+  feedbackTicks.value = 18
+  roundIndex.value += 1
+  updateDifficulty()
+  if (roundIndex.value >= totalRounds.value) finish()
+}
+function tick() {
+  if (!active.value) return
+  birdVelocity.value += gravity.value
+  if (birdVelocity.value > 7.2) birdVelocity.value = 7.2
+  birdY.value += birdVelocity.value
+  if (birdY.value < 0) { birdY.value = 0.0; birdVelocity.value = 0.4 }
+  const floor = GAME_HEIGHT - BIRD_SIZE
+  if (birdY.value > floor) { birdY.value = floor; birdVelocity.value = -2.4 }
+  gateX.value -= gateSpeed.value
+  if (!gateResolved.value && gateX.value <= 27.0) resolveGate()
+  if (gateX.value <= -28.0 && active.value) resetGate()
+  if (feedbackTicks.value > 0) { feedbackTicks.value -= 1; if (feedbackTicks.value == 0) feedback.value = '' }
+}
+onLoad((_options: OnLoadOptions) => { configure(); randomizeGap(); gameStartedAt = Date.now(); gameTimer = setInterval(() => tick(), 32) })
+onUnload(() => { active.value = false; if (gameTimer > 0) clearInterval(gameTimer) })
+</script>
+
+<style>
+.page { flex: 1; padding: 20px; }.header { flex-direction: row; justify-content: space-between; align-items: center; }.dimension { color: #348d74; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #e3f6ef; align-items: center; justify-content: center; }.counter-value { color: #348d74; font-size: 13px; font-weight: 700; }.progress { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; background-color: #55c9a5; }.tip { margin-top: 14px; padding: 15px; border-radius: 18px; background-color: #eaf8f3; }.tip-title { color: #315f52; font-size: 14px; font-weight: 700; }.tip-copy { margin-top: 4px; color: #6c9589; font-size: 10px; }
+.sky { margin-top: 16px; height: 390px; border-radius: 25px; background-color: #dff3ff; position: relative; overflow: hidden; }.distance-line { position: absolute; left: 0; width: 100%; height: 2px; border-top: 2px dashed rgba(255,255,255,0.78); }.distance-one { top: 130px; }.distance-two { top: 260px; }.bird-wrap { position: absolute; left: 18px; width: 66px; height: 66px; z-index: 4; }.bird { width: 66px; height: 66px; }.gate { position: absolute; top: 0; width: 90px; height: 390px; z-index: 3; }.cloud-wall { position: absolute; left: 0; width: 90px; background-color: #ffffff; align-items: center; justify-content: center; overflow: hidden; }.cloud-top { top: 0; border-radius: 0 0 28px 28px; }.cloud-bottom { bottom: 0; border-radius: 28px 28px 0 0; }.cloud-mark { color: #bed7e6; font-size: 48px; }.gap-outline { position: absolute; left: 5px; width: 80px; border: 3px dashed rgba(74,166,210,0.55); border-radius: 25px; align-items: center; justify-content: center; }.gap-mark { color: #57a9cf; font-size: 24px; }.tap-hint { position: absolute; left: 16px; bottom: 14px; padding: 7px 10px; border-radius: 13px; background-color: rgba(255,255,255,0.75); flex-direction: row; align-items: center; }.tap-hint-symbol { color: #3f9bc6; font-size: 16px; font-weight: 800; }.tap-hint-copy { margin-left: 4px; color: #4f8ca9; font-size: 9px; font-weight: 700; }.feedback { position: absolute; top: 16px; width: 100%; text-align: center; font-size: 13px; font-weight: 800; z-index: 6; }.good { color: #287c65; }.again { color: #c65b66; }
+.flap-button { margin-top: 14px; padding: 0; width: 100%; height: 58px; border-radius: 17px; background-color: #55c9a5; flex-direction: row; align-items: center; justify-content: center; }.flap-symbol { color: #ffffff; font-size: 22px; font-weight: 800; }.flap-copy { margin-left: 8px; color: #ffffff; font-size: 13px; font-weight: 700; }.stats { margin-top: 12px; flex-direction: row; }.stat { flex: 1; align-items: center; }.value { color: #25314a; font-size: 18px; font-weight: 700; }.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+</style>

@@ -1,0 +1,160 @@
+import { getProfile, getRecords, TrainingRecord, getLocalDayKey } from './storage.uts'
+
+export type DifficultyState = {
+  gameId: string,
+  level: number,
+  lastLowPairKey: string,
+  updatedAt: number
+}
+
+export type DifficultyUpdate = {
+  previousLevel: number,
+  currentLevel: number,
+  change: number,
+  message: string
+}
+
+type DailyPeak = {
+  dayKey: string,
+  peak: number
+}
+
+const DIFFICULTY_KEY = 'focus_planet_difficulty_states'
+export const MAX_DIFFICULTY = 4
+export const UPGRADE_SCORE = 85
+export const LOW_SCORE = 60
+
+function clampLevel(level: number): number {
+  return Math.max(1, Math.min(MAX_DIFFICULTY, level))
+}
+
+export function defaultDifficultyForAge(age: number): number {
+  if (age <= 6) return 1
+  if (age <= 9) return 2
+  if (age <= 12) return 3
+  return 4
+}
+
+function readStates(): DifficultyState[] {
+  const value = uni.getStorageSync(DIFFICULTY_KEY)
+  if (value == null || value == '') return [] as DifficultyState[]
+  const states = JSON.parse<DifficultyState[]>(JSON.stringify(value))
+  return states == null ? [] as DifficultyState[] : states
+}
+
+function saveStates(states: DifficultyState[]) {
+  uni.setStorageSync(DIFFICULTY_KEY, states)
+}
+
+function ensureState(gameId: string): DifficultyState {
+  const states = readStates()
+  const found = states.find((item: DifficultyState): boolean => item.gameId == gameId)
+  if (found != null) return found
+  const profile = getProfile()
+  const state = {
+    gameId: gameId,
+    level: defaultDifficultyForAge(profile == null ? 8 : profile.age),
+    lastLowPairKey: '',
+    updatedAt: Date.now()
+  } as DifficultyState
+  states.push(state)
+  saveStates(states)
+  return state
+}
+
+function replaceState(state: DifficultyState) {
+  const states = readStates()
+  const index = states.findIndex((item: DifficultyState): boolean => item.gameId == state.gameId)
+  if (index < 0) states.push(state)
+  else states[index] = state
+  saveStates(states)
+}
+
+function closedDayPeaks(gameId: string, level: number, records: TrainingRecord[], todayKey: string): DailyPeak[] {
+  const peaks = [] as DailyPeak[]
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i]
+    if (record.gameId != gameId || record.difficultyLevel == null || record.difficultyLevel != level) continue
+    const dayKey = getLocalDayKey(record.completedAt)
+    if (dayKey == todayKey) continue
+    const existing = peaks.find((item: DailyPeak): boolean => item.dayKey == dayKey)
+    if (existing == null) peaks.push({ dayKey: dayKey, peak: record.score })
+    else if (record.score > existing.peak) existing.peak = record.score
+  }
+  peaks.sort((left: DailyPeak, right: DailyPeak): number => left.dayKey < right.dayKey ? -1 : left.dayKey > right.dayKey ? 1 : 0)
+  return peaks
+}
+
+export function getGameDifficulty(gameId: string): number {
+  const state = ensureState(gameId)
+  const previousLevel = state.level
+  let shouldSave = false
+  const peaks = closedDayPeaks(gameId, state.level, getRecords(), getLocalDayKey(Date.now()))
+  if (peaks.length >= 2) {
+    const first = peaks[peaks.length - 2]
+    const second = peaks[peaks.length - 1]
+    const pairKey = state.level.toString() + ':' + first.dayKey + ':' + second.dayKey
+    if (first.peak < LOW_SCORE && second.peak < LOW_SCORE && pairKey != state.lastLowPairKey) {
+      state.lastLowPairKey = pairKey
+      shouldSave = true
+      if (state.level > 1) state.level -= 1
+    }
+  }
+  if (state.level != previousLevel || shouldSave) {
+    state.updatedAt = Date.now()
+    replaceState(state)
+  }
+  return clampLevel(state.level)
+}
+
+export function getGameTuningAge(gameId: string): number {
+  const level = getGameDifficulty(gameId)
+  if (level == 1) return 5
+  if (level == 2) return 8
+  if (level == 3) return 11
+  return 14
+}
+
+export function getDifficultyLabel(level: number): string {
+  const normalized = clampLevel(level)
+  if (normalized == 1) return '难度 1 · 轻松'
+  if (normalized == 2) return '难度 2 · 成长'
+  if (normalized == 3) return '难度 3 · 进阶'
+  return '难度 4 · 挑战'
+}
+
+export function updateGameDifficulty(gameId: string, playedLevel: number, score: number, completedAt: number, records: TrainingRecord[]): DifficultyUpdate {
+  const state = ensureState(gameId)
+  const previousLevel = clampLevel(state.level)
+  let message = '继续保持当前难度'
+
+  if (playedLevel == previousLevel && score >= UPGRADE_SCORE) {
+    if (previousLevel < MAX_DIFFICULTY) state.level = previousLevel + 1
+    state.lastLowPairKey = ''
+    message = previousLevel < MAX_DIFFICULTY ? '表现达标，下次进入难度 ' + state.level.toString() : '已达到最高难度，继续保持'
+  } else {
+    const peaks = closedDayPeaks(gameId, previousLevel, records, getLocalDayKey(completedAt))
+    if (peaks.length >= 2) {
+      const first = peaks[peaks.length - 2]
+      const second = peaks[peaks.length - 1]
+      const pairKey = previousLevel.toString() + ':' + first.dayKey + ':' + second.dayKey
+      if (first.peak < LOW_SCORE && second.peak < LOW_SCORE && pairKey != state.lastLowPairKey) {
+        state.lastLowPairKey = pairKey
+        if (previousLevel > 1) {
+          state.level = previousLevel - 1
+          message = '最近两个训练日的最高分偏低，下次调整为难度 ' + state.level.toString()
+        }
+      }
+    }
+  }
+
+  state.level = clampLevel(state.level)
+  state.updatedAt = completedAt
+  replaceState(state)
+  return {
+    previousLevel: previousLevel,
+    currentLevel: state.level,
+    change: state.level - previousLevel,
+    message: message
+  }
+}

@@ -1,0 +1,190 @@
+{
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/profile/profile",
+      "style": {
+        "navigationBarTitleText": "创建档案"
+      }
+    },
+    {
+      "path": "pages/dimensions/dimensions",
+      "style": {
+        "navigationBarTitleText": "五维训练"
+      }
+    },
+    {
+      "path": "pages/game/star-catcher",
+      "style": {
+        "navigationBarTitleText": "星星捕手"
+      }
+    },
+    {
+      "path": "pages/game/sound-location",
+      "style": {
+        "navigationBarTitleText": "声音在哪里"
+      }
+    },
+    {
+      "path": "pages/game/sky-watcher",
+      "style": {
+        "navigationBarTitleText": "星空守望员"
+      }
+    },
+    {
+      "path": "pages/game/breathing-planet",
+      "style": {
+        "navigationBarTitleText": "呼吸小星球"
+      }
+    },
+    {
+      "path": "pages/game/magic-rule",
+      "style": {
+        "navigationBarTitleText": "魔法规则"
+      }
+    },
+    {
+      "path": "pages/game/color-command",
+      "style": {
+        "navigationBarTitleText": "颜色指令"
+      }
+    },
+    {
+      "path": "pages/game/sound-filter",
+      "style": {
+        "navigationBarTitleText": "声音过滤器"
+      }
+    },
+    {
+      "path": "pages/game/dual-track",
+      "style": {
+        "navigationBarTitleText": "双轨任务"
+      }
+    },
+    {
+      "path": "pages/game/listen-find",
+      "style": {
+        "navigationBarTitleText": "听声找图"
+      }
+    },
+    {
+      "path": "pages/game/shape-match",
+      "style": {
+        "navigationBarTitleText": "图形配对"
+      }
+    },
+    {
+      "path": "pages/game/forest-search",
+      "style": {
+        "navigationBarTitleText": "森林寻宝"
+      }
+    },
+    {
+      "path": "pages/game/red-green",
+      "style": {
+        "navigationBarTitleText": "红绿指令"
+      }
+    },
+    {
+      "path": "pages/game/sorting-station",
+      "style": {
+        "navigationBarTitleText": "分类车站"
+      }
+    },
+    {
+      "path": "pages/game/number-track",
+      "style": {
+        "navigationBarTitleText": "奇偶轨道"
+      }
+    },
+    {
+      "path": "pages/game/grid-challenge",
+      "style": {
+        "navigationBarTitleText": "网格训练"
+      }
+    },
+    {
+      "path": "pages/game/motion-challenge",
+      "style": {
+        "navigationBarTitleText": "轨迹训练"
+      }
+    },
+    {
+      "path": "pages/game/spot-difference",
+      "style": {
+        "navigationBarTitleText": "找茬乐园"
+      }
+    },
+    {
+      "path": "pages/game/number-tap",
+      "style": {
+        "navigationBarTitleText": "数字连点"
+      }
+    },
+    {
+      "path": "pages/game/audio-sequence",
+      "style": {
+        "navigationBarTitleText": "听音节奏"
+      }
+    },
+    {
+      "path": "pages/game/penalty-kick",
+      "style": {
+        "navigationBarTitleText": "点球小将"
+      }
+    },
+    {
+      "path": "pages/game/water-sort",
+      "style": {
+        "navigationBarTitleText": "倒水小实验"
+      }
+    },
+    {
+      "path": "pages/game/pattern-find",
+      "style": {
+        "navigationBarTitleText": "规律小侦探"
+      }
+    },
+    {
+      "path": "pages/game/bird-cloud",
+      "style": {
+        "navigationBarTitleText": "小鸟穿云"
+      }
+    },
+    {
+      "path": "pages/result/result",
+      "style": {
+        "navigationBarTitleText": "训练完成"
+      }
+    },
+    {
+      "path": "pages/report/report",
+      "style": {
+        "navigationBarTitleText": "成长报告"
+      }
+    },
+    {
+      "path": "pages/history/history",
+      "style": {
+        "navigationBarTitleText": "训练历史"
+      }
+    },
+    {
+      "path": "pages/settings/settings",
+      "style": {
+        "navigationBarTitleText": "档案与设置"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "专注星球",
+    "navigationBarBackgroundColor": "#F5F8FC",
+    "backgroundColor": "#F5F8FC"
+  }
+}

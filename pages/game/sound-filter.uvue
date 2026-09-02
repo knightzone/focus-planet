@@ -1,0 +1,56 @@
+<template>
+  <view class="page">
+    <view class="game-header"><view><text class="round-label">选择注意训练</text><text class="game-title">声音过滤器</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
+    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+    <view class="rule-card"><view><text class="rule-title">忽略背景里的低声干扰</text><text class="rule-tip">只选择前景中最清楚的提示音</text></view><button class="tap-target replay" :disabled="!accepting" @click="replay">再听一次</button></view>
+
+    <view v-if="!started" class="instruction">
+      <YoungChildCue kind="listen"></YoungChildCue>
+      <text class="instruction-title">先认识目标提示音</text><text class="instruction-copy">点图案试听清晰版本。训练中会加入背景声，请找出原来的提示音。</text>
+      <view class="samples"><button v-for="cue in availableCues" :key="cue.id" class="tap-target sample" @click="preview(cue.id)"><text class="sample-symbol tap-content">{{ cue.icon }}</text><text class="sample-tip tap-content">试听</text></button></view>
+      <button class="tap-target primary" @click="begin">▶ 开始训练</button>
+    </view>
+    <view v-else class="challenge">
+      <view class="noise-view"><view class="wave wave-one"></view><view class="wave wave-two"></view><view class="sound-core"><text class="sound-core-symbol">♫</text></view></view>
+      <text class="question">刚才最清楚的是哪一种声音？</text>
+      <view class="answers"><button v-for="cue in availableCues" :key="cue.id" class="tap-target answer" :disabled="!accepting" @click="answer(cue.id)"><text class="answer-symbol tap-content">{{ cue.icon }}</text></button></view>
+      <text class="feedback" :class="feedback == '过滤正确' ? 'good' : 'again'">{{ feedback }}</text>
+    </view>
+    <view class="footer-stats"><view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view><view class="footer-stat"><text class="footer-value">{{ interferenceErrors }}</text><text class="footer-label">干扰错误</text></view><view class="footer-stat"><text class="footer-value">{{ replayCount }}</text><text class="footer-label">重听</text></view></view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+type SoundCue = { id: string, icon: string }
+const CUES: SoundCue[] = [{ id: 'star', icon: '✦' }, { id: 'moon', icon: '☾' }, { id: 'planet', icon: '●' }]
+const started = ref(false), accepting = ref(false), availableCues = ref(CUES.slice(0, 2))
+const totalRounds = ref(10), roundIndex = ref(0), targetId = ref('star')
+const correct = ref(0), interferenceErrors = ref(0), replayCount = ref(0), feedback = ref('')
+const reactions = ref([] as number[]), audio = ref<InnerAudioContext | null>(null)
+let appearedAt = 0, gameStartedAt = 0, nextTimer = 0
+const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
+const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
+function configure() { const age = getGameTuningAge('sound-filter'); if (age <= 6) totalRounds.value = 8; else if (age <= 9) totalRounds.value = 10; else { availableCues.value = CUES.slice(0, 3); totalRounds.value = age <= 12 ? 14 : 18 } }
+function cuePath(id: string, filtered: boolean): string { return filtered ? '/static/audio/filter/' + id + '.wav' : '/static/audio/cues/' + id + '.wav' }
+function play(id: string, filtered: boolean) { if (audio.value == null) audio.value = uni.createInnerAudioContext(); else audio.value!.stop(); audio.value!.src = cuePath(id, filtered); audio.value!.play() }
+function preview(id: string) { play(id, false) }
+function clearResources() { if (nextTimer > 0) clearTimeout(nextTimer); audio.value?.stop() }
+function finish() { clearResources(); const accuracy = Math.round((correct.value / totalRounds.value) * 100); const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=sound-filter&dimensionId=selective&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&interferenceErrors=' + interferenceErrors.value.toString() }) }
+function prepare() { if (roundIndex.value >= totalRounds.value) { finish(); return }; targetId.value = availableCues.value[Math.floor(Math.random() * availableCues.value.length)].id; feedback.value = ''; accepting.value = true; appearedAt = Date.now(); play(targetId.value, true) }
+function begin() { started.value = true; gameStartedAt = Date.now(); prepare() }
+function replay() { if (!accepting.value) return; replayCount.value += 1; play(targetId.value, true) }
+function answer(id: string) { if (!accepting.value) return; accepting.value = false; reactions.value.push(Date.now() - appearedAt); if (id == targetId.value) { correct.value += 1; feedback.value = '过滤正确' } else { interferenceErrors.value += 1; feedback.value = '被背景声干扰了' }; nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 620) }
+onLoad((_options: OnLoadOptions) => configure()); onUnload(() => { clearResources(); audio.value?.destroy(); audio.value = null })
+</script>
+
+<style>
+.page { flex: 1; padding: 20px; }.game-header { flex-direction: row; justify-content: space-between; align-items: center; }.round-label { color: #ad7a10; font-size: 12px; font-weight: 700; }.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #fff4d7; align-items: center; justify-content: center; }.counter-value { color: #a97810; font-size: 13px; font-weight: 700; }
+.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; background-color: #ffc857; }.rule-card { margin-top: 14px; padding: 15px; border-radius: 18px; background-color: #fff7e5; flex-direction: row; align-items: center; justify-content: space-between; }.rule-title { color: #594b2f; font-size: 14px; font-weight: 700; }.rule-tip { margin-top: 4px; color: #8b7b59; font-size: 10px; }.replay { margin: 0; padding: 0 12px; height: 48px; line-height: 48px; border-radius: 11px; background-color: #ffffff; color: #a97810; font-size: 11px; }
+.instruction, .challenge { margin-top: 14px; height: 355px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; }.instruction-title { color: #25314a; font-size: 19px; font-weight: 700; }.instruction-copy { margin-top: 8px; width: 80%; color: #7b8599; font-size: 11px; line-height: 18px; text-align: center; }.samples, .answers { margin-top: 20px; flex-direction: row; justify-content: center; }.sample { margin: 0 6px; padding: 0; width: 74px; height: 82px; border-radius: 18px; background-color: #fff7e5; align-items: center; justify-content: center; }.sample-symbol { color: #d49a1d; font-size: 31px; }.sample-tip { margin-top: 3px; color: #9c8b68; font-size: 9px; }.primary { margin-top: 20px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #e4ab2b; color: #ffffff; font-size: 14px; font-weight: 700; }
+.noise-view { width: 170px; height: 150px; align-items: center; justify-content: center; position: relative; }.wave { position: absolute; border: 3px solid #f0d998; border-radius: 50%; }.wave-one { width: 115px; height: 115px; }.wave-two { width: 160px; height: 145px; }.sound-core { width: 74px; height: 74px; border-radius: 37px; background-color: #ffc857; align-items: center; justify-content: center; }.sound-core-symbol { color: #ffffff; font-size: 34px; }.question { margin-top: 12px; color: #626d83; font-size: 12px; }.answer { margin: 0 6px; padding: 0; width: 78px; height: 72px; border-radius: 18px; background-color: #f3f6fb; align-items: center; justify-content: center; }.answer-symbol { color: #52617c; font-size: 34px; }.feedback { margin-top: 17px; font-size: 12px; font-weight: 700; }.good { color: #338e72; }.again { color: #c65b66; }
+.footer-stats { margin-top: 14px; flex-direction: row; }.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+</style>

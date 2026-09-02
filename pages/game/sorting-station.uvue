@@ -1,0 +1,56 @@
+<template>
+  <view class="page">
+    <view class="game-header"><view><text class="round-label">转换注意训练</text><text class="game-title">分类车站</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
+    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+    <view class="rule-card"><text class="rule-kicker">当前分类规则</text><text class="rule-title">{{ ruleTitle }}</text><text v-if="justSwitched" class="switch-badge">规则换站了</text></view>
+    <view class="station">
+      <view v-if="!started" class="instruction"><YoungChildCue kind="match"></YoungChildCue><text class="instruction-title">看规则，把乘客送上正确轨道</text><text class="instruction-copy">卡通物体会按类别、颜色和显示大小分类。每一轮都先看上方提示。</text><button class="tap-target primary" @click="begin">▶ 列车出发</button></view>
+      <view v-else class="challenge"><image class="item-image" :src="objectPath(currentItem.assetId)" mode="aspectFit" :style="{ width: currentSize, height: currentSize }"></image><text class="item-hint">{{ itemHint }}</text><text class="feedback" :class="feedback == '分类正确' ? 'good' : 'again'">{{ feedback }}</text></view>
+    </view>
+    <view v-if="started" class="tracks"><button class="tap-target track left" :disabled="!accepting" @click="answer('left')"><text class="track-name tap-content">{{ leftLabel }}</text><text class="track-arrow tap-content">←</text></button><button class="tap-target track right" :disabled="!accepting" @click="answer('right')"><text class="track-name tap-content">{{ rightLabel }}</text><text class="track-arrow tap-content">→</text></button></view>
+    <view class="footer-stats"><view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view><view class="footer-stat"><text class="footer-value">{{ errors }}</text><text class="footer-label">错误</text></view><view class="footer-stat"><text class="footer-value">{{ switchErrors }}</text><text class="footer-label">切换错误</text></view></view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+import { getGameObjectPath } from '../../utils/game-assets.uts'
+type SortItem = { assetId: string, kind: string, color: string, size: string }
+const ITEMS: SortItem[] = [
+  { assetId: 'bunny', kind: 'animal', color: 'blue', size: 'small' },
+  { assetId: 'kitten', kind: 'animal', color: 'yellow', size: 'large' },
+  { assetId: 'car', kind: 'vehicle', color: 'yellow', size: 'small' },
+  { assetId: 'boat', kind: 'vehicle', color: 'blue', size: 'large' }
+]
+const started = ref(false), accepting = ref(false), includeSize = ref(false), rule = ref('kind'), justSwitched = ref(false)
+const totalRounds = ref(14), blockSize = ref(4), roundIndex = ref(0), currentItem = ref(ITEMS[0])
+const correct = ref(0), errors = ref(0), switchErrors = ref(0), feedback = ref(''), reactions = ref([] as number[])
+let appearedAt = 0, gameStartedAt = 0, nextTimer = 0
+const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
+const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
+const ruleTitle = computed((): string => rule.value == 'kind' ? '动物去左边 · 车辆去右边' : rule.value == 'color' ? '蓝色去左边 · 黄色去右边' : '小号去左边 · 大号去右边')
+const leftLabel = computed((): string => rule.value == 'kind' ? '动物' : rule.value == 'color' ? '蓝色' : '小号')
+const rightLabel = computed((): string => rule.value == 'kind' ? '车辆' : rule.value == 'color' ? '黄色' : '大号')
+const currentSize = computed((): string => currentItem.value.size == 'large' ? '126px' : '88px')
+const itemHint = computed((): string => (currentItem.value.kind == 'animal' ? '动物乘客' : '车辆乘客') + ' · ' + (currentItem.value.color == 'blue' ? '蓝色' : '黄色') + ' · ' + (currentItem.value.size == 'large' ? '大号' : '小号'))
+function objectPath(id: string): string { return getGameObjectPath(id) }
+function configure() { const age = getGameTuningAge('sorting-station'); if (age <= 6) { totalRounds.value = 10; blockSize.value = 5 } else if (age <= 9) { totalRounds.value = 14; blockSize.value = 4 } else if (age <= 12) { totalRounds.value = 18; blockSize.value = 3; includeSize.value = true } else { totalRounds.value = 22; blockSize.value = 3; includeSize.value = true } }
+function nextRule() { if (!includeSize.value) rule.value = rule.value == 'kind' ? 'color' : 'kind'; else rule.value = rule.value == 'kind' ? 'color' : rule.value == 'color' ? 'size' : 'kind' }
+function clearTimer() { if (nextTimer > 0) clearTimeout(nextTimer) }
+function finish() { clearTimer(); const accuracy = Math.round((correct.value / totalRounds.value) * 100); const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=sorting-station&dimensionId=alternating&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&switchErrors=' + switchErrors.value.toString() }) }
+function prepare() { if (roundIndex.value >= totalRounds.value) { finish(); return }; justSwitched.value = roundIndex.value > 0 && roundIndex.value % blockSize.value == 0; if (justSwitched.value) nextRule(); currentItem.value = ITEMS[Math.floor(Math.random() * ITEMS.length)]; feedback.value = ''; accepting.value = true; appearedAt = Date.now() }
+function begin() { started.value = true; gameStartedAt = Date.now(); prepare() }
+function expected(): string { if (rule.value == 'kind') return currentItem.value.kind == 'animal' ? 'left' : 'right'; if (rule.value == 'color') return currentItem.value.color == 'blue' ? 'left' : 'right'; return currentItem.value.size == 'small' ? 'left' : 'right' }
+function answer(side: string) { if (!accepting.value) return; accepting.value = false; reactions.value.push(Date.now() - appearedAt); if (side == expected()) { correct.value += 1; feedback.value = '分类正确' } else { errors.value += 1; if (justSwitched.value) switchErrors.value += 1; feedback.value = '再看当前规则' }; nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 560) }
+onLoad((_options: OnLoadOptions) => configure()); onUnload(() => clearTimer())
+</script>
+
+<style>
+.page { flex: 1; padding: 20px; }.game-header { flex-direction: row; justify-content: space-between; align-items: center; }.round-label { color: #8062bf; font-size: 12px; font-weight: 700; }.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #eee9fa; align-items: center; justify-content: center; }.counter-value { color: #785bb7; font-size: 13px; font-weight: 700; }
+.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; background-color: #9b7ede; }.rule-card { margin-top: 14px; padding: 15px; border-radius: 18px; background-color: #f0eafa; position: relative; }.rule-kicker { color: #8a7aa9; font-size: 10px; }.rule-title { margin-top: 4px; color: #514269; font-size: 15px; font-weight: 700; }.switch-badge { position: absolute; right: 12px; top: 16px; padding: 5px 9px; border-radius: 10px; background-color: #fff2cc; color: #a4730d; font-size: 9px; font-weight: 700; }
+.station { margin-top: 14px; height: 290px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; }.instruction, .challenge { width: 100%; align-items: center; }.train-image { width: 92px; height: 92px; border-radius: 19px; }.instruction-title { margin-top: 12px; color: #344059; font-size: 17px; font-weight: 700; }.instruction-copy { margin-top: 8px; width: 80%; color: #818a9f; font-size: 11px; line-height: 18px; text-align: center; }.primary { margin-top: 15px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #9b7ede; color: #ffffff; font-size: 14px; font-weight: 700; }.item-image { border-radius: 22px; }.item-hint { margin-top: 8px; color: #788298; font-size: 11px; }.feedback { margin-top: 13px; font-size: 11px; font-weight: 700; }.good { color: #338e72; }.again { color: #c65b66; }
+.tracks { margin-top: 12px; flex-direction: row; }.track { flex: 1; height: 66px; border-radius: 17px; flex-direction: row; align-items: center; justify-content: center; }.left { margin-right: 6px; background-color: #eaf0ff; }.right { margin-left: 6px; background-color: #fff4d7; }.track-name { color: #46536d; font-size: 14px; font-weight: 700; }.track-arrow { margin-left: 9px; color: #7f8ba3; font-size: 20px; }.footer-stats { margin-top: 13px; flex-direction: row; }.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+</style>

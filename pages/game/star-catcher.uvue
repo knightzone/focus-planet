@@ -1,0 +1,136 @@
+<template>
+  <view class="page">
+    <view class="game-header">
+      <view>
+        <text class="round-label">集中注意训练</text>
+        <text class="game-title">找到闪亮的星星</text>
+      </view>
+      <view class="counter"><text class="counter-value">{{ hits }}/{{ targetCount }}</text></view>
+    </view>
+
+    <view class="progress-track">
+      <view class="progress-fill" :style="{ width: progressWidth }"></view>
+    </view>
+
+    <view class="play-area" @click="missTarget">
+      <view class="cloud cloud-one tap-content"></view>
+      <view class="cloud cloud-two tap-content"></view>
+      <view
+        v-if="started && !finished"
+        class="target"
+        :style="{ left: targetX + 'px', top: targetY + 'px' }"
+        @click.stop="hitTarget"
+      >
+        <text class="target-symbol tap-content">✦</text>
+      </view>
+      <view v-if="!started" class="instruction">
+        <YoungChildCue kind="tap"></YoungChildCue>
+        <text class="instruction-title">准备好了吗？</text>
+        <text class="instruction-copy">星星出现后尽快点击它。点错位置不会扣分，但会记录下来。</text>
+        <button class="tap-target primary" @click.stop="begin">▶ 开始</button>
+      </view>
+    </view>
+
+    <view class="footer-stats">
+      <view class="footer-stat">
+        <text class="footer-value">{{ misses }}</text>
+        <text class="footer-label">误触</text>
+      </view>
+      <view class="footer-stat">
+        <text class="footer-value">{{ reactionLabel }}</text>
+        <text class="footer-label">平均反应</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import YoungChildCue from '../../components/YoungChildCue.uvue'
+
+const targetCount = 12
+const started = ref(false)
+const finished = ref(false)
+const hits = ref(0)
+const misses = ref(0)
+const targetX = ref(40)
+const targetY = ref(120)
+const reactions = ref([] as number[])
+let appearedAt = 0
+let gameStartedAt = 0
+
+const progressWidth = computed((): string => ((hits.value / targetCount) * 100).toString() + '%')
+const reactionLabel = computed((): string => {
+  if (reactions.value.length == 0) return '--'
+  const total = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
+  return Math.round(total / reactions.value.length).toString() + 'ms'
+})
+
+function moveTarget() {
+  targetX.value = 18 + Math.floor(Math.random() * 250)
+  targetY.value = 28 + Math.floor(Math.random() * 350)
+  appearedAt = Date.now()
+}
+
+function finishGame() {
+  finished.value = true
+  const total = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
+  const average = reactions.value.length > 0 ? Math.round(total / reactions.value.length) : 0
+  const accuracy = Math.round((hits.value / (hits.value + misses.value)) * 100)
+  const speedBonus = Math.max(0, 60 - Math.round(average / 25))
+  const score = Math.max(10, Math.min(100, Math.round(accuracy * 0.7 + speedBonus * 0.3)))
+  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  uni.redirectTo({
+    url: '/pages/result/result?gameId=star-catcher&dimensionId=focused&score=' + score.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString()
+  })
+}
+
+function begin() {
+  started.value = true
+  gameStartedAt = Date.now()
+  moveTarget()
+}
+
+function hitTarget() {
+  if (!started.value || finished.value) return
+  reactions.value.push(Date.now() - appearedAt)
+  hits.value += 1
+  if (hits.value >= targetCount) {
+    finishGame()
+  } else {
+    moveTarget()
+  }
+}
+
+function missTarget() {
+  if (started.value && !finished.value) misses.value += 1
+}
+
+</script>
+
+<style>
+.page { flex: 1; padding: 20px; }
+.game-header { flex-direction: row; justify-content: space-between; align-items: center; }
+.round-label { color: #5b8def; font-size: 12px; font-weight: 700; }
+.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.counter { width: 58px; height: 38px; border-radius: 19px; background-color: #eaf0ff; align-items: center; justify-content: center; }
+.counter-value { color: #4c78d0; font-size: 13px; font-weight: 700; }
+.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }
+.progress-fill { height: 8px; border-radius: 4px; background-color: #55c9a5; }
+.play-area { margin-top: 18px; height: 470px; border-radius: 26px; background-color: #dfeaff; position: relative; overflow: hidden; align-items: center; justify-content: center; }
+.cloud { position: absolute; height: 30px; border-radius: 15px; background-color: #eef4ff; }
+.cloud-one { width: 110px; left: -20px; top: 56px; }
+.cloud-two { width: 90px; right: -15px; top: 180px; }
+.target { position: absolute; width: 64px; height: 64px; border-radius: 32px; background-color: #ffc857; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(255, 184, 60, 0.35); }
+.target-symbol { color: #ffffff; font-size: 32px; }
+.instruction { width: 78%; padding: 24px; border-radius: 24px; background-color: #ffffff; align-items: center; z-index: 3; }
+.sample-star { width: 70px; height: 70px; border-radius: 35px; background-color: #ffc857; align-items: center; justify-content: center; }
+.sample-star-symbol { color: #ffffff; font-size: 34px; }
+.instruction-title { margin-top: 17px; color: #25314a; font-size: 20px; font-weight: 700; }
+.instruction-copy { margin-top: 8px; color: #778198; font-size: 13px; line-height: 20px; text-align: center; }
+.primary { margin-top: 20px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #5b8def; color: #ffffff; font-size: 15px; font-weight: 700; }
+.footer-stats { margin-top: 16px; flex-direction: row; }
+.footer-stat { flex: 1; align-items: center; }
+.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }
+.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+</style>

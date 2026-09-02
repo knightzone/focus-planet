@@ -1,0 +1,25 @@
+export type GameObjectAsset = {
+  id: string,
+  name: string,
+  path: string,
+  kind: string,
+  color: string
+}
+
+export const GAME_OBJECTS: GameObjectAsset[] = [
+  { id: 'bunny', name: '小兔', path: '/static/images/runtime/game-objects/bunny-blue-card-v1.png', kind: 'animal', color: 'blue' },
+  { id: 'kitten', name: '小猫', path: '/static/images/runtime/game-objects/kitten-yellow-card-v1.png', kind: 'animal', color: 'yellow' },
+  { id: 'car', name: '小汽车', path: '/static/images/runtime/game-objects/car-yellow-card-v1.png', kind: 'vehicle', color: 'yellow' },
+  { id: 'boat', name: '小船', path: '/static/images/runtime/game-objects/boat-blue-card-v1.png', kind: 'vehicle', color: 'blue' }
+]
+
+export const GAME_OBJECT_IDS = ['bunny', 'kitten', 'car', 'boat']
+
+export function getGameObjectAsset(id: string): GameObjectAsset {
+  const asset = GAME_OBJECTS.find((item: GameObjectAsset): boolean => item.id == id)
+  return asset == null ? GAME_OBJECTS[0] : asset
+}
+
+export function getGameObjectPath(id: string): string {
+  return getGameObjectAsset(id).path
+}

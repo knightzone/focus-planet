@@ -1,0 +1,221 @@
+<template>
+  <view class="page">
+    <view class="game-header">
+      <view><text class="round-label">分配注意训练</text><text class="game-title">听声音，也看颜色</text></view>
+      <view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view>
+    </view>
+    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+
+    <view class="rule-card">
+      <view class="color-cue" :style="{ backgroundColor: targetColorValue }"></view>
+      <view class="rule-copy">
+        <text class="rule-title">找到声音代表的图案</text>
+        <text class="rule-tip">同时要和左边的目标颜色一致</text>
+      </view>
+      <button class="tap-target replay" :disabled="!started || !acceptingAnswer" @click="playCue">再听一次</button>
+    </view>
+
+    <view v-if="!started" class="instruction">
+      <YoungChildCue kind="listen"></YoungChildCue>
+      <text class="instruction-title">先认识这些声音</text>
+      <text class="instruction-copy">点一点图案试听。开始后，听声音、看颜色，再找出同时符合的卡片。</text>
+      <view class="sound-samples">
+        <button v-for="cue in availableCues" :key="cue.id" class="tap-target sample" @click="previewCue(cue.id)">
+          <text class="sample-icon tap-content">{{ cue.icon }}</text><text class="sample-label tap-content">试听</text>
+        </button>
+      </view>
+      <button class="tap-target primary" @click="begin">▶ 开始训练</button>
+    </view>
+
+    <view v-else class="play-area">
+      <view class="listen-status">
+        <view class="sound-ripple"><text class="sound-ripple-symbol">♫</text></view>
+        <text class="listen-message">{{ feedback == '' ? '声音已播放，请选择' : feedback }}</text>
+      </view>
+      <view class="option-grid">
+        <button v-for="option in options" :key="option.key" class="tap-target option-card" :disabled="!acceptingAnswer" @click="answer(option.cueId, option.colorId)">
+          <view class="option-color tap-content" :style="{ backgroundColor: colorValue(option.colorId) }"></view>
+          <text class="option-icon tap-content">{{ cueIcon(option.cueId) }}</text>
+        </button>
+      </view>
+    </view>
+
+    <view class="footer-stats">
+      <view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view>
+      <view class="footer-stat"><text class="footer-value">{{ errors }}</text><text class="footer-label">错误</text></view>
+      <view class="footer-stat"><text class="footer-value">{{ replays }}</text><text class="footer-label">重听</text></view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+
+type SoundCue = { id: string, icon: string, source: string }
+type ColorChoice = { id: string, value: string }
+type CardOption = { key: string, cueId: string, colorId: string }
+
+const CUES: SoundCue[] = [
+  { id: 'star', icon: '✦', source: '/static/audio/cues/star.wav' },
+  { id: 'moon', icon: '☾', source: '/static/audio/cues/moon.wav' },
+  { id: 'planet', icon: '●', source: '/static/audio/cues/planet.wav' }
+]
+const COLORS: ColorChoice[] = [
+  { id: 'blue', value: '#5B8DEF' },
+  { id: 'yellow', value: '#FFC857' },
+  { id: 'green', value: '#55C9A5' }
+]
+
+const started = ref(false)
+const acceptingAnswer = ref(false)
+const availableCues = ref(CUES.slice(0, 2))
+const availableColors = ref(COLORS.slice(0, 2))
+const options = ref([] as CardOption[])
+const totalRounds = ref(10)
+const roundIndex = ref(0)
+const targetCueId = ref('star')
+const targetColorId = ref('blue')
+const correct = ref(0)
+const errors = ref(0)
+const replays = ref(0)
+const feedback = ref('')
+const reactions = ref([] as number[])
+let appearedAt = 0
+let gameStartedAt = 0
+let nextTimer = 0
+const audio = ref<InnerAudioContext | null>(null)
+
+function colorValue(id: string): string {
+  const color = COLORS.find((item: ColorChoice): boolean => item.id == id)
+  return color == null ? COLORS[0].value : color.value
+}
+
+const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
+const progressWidth = computed((): string => {
+  if (!started.value) return '0%'
+  return Math.min(100, Math.round((roundIndex.value / totalRounds.value) * 100)).toString() + '%'
+})
+const targetColorValue = computed((): string => colorValue(targetColorId.value))
+
+function configureDifficulty() {
+  const age = getGameTuningAge('listen-find')
+  if (age <= 6) { totalRounds.value = 8; availableCues.value = CUES.slice(0, 2); availableColors.value = COLORS.slice(0, 2) }
+  else if (age <= 9) { totalRounds.value = 10; availableCues.value = CUES.slice(0, 2); availableColors.value = COLORS.slice(0, 3) }
+  else if (age <= 12) { totalRounds.value = 14; availableCues.value = CUES.slice(0, 3); availableColors.value = COLORS.slice(0, 3) }
+  else { totalRounds.value = 18; availableCues.value = CUES.slice(0, 3); availableColors.value = COLORS.slice(0, 3) }
+}
+
+function cueById(id: string): SoundCue {
+  const cue = CUES.find((item: SoundCue): boolean => item.id == id)
+  return cue == null ? CUES[0] : cue
+}
+function cueIcon(id: string): string { return cueById(id).icon }
+function randomCueId(): string { return availableCues.value[Math.floor(Math.random() * availableCues.value.length)].id }
+function randomColorId(): string { return availableColors.value[Math.floor(Math.random() * availableColors.value.length)].id }
+
+function playSound(id: string) {
+  if (audio.value == null) audio.value = uni.createInnerAudioContext()
+  else audio.value!.stop()
+  audio.value!.src = cueById(id).source
+  audio.value!.play()
+}
+function previewCue(id: string) { playSound(id) }
+function playCue() {
+  if (!started.value || !acceptingAnswer.value) return
+  replays.value += 1
+  playSound(targetCueId.value)
+}
+
+function clearResources() {
+  if (nextTimer > 0) clearTimeout(nextTimer)
+  audio.value?.stop()
+}
+
+function finishGame() {
+  clearResources()
+  const accuracy = Math.round((correct.value / totalRounds.value) * 100)
+  const reactionTotal = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
+  const average = reactions.value.length == 0 ? 0 : Math.round(reactionTotal / reactions.value.length)
+  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  uni.redirectTo({
+    url: '/pages/result/result?gameId=listen-find&dimensionId=divided&score=' + accuracy.toString() +
+      '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() +
+      '&falseAlarms=' + errors.value.toString()
+  })
+}
+
+function prepareRound() {
+  if (roundIndex.value >= totalRounds.value) { finishGame(); return }
+  targetCueId.value = randomCueId()
+  targetColorId.value = randomColorId()
+  const cards = [] as CardOption[]
+  for (let cueIndex = 0; cueIndex < availableCues.value.length; cueIndex++) {
+    for (let colorIndex = 0; colorIndex < availableColors.value.length; colorIndex++) {
+      const cueId = availableCues.value[cueIndex].id
+      const colorId = availableColors.value[colorIndex].id
+      cards.push({ key: cueId + '-' + colorId, cueId: cueId, colorId: colorId })
+    }
+  }
+  cards.sort((): number => Math.random() - 0.5)
+  options.value = cards
+  feedback.value = ''
+  acceptingAnswer.value = true
+  appearedAt = Date.now()
+  playSound(targetCueId.value)
+}
+
+function begin() {
+  started.value = true
+  gameStartedAt = Date.now()
+  prepareRound()
+}
+
+function answer(cueId: string, colorId: string) {
+  if (!acceptingAnswer.value) return
+  acceptingAnswer.value = false
+  reactions.value.push(Date.now() - appearedAt)
+  if (cueId == targetCueId.value && colorId == targetColorId.value) {
+    correct.value += 1
+    feedback.value = '两条线索都找对了'
+  } else {
+    errors.value += 1
+    feedback.value = cueId != targetCueId.value ? '再留意声音图案' : '还要看目标颜色'
+  }
+  nextTimer = setTimeout(() => { roundIndex.value += 1; prepareRound() }, 650)
+}
+
+onLoad((_options: OnLoadOptions) => configureDifficulty())
+onUnload(() => { clearResources(); audio.value?.destroy(); audio.value = null })
+</script>
+
+<style>
+.page { flex: 1; padding: 20px; }
+.game-header { flex-direction: row; justify-content: space-between; align-items: center; }
+.round-label { color: #d15f70; font-size: 12px; font-weight: 700; }
+.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #fde9ec; align-items: center; justify-content: center; }
+.counter-value { color: #c95869; font-size: 13px; font-weight: 700; }
+.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }
+.progress-fill { height: 8px; border-radius: 4px; background-color: #f17c8d; }
+.rule-card { margin-top: 14px; padding: 14px; border-radius: 18px; background-color: #fff0f2; flex-direction: row; align-items: center; }
+.color-cue { width: 46px; height: 46px; border-radius: 14px; }
+.rule-copy { margin-left: 12px; flex: 1; }.rule-title { color: #74434b; font-size: 14px; font-weight: 700; }.rule-tip { margin-top: 4px; color: #927078; font-size: 10px; }
+.replay { margin: 0; padding: 0 11px; height: 48px; line-height: 48px; border-radius: 12px; background-color: #ffffff; color: #c95869; font-size: 11px; }
+.instruction { margin-top: 16px; padding: 25px 18px; border-radius: 24px; background-color: #ffffff; align-items: center; }
+.instruction-title { color: #25314a; font-size: 19px; font-weight: 700; }.instruction-copy { margin-top: 8px; color: #7b8599; font-size: 11px; line-height: 18px; text-align: center; }
+.sound-samples { margin-top: 19px; flex-direction: row; justify-content: center; }
+.sample { margin: 0 6px; padding: 0; width: 72px; height: 82px; border-radius: 18px; background-color: #f3f6fb; align-items: center; justify-content: center; }
+.sample-icon { color: #5b8def; font-size: 31px; }.sample-label { margin-top: 4px; color: #7b8599; font-size: 10px; }
+.primary { margin-top: 20px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #f17c8d; color: #ffffff; font-size: 14px; font-weight: 700; }
+.play-area { margin-top: 14px; }
+.listen-status { height: 58px; border-radius: 18px; background-color: #ffffff; flex-direction: row; align-items: center; justify-content: center; }
+.sound-ripple { width: 34px; height: 34px; border-radius: 17px; background-color: #eaf0ff; align-items: center; justify-content: center; }.sound-ripple-symbol { color: #5b8def; font-size: 17px; }
+.listen-message { margin-left: 9px; color: #62708a; font-size: 12px; font-weight: 600; }
+.option-grid { margin-top: 8px; flex-direction: row; flex-wrap: wrap; justify-content: center; }
+.option-card { margin: 5px; padding: 0; width: 29%; height: 92px; border-radius: 18px; background-color: #ffffff; position: relative; align-items: center; justify-content: center; overflow: hidden; }
+.option-color { position: absolute; left: 0; top: 0; width: 100%; height: 10px; }.option-icon { color: #34415c; font-size: 38px; }
+.footer-stats { margin-top: 13px; flex-direction: row; }.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+</style>

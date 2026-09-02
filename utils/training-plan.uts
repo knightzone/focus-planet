@@ -1,0 +1,59 @@
+import { TrainingGame, GAMES, getGameName } from './catalog.uts'
+import { TrainingRecord, getLocalDayKey } from './storage.uts'
+import { getGameDifficulty } from './difficulty.uts'
+
+export type DailyPlanItem = {
+  role: string,
+  gameId: string,
+  name: string,
+  dimensionId: string,
+  difficultyLevel: number,
+  completed: boolean
+}
+
+const WARMUPS = ['star-catcher', 'shape-match', 'number-tap', 'penalty-kick', 'color-command']
+const MAIN_GAMES = ['forest-search', 'spot-change', 'spot-difference', 'sorting-station', 'water-sort', 'pattern-find', 'memory-search', 'sky-watcher', 'audio-sequence']
+const COOLDOWNS = ['breathing-planet', 'light-tracking', 'red-green', 'bird-cloud']
+
+function findAvailable(pool: string[], start: number, used: string[]): TrainingGame {
+  for (let offset = 0; offset < pool.length; offset++) {
+    const id = pool[(start + offset) % pool.length]
+    const game = GAMES.find((item: TrainingGame): boolean => item.id == id)
+    if (game != null && game.status == 'ready' && used.indexOf(id) < 0) return game
+  }
+  return GAMES[0]
+}
+
+export function buildDailyPlan(_age: number, records: TrainingRecord[], timestamp: number): DailyPlanItem[] {
+  const dayKey = getLocalDayKey(timestamp)
+  const date = new Date(timestamp)
+  const seed = date.getFullYear() * 400 + (date.getMonth() + 1) * 32 + date.getDate()
+  const used = [] as string[]
+  const selected = [
+    findAvailable(WARMUPS, seed % WARMUPS.length, used),
+    findAvailable(MAIN_GAMES, seed % MAIN_GAMES.length, used),
+    findAvailable(COOLDOWNS, seed % COOLDOWNS.length, used)
+  ] as TrainingGame[]
+  const roles = ['热身', '主训练', '轻松结束']
+  const todayGameIds = records
+    .filter((record: TrainingRecord): boolean => getLocalDayKey(record.completedAt) == dayKey)
+    .map((record: TrainingRecord): string => record.gameId)
+  const result = [] as DailyPlanItem[]
+  for (let i = 0; i < selected.length; i++) {
+    used.push(selected[i].id)
+    result.push({
+      role: roles[i],
+      gameId: selected[i].id,
+      name: getGameName(selected[i].id),
+      dimensionId: selected[i].dimensionId,
+      difficultyLevel: getGameDifficulty(selected[i].id),
+      completed: todayGameIds.indexOf(selected[i].id) >= 0
+    })
+  }
+  return result
+}
+
+export function nextPendingPlanItem(plan: DailyPlanItem[]): DailyPlanItem | null {
+  const item = plan.find((entry: DailyPlanItem): boolean => !entry.completed)
+  return item == null ? null : item
+}

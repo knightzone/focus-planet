@@ -1,0 +1,147 @@
+<template>
+  <view class="page">
+    <view class="celebration"><text class="celebration-symbol">✦</text></view>
+    <text class="title">训练完成</text>
+    <text class="subtitle">{{ gameName }} · 今天的专注星球又明亮了一点</text>
+    <text class="difficulty-badge">本次难度 {{ playedDifficulty }}/4</text>
+
+    <view class="score-card">
+      <text class="score-label">本次专注得分</text>
+      <text class="score">{{ score }}</text>
+      <view class="score-line"></view>
+      <view class="metrics">
+        <view class="metric">
+          <text class="metric-value">{{ accuracy }}%</text>
+          <text class="metric-label">正确率</text>
+        </view>
+        <view class="metric">
+          <text class="metric-value">{{ reaction }}ms</text>
+          <text class="metric-label">平均反应</text>
+        </view>
+        <view class="metric">
+          <text class="metric-value">+{{ score }}</text>
+          <text class="metric-label">星星能量</text>
+        </view>
+      </view>
+    </view>
+
+    <view class="tip-card">
+      <text class="tip-title">本次表现</text>
+      <text class="tip-copy">{{ feedback }}</text>
+    </view>
+
+    <view class="difficulty-card" :class="difficultyChange > 0 ? 'difficulty-up' : difficultyChange < 0 ? 'difficulty-down' : ''">
+      <text class="difficulty-title">下次难度 {{ nextDifficulty }}/4</text>
+      <text class="difficulty-copy">{{ difficultyMessage }}</text>
+    </view>
+
+    <button class="tap-target primary" @click="continuePlan">{{ nextPlan == null ? '回到首页' : '继续今日训练' }}</button>
+    <button class="tap-target secondary" @click="again">再练一次</button>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+import { addRecord, getProfile, getRecords } from '../../utils/storage.uts'
+import { getGameName, getGameRoute } from '../../utils/catalog.uts'
+import { DailyPlanItem, buildDailyPlan, nextPendingPlanItem } from '../../utils/training-plan.uts'
+import { getGameDifficulty, updateGameDifficulty } from '../../utils/difficulty.uts'
+
+const score = ref(0)
+const accuracy = ref(0)
+const reaction = ref(0)
+const duration = ref(0)
+const gameId = ref('star-catcher')
+const dimensionId = ref('focused')
+const gameName = ref('星星捕手')
+const omissions = ref(0)
+const falseAlarms = ref(0)
+const switchErrors = ref(0)
+const interferenceErrors = ref(0)
+const nextPlan = ref(null as DailyPlanItem | null)
+const playedDifficulty = ref(1)
+const nextDifficulty = ref(1)
+const difficultyChange = ref(0)
+const difficultyMessage = ref('继续保持当前难度')
+
+const feedback = computed((): string => {
+  if (score.value >= 85) return '目标出现时反应很稳定，保持轻松的节奏就很好。'
+  if (score.value >= 65) return '已经完成挑战，下次可以试着减少点错的位置。'
+  return '完成比速度更重要，休息一下再挑战会更轻松。'
+})
+
+function optionString(options: UTSJSONObject, key: string, fallback: string): string {
+  const value = options[key]
+  if (value == null || value == '') return fallback
+  return value as string
+}
+
+function optionNumber(options: UTSJSONObject, key: string): number {
+  return parseInt(optionString(options, key, '0'))
+}
+
+onLoad((options: UTSJSONObject) => {
+  gameId.value = optionString(options, 'gameId', 'star-catcher')
+  dimensionId.value = optionString(options, 'dimensionId', 'focused')
+  gameName.value = getGameName(gameId.value)
+  score.value = optionNumber(options, 'score')
+  accuracy.value = optionNumber(options, 'accuracy')
+  reaction.value = optionNumber(options, 'reaction')
+  duration.value = optionNumber(options, 'duration')
+  omissions.value = optionNumber(options, 'omissions')
+  falseAlarms.value = optionNumber(options, 'falseAlarms')
+  switchErrors.value = optionNumber(options, 'switchErrors')
+  interferenceErrors.value = optionNumber(options, 'interferenceErrors')
+  playedDifficulty.value = getGameDifficulty(gameId.value)
+  const completedAt = Date.now()
+  addRecord({
+    id: Date.now().toString(),
+    gameId: gameId.value,
+    dimensionId: dimensionId.value,
+    score: score.value,
+    difficultyLevel: playedDifficulty.value,
+    accuracy: accuracy.value,
+    averageReaction: reaction.value,
+    durationSeconds: duration.value,
+    omissions: omissions.value,
+    falseAlarms: falseAlarms.value,
+    switchErrors: switchErrors.value,
+    interferenceErrors: interferenceErrors.value,
+    completedAt: completedAt
+  })
+  const difficultyUpdate = updateGameDifficulty(gameId.value, playedDifficulty.value, score.value, completedAt, getRecords())
+  nextDifficulty.value = difficultyUpdate.currentLevel
+  difficultyChange.value = difficultyUpdate.change
+  difficultyMessage.value = difficultyUpdate.message
+  const profile = getProfile()
+  if (profile != null) nextPlan.value = nextPendingPlanItem(buildDailyPlan(profile.age, getRecords(), Date.now()))
+})
+
+function backHome() { uni.reLaunch({ url: '/pages/index/index' }) }
+function continuePlan() { if (nextPlan.value == null) backHome(); else uni.redirectTo({ url: getGameRoute(nextPlan.value!.gameId) }) }
+function again() { uni.redirectTo({ url: getGameRoute(gameId.value) }) }
+</script>
+
+<style>
+.page { padding: 38px 20px 32px; align-items: center; }
+.celebration { width: 92px; height: 92px; border-radius: 46px; background-color: #ffc857; align-items: center; justify-content: center; }
+.celebration-symbol { color: #ffffff; font-size: 42px; }
+.title { margin-top: 21px; color: #1f2a44; font-size: 27px; font-weight: 700; }
+.subtitle { margin-top: 8px; color: #7b859b; font-size: 14px; }
+.difficulty-badge { margin-top: 10px; padding: 7px 12px; border-radius: 12px; background-color: #eaf0ff; color: #4d74c2; font-size: 12px; font-weight: 700; }
+.score-card { margin-top: 28px; width: 100%; padding: 24px 18px; border-radius: 24px; background-color: #ffffff; align-items: center; }
+.score-label { color: #778198; font-size: 13px; }
+.score { margin-top: 7px; color: #5b8def; font-size: 56px; font-weight: 700; }
+.score-line { margin-top: 14px; width: 100%; height: 1px; background-color: #edf0f5; }
+.metrics { margin-top: 18px; width: 100%; flex-direction: row; }
+.metric { flex: 1; align-items: center; }
+.metric-value { color: #2b3650; font-size: 16px; font-weight: 700; }
+.metric-label { margin-top: 4px; color: #929aab; font-size: 10px; }
+.tip-card { margin-top: 16px; width: 100%; padding: 18px; border-radius: 18px; background-color: #eef9f5; }
+.tip-title { color: #328e73; font-size: 14px; font-weight: 700; }
+.tip-copy { margin-top: 7px; color: #5e7c72; font-size: 13px; line-height: 20px; }
+.difficulty-card { margin-top: 12px; width: 100%; padding: 16px 18px; border-radius: 18px; background-color: #eef3fb; }.difficulty-up { background-color: #e8f7f1; }.difficulty-down { background-color: #fff4e5; }.difficulty-title { color: #344059; font-size: 14px; font-weight: 700; }.difficulty-copy { margin-top: 5px; color: #748097; font-size: 12px; line-height: 18px; }
+.primary { margin-top: 24px; width: 100%; height: 50px; line-height: 50px; border-radius: 16px; background-color: #5b8def; color: #ffffff; font-size: 16px; font-weight: 700; }
+.secondary { margin-top: 10px; width: 100%; height: 48px; line-height: 48px; border-radius: 16px; background-color: #eaf0ff; color: #4d74c2; font-size: 15px; }
+</style>

@@ -1,0 +1,112 @@
+<template>
+  <view class="page">
+    <view class="profile-card">
+      <view class="avatar"><text class="avatar-value">{{ age }}</text></view>
+      <view class="profile-copy">
+        <text class="profile-name">{{ nickname }}</text>
+        <text class="profile-mode">年龄用于首次默认难度 · 建议每次 {{ sessionMinutes }} 分钟</text>
+      </view>
+    </view>
+    <view class="form-card">
+      <text class="label">昵称</text>
+      <input class="input" v-model="nickname" maxlength="10" placeholder="输入昵称" />
+      <text class="label age-label">年龄</text>
+      <view class="age-row">
+        <button class="tap-target age-button" @click="changeAge(-1)">−</button>
+        <view class="age-value"><text class="age-number">{{ age }}</text><text class="age-unit">岁</text></view>
+        <button class="tap-target age-button" @click="changeAge(1)">＋</button>
+      </view>
+      <button class="tap-target save-button" @click="saveChanges">保存档案</button>
+    </view>
+    <view class="menu-card">
+      <view class="menu-row" @click="openHistory">
+        <view class="tap-content"><text class="menu-title">训练历史</text><text class="menu-copy">查看保存在本机上的所有记录</text></view>
+        <text class="arrow tap-content">›</text>
+      </view>
+      <view class="menu-row menu-row-last" @click="confirmClear">
+        <view class="tap-content"><text class="danger-title">清除训练记录</text><text class="menu-copy">保留档案，只删除训练数据</text></view>
+        <text class="arrow danger-title tap-content">›</text>
+      </view>
+    </view>
+    <view class="privacy-card">
+      <text class="privacy-title">单机数据说明</text>
+      <text class="privacy-copy">当前版本的档案和训练记录只保存在这台设备中，不会上传。卸载应用或清除应用数据后无法恢复。</text>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { getAgeBand } from '../../utils/catalog.uts'
+import { getProfile, saveProfile, clearTrainingRecords } from '../../utils/storage.uts'
+
+const nickname = ref('')
+const age = ref(8)
+const band = computed(() => getAgeBand(age.value))
+const sessionMinutes = computed((): number => band.value.sessionMinutes)
+
+onShow(() => {
+  const profile = getProfile()
+  if (profile != null) {
+    nickname.value = profile.nickname
+    age.value = profile.age
+  }
+})
+
+function changeAge(delta: number) { age.value = Math.min(16, Math.max(3, age.value + delta)) }
+function saveChanges() {
+  const name = nickname.value.trim()
+  if (name.length == 0) {
+    uni.showToast({ title: '昵称不能为空', icon: 'none' })
+    return
+  }
+  const current = getProfile()
+  saveProfile({ nickname: name, age: age.value, createdAt: current == null ? Date.now() : current.createdAt })
+  uni.showToast({ title: '档案已保存', icon: 'success' })
+}
+function openHistory() { uni.navigateTo({ url: '/pages/history/history' }) }
+function confirmClear() {
+  uni.showModal({
+    title: '清除训练记录？',
+    content: '所有本地训练结果和游戏难度进度将被删除，且无法恢复。儿童档案会保留。',
+    confirmText: '确认清除',
+    confirmColor: '#D95C68',
+    success: (result) => {
+      if (result.confirm) {
+        clearTrainingRecords()
+        uni.showToast({ title: '训练记录已清除', icon: 'none' })
+      }
+    }
+  })
+}
+</script>
+
+<style>
+.page { padding: 20px 18px 34px; }
+.profile-card { padding: 19px; border-radius: 22px; background-color: #5b8def; flex-direction: row; align-items: center; }
+.avatar { width: 56px; height: 56px; border-radius: 28px; background-color: #ffffff; align-items: center; justify-content: center; }
+.avatar-value { color: #5b8def; font-size: 19px; font-weight: 700; }
+.profile-copy { margin-left: 14px; }
+.profile-name { color: #ffffff; font-size: 19px; font-weight: 700; }
+.profile-mode { margin-top: 5px; color: #dfe8ff; font-size: 12px; }
+.form-card, .menu-card { margin-top: 16px; padding: 19px; border-radius: 22px; background-color: #ffffff; }
+.label { color: #4f5a73; font-size: 13px; font-weight: 600; }
+.input { margin-top: 9px; height: 46px; padding: 0 13px; border-radius: 13px; background-color: #f2f5fa; font-size: 15px; }
+.age-label { margin-top: 20px; }
+.age-row { margin-top: 10px; flex-direction: row; align-items: center; justify-content: space-between; }
+.age-button { width: 50px; height: 48px; line-height: 48px; padding: 0; border-radius: 13px; background-color: #eaf0ff; color: #4d74c2; font-size: 23px; }
+.age-value { flex-direction: row; align-items: flex-end; }
+.age-number { color: #25314a; font-size: 34px; font-weight: 700; }
+.age-unit { margin: 0 0 5px 4px; color: #7d879b; font-size: 12px; }
+.save-button { margin-top: 19px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #5b8def; color: #ffffff; font-size: 15px; font-weight: 700; }
+.menu-row { min-height: 68px; padding-bottom: 12px; border-bottom: 1px solid #edf0f5; flex-direction: row; align-items: center; justify-content: space-between; }
+.menu-row-last { padding-top: 12px; padding-bottom: 0; border-bottom-width: 0; }
+.menu-title { color: #344059; font-size: 14px; font-weight: 600; }
+.menu-copy { margin-top: 5px; color: #8992a4; font-size: 11px; }
+.arrow { color: #9da5b4; font-size: 24px; }
+.danger-title { color: #d95c68; font-size: 14px; font-weight: 600; }
+.privacy-card { margin-top: 16px; padding: 16px; border-radius: 17px; background-color: #eef3fb; }
+.privacy-title { color: #596987; font-size: 13px; font-weight: 700; }
+.privacy-copy { margin-top: 6px; color: #748099; font-size: 11px; line-height: 17px; }
+</style>

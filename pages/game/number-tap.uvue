@@ -1,0 +1,22 @@
+<template><view class="page">
+  <view class="header"><view><text class="dimension">集中注意训练</text><text class="title">数字连点</text></view><view class="next"><text class="next-value">{{ current }}</text></view></view>
+  <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+  <view v-if="!started" class="instruction"><view class="number-demo"><text class="demo-number">1</text><text class="demo-arrow">→</text><text class="demo-number">2</text><text class="demo-arrow">→</text><text class="demo-number">3</text></view><text class="copy">从 1 开始，按顺序点到 9</text><button class="tap-target primary" @click="begin">▶ 开始</button></view>
+  <view v-else class="grid"><button v-for="number in numbers" :key="number" class="tap-target number-button" :class="number < current ? 'done' : ''" @click="tap(number)">{{ number < current ? '✓' : number.toString() }}</button></view>
+  <view class="stats"><view class="stat"><text class="value">{{ errors }}</text><text class="label">误点</text></view><view class="stat"><text class="value">{{ elapsed }}s</text><text class="label">用时</text></view></view>
+</view></template>
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import { onUnload } from '@dcloudio/uni-app'
+const started = ref(false), current = ref(1), numbers = ref([] as number[]), errors = ref(0), elapsed = ref(0)
+let startedAt = 0, ticker = 0
+const progressWidth = computed((): string => Math.round(((current.value - 1) / 9) * 100).toString() + '%')
+function shuffle(): number[] { const result = [1,2,3,4,5,6,7,8,9]; for (let i = result.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const v = result[i]; result[i] = result[j]; result[j] = v }; return result }
+function finish() { if (ticker > 0) clearInterval(ticker); const accuracy = Math.round((9 / Math.max(9, 9 + errors.value)) * 100); uni.redirectTo({ url: '/pages/result/result?gameId=number-tap&dimensionId=focused&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + elapsed.value.toString() }) }
+function begin() { numbers.value = shuffle(); started.value = true; startedAt = Date.now(); ticker = setInterval(() => { elapsed.value = Math.round((Date.now() - startedAt) / 1000) }, 1000) }
+function tap(number: number) { if (number != current.value) { errors.value += 1; return }; current.value += 1; if (current.value > 9) setTimeout(() => finish(), 500) }
+onUnload(() => { if (ticker > 0) clearInterval(ticker) })
+</script>
+<style>
+.page { flex: 1; padding: 20px; }.header { flex-direction: row; justify-content: space-between; align-items: center; }.dimension { color: #4d74c2; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.next { width: 58px; height: 58px; border-radius: 18px; background-color: #5b8def; align-items: center; justify-content: center; }.next-value { color: #ffffff; font-size: 27px; font-weight: 800; }.progress { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; background-color: #5b8def; }.instruction { margin-top: 16px; height: 390px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; }.number-demo { flex-direction: row; align-items: center; }.demo-number { width: 58px; height: 58px; line-height: 58px; border-radius: 18px; background-color: #eaf0ff; color: #5b8def; font-size: 27px; font-weight: 800; text-align: center; }.demo-arrow { margin: 0 8px; color: #8a94a7; font-size: 22px; }.copy { margin-top: 20px; color: #69758d; font-size: 14px; }.primary { margin-top: 22px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #5b8def; color: #fff; font-size: 14px; font-weight: 700; }.grid { margin-top: 16px; padding: 10px; height: 390px; border-radius: 25px; background-color: #dfe9ff; flex-direction: row; flex-wrap: wrap; justify-content: center; align-content: center; }.number-button { margin: 5px; padding: 0; width: 29%; height: 105px; line-height: 105px; border-radius: 20px; background-color: #ffffff; color: #344059; font-size: 34px; font-weight: 800; }.done { background-color: #e5f6ef; color: #338e72; }.stats { margin-top: 14px; flex-direction: row; }.stat { flex: 1; align-items: center; }.value { color: #25314a; font-size: 18px; font-weight: 700; }.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+</style>

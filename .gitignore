@@ -1,0 +1,18 @@
+# HBuilderX / uni-app x generated output
+unpackage/
+
+# Local operating-system and editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Dependencies and logs
+node_modules/
+*.log
+
+# Local asset-review artifacts (not used by the app at runtime)
+content/ai-assets/rejected/
+static/images/drafts/
+
+# Local mutable asset-service state
+backend/asset-service/data/jobs.json

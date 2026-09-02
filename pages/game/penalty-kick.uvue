@@ -1,0 +1,38 @@
+<template><view class="page">
+  <view class="header"><view><text class="dimension">集中注意训练</text><text class="title">点球小将</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
+  <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+  <view class="tip"><text class="tip-title">看准门将，射向空位</text><text class="tip-copy">门将会按固定节奏左右移动</text></view>
+  <view class="field">
+    <view class="goal"><view class="goal-line"></view><view class="zones"><view v-for="lane in lanes" :key="lane" class="zone"><text class="zone-label">{{ laneLabel(lane) }}</text></view></view><image class="keeper" :class="keeperClass" src="/static/images/runtime/game-characters/goalkeeper-v1.png" mode="aspectFit"></image><view v-if="ballLane != ''" class="ball" :class="ballClass"><text class="ball-symbol">●</text></view></view>
+    <text class="feedback" :class="feedback == '进球' ? 'good' : 'again'">{{ feedback }}</text>
+  </view>
+  <view class="kick-buttons"><button v-for="lane in lanes" :key="lane" class="tap-target kick" :disabled="!accepting" @click="kick(lane)"><text class="kick-arrow tap-content">{{ laneArrow(lane) }}</text><text class="kick-label tap-content">{{ laneLabel(lane) }}</text></button></view>
+  <view class="stats"><view class="stat"><text class="value">{{ goals }}</text><text class="label">进球</text></view><view class="stat"><text class="value">{{ saves }}</text><text class="label">扑出</text></view></view>
+</view></template>
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+const lanes: string[] = ['left', 'center', 'right']
+const keeperPath: string[] = ['left', 'center', 'right', 'center']
+const totalRounds = ref(10), roundIndex = ref(0), keeperStep = ref(0), keeperLane = ref('left'), ballLane = ref('')
+const accepting = ref(true), goals = ref(0), saves = ref(0), feedback = ref('')
+const reactions = ref([] as number[])
+let keeperTimer = 0, nextTimer = 0, gameStartedAt = 0, readyAt = 0
+const displayRound = computed((): number => Math.min(totalRounds.value, roundIndex.value + 1))
+const progressWidth = computed((): string => Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%')
+const keeperClass = computed((): string => 'keeper-' + keeperLane.value)
+const ballClass = computed((): string => 'ball-' + ballLane.value)
+function laneLabel(lane: string): string { return lane == 'left' ? '左' : lane == 'center' ? '中' : '右' }
+function laneArrow(lane: string): string { return lane == 'left' ? '↖' : lane == 'center' ? '↑' : '↗' }
+function configure() { const age = getGameTuningAge('penalty-kick'); totalRounds.value = age <= 6 ? 8 : age <= 9 ? 10 : 12 }
+function moveKeeper() { keeperStep.value = (keeperStep.value + 1) % keeperPath.length; keeperLane.value = keeperPath[keeperStep.value] }
+function finish() { if (keeperTimer > 0) clearInterval(keeperTimer); const accuracy = Math.round((goals.value / totalRounds.value) * 100); const sum = reactions.value.reduce((a: number, b: number): number => a + b, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=penalty-kick&dimensionId=focused&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() }) }
+function nextRound() { roundIndex.value += 1; if (roundIndex.value >= totalRounds.value) { finish(); return }; ballLane.value = ''; feedback.value = ''; accepting.value = true; readyAt = Date.now() }
+function kick(lane: string) { if (!accepting.value) return; accepting.value = false; ballLane.value = lane; reactions.value.push(Date.now() - readyAt); if (lane == keeperLane.value) { saves.value += 1; feedback.value = '被扑出了' } else { goals.value += 1; feedback.value = '进球' }; nextTimer = setTimeout(() => nextRound(), 750) }
+onLoad((_options: OnLoadOptions) => { configure(); gameStartedAt = Date.now(); readyAt = gameStartedAt; keeperTimer = setInterval(() => moveKeeper(), 680) })
+onUnload(() => { if (keeperTimer > 0) clearInterval(keeperTimer); if (nextTimer > 0) clearTimeout(nextTimer) })
+</script>
+<style>
+.page { flex: 1; padding: 20px; }.header { flex-direction: row; justify-content: space-between; align-items: center; }.dimension { color: #4775c2; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #e8effc; align-items: center; justify-content: center; }.counter-value { color: #4775c2; font-size: 13px; font-weight: 700; }.progress { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; background-color: #5b8def; }.tip { margin-top: 14px; padding: 15px; border-radius: 18px; background-color: #edf3fd; }.tip-title { color: #405b88; font-size: 14px; font-weight: 700; }.tip-copy { margin-top: 4px; color: #7688a5; font-size: 10px; }.field { margin-top: 16px; height: 360px; border-radius: 25px; background-color: #79c879; align-items: center; justify-content: center; }.goal { width: 92%; height: 255px; border: 7px solid #ffffff; position: relative; overflow: hidden; }.goal-line { position: absolute; top: 50%; width: 100%; height: 3px; background-color: rgba(255,255,255,0.45); }.zones { width: 100%; height: 100%; flex-direction: row; }.zone { flex: 1; border-right: 2px solid rgba(255,255,255,0.45); align-items: center; padding-top: 12px; }.zone-label { color: rgba(255,255,255,0.85); font-size: 12px; font-weight: 700; }.keeper { position: absolute; bottom: 8px; width: 106px; height: 106px; }.keeper-left { left: 3%; }.keeper-center { left: 34%; }.keeper-right { left: 66%; }.ball { position: absolute; top: 66px; width: 36px; height: 36px; border-radius: 18px; background-color: #ffffff; align-items: center; justify-content: center; }.ball-left { left: 14%; }.ball-center { left: 45%; }.ball-right { left: 78%; }.ball-symbol { color: #1f2a44; font-size: 18px; }.feedback { margin-top: 12px; height: 20px; font-size: 14px; font-weight: 800; }.good { color: #ffffff; }.again { color: #9c3545; }.kick-buttons { margin-top: 14px; flex-direction: row; }.kick { margin: 0 5px; padding: 0; flex: 1; height: 64px; border-radius: 17px; background-color: #e8effc; align-items: center; justify-content: center; }.kick-arrow { color: #4775c2; font-size: 22px; }.kick-label { color: #4775c2; font-size: 11px; font-weight: 700; }.stats { margin-top: 12px; flex-direction: row; }.stat { flex: 1; align-items: center; }.value { color: #25314a; font-size: 18px; font-weight: 700; }.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+</style>

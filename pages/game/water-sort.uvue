@@ -1,0 +1,23 @@
+<template><view class="page">
+  <view class="header"><view><text class="dimension">转换注意训练</text><text class="title">倒水小实验</text></view><view class="moves"><text class="moves-value">{{ moveCount }}</text><text class="moves-label">步</text></view></view>
+  <view class="tip"><text class="tip-title">点两个瓶子完成倒水</text><text class="tip-copy">相同颜色可以倒在一起</text></view>
+  <view class="lab"><view v-for="(tube, tubeIndex) in tubes" :key="tubeIndex" class="tube-wrap" :class="selected == tubeIndex ? 'tube-selected' : ''" @click="selectTube(tubeIndex)"><view class="tube tap-content"><view v-for="slot in 3" :key="slot" class="slot" :style="{ backgroundColor: slotColor(tubeIndex, slot - 1) }"></view></view><text class="tube-number tap-content">{{ tubeIndex + 1 }}</text></view></view>
+  <view class="feedback"><text :class="feedback == '完成了' ? 'good' : 'again'">{{ feedback }}</text></view>
+  <button class="tap-target reset" @click="reset">↻ 重新开始</button>
+</view></template>
+<script setup lang="uts">
+import { ref } from 'vue'
+const BLUE = '#5B8DEF', YELLOW = '#FFC857', EMPTY = '#F7FAFD'
+const tubes = ref([[BLUE,YELLOW,BLUE],[YELLOW,BLUE,YELLOW],[]] as string[][])
+const selected = ref(-1), moveCount = ref(0), feedback = ref('')
+function slotColor(tubeIndex: number, slotIndex: number): string { const tube = tubes.value[tubeIndex]; const valueIndex = 2 - slotIndex; return valueIndex < tube.length ? tube[valueIndex] : EMPTY }
+function cloneTubes(): string[][] { const result = [] as string[][]; for (let i = 0; i < tubes.value.length; i++) result.push(tubes.value[i].slice()); return result }
+function solved(): boolean { for (let i = 0; i < tubes.value.length; i++) { const tube = tubes.value[i]; if (tube.length > 0 && (tube.length != 3 || tube[0] != tube[1] || tube[1] != tube[2])) return false }; return true }
+function finish() { uni.redirectTo({ url: '/pages/result/result?gameId=water-sort&dimensionId=alternating&score=100&accuracy=100&reaction=0&duration=' + Math.max(1, moveCount.value).toString() }) }
+function pour(from: number, to: number) { const next = cloneTubes(); const source = next[from], target = next[to]; if (source.length == 0 || target.length >= 3) { feedback.value = '这里不能倒'; return }; const color = source[source.length - 1]; if (target.length > 0 && target[target.length - 1] != color) { feedback.value = '颜色不一样'; return }; while (source.length > 0 && source[source.length - 1] == color && target.length < 3) { const moved = source.pop(); if (moved != null) target.push(moved) }; tubes.value = next; moveCount.value += 1; feedback.value = ''; if (solved()) { feedback.value = '完成了'; setTimeout(() => finish(), 800) } }
+function selectTube(index: number) { if (selected.value < 0) { if (tubes.value[index].length > 0) selected.value = index; return }; const from = selected.value; selected.value = -1; if (from != index) pour(from, index) }
+function reset() { tubes.value = [[BLUE,YELLOW,BLUE],[YELLOW,BLUE,YELLOW],[]] as string[][]; selected.value = -1; moveCount.value = 0; feedback.value = '' }
+</script>
+<style>
+.page { flex: 1; padding: 20px; }.header { flex-direction: row; justify-content: space-between; align-items: center; }.dimension { color: #8062bf; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.moves { width: 58px; height: 50px; border-radius: 17px; background-color: #eee9fa; align-items: center; justify-content: center; }.moves-value { color: #785bb7; font-size: 18px; font-weight: 800; }.moves-label { color: #8c7aa9; font-size: 9px; }.tip { margin-top: 18px; padding: 15px; border-radius: 18px; background-color: #f0eafa; }.tip-title { color: #514269; font-size: 14px; font-weight: 700; }.tip-copy { margin-top: 4px; color: #8a7aa9; font-size: 10px; }.lab { margin-top: 18px; height: 350px; border-radius: 26px; background-color: #ffffff; flex-direction: row; align-items: center; justify-content: space-around; }.tube-wrap { padding: 13px; border-radius: 22px; align-items: center; }.tube-selected { background-color: #eee9fa; transform: translateY(-12px); }.tube { width: 72px; height: 230px; padding: 7px; border: 4px solid #aab5c8; border-top: 0; border-radius: 0 0 27px 27px; flex-direction: column; justify-content: flex-end; overflow: hidden; }.slot { width: 100%; height: 68px; }.tube-number { margin-top: 10px; color: #68738d; font-size: 14px; font-weight: 700; }.feedback { height: 42px; align-items: center; justify-content: center; }.good { color: #338e72; font-size: 13px; font-weight: 700; }.again { color: #c65b66; font-size: 13px; font-weight: 700; }.reset { width: 160px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #eee9fa; color: #785bb7; font-size: 13px; }
+</style>

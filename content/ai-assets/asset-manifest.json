@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "styleVersion": "focus-planet-soft-2d-v1",
+  "publishRule": "Only assets with status=approved may be copied into static/images/runtime.",
+  "assets": [
+    {
+      "id": "bunny-blue-card-v1",
+      "type": "game_object",
+      "status": "approved",
+      "candidatePath": "",
+      "runtimePath": "/static/images/runtime/game-objects/bunny-blue-card-v1.png",
+      "ageBands": ["starter", "growth", "advanced", "teen"],
+      "gameTags": ["visual_search", "memory", "sorting"]
+    },
+    {
+      "id": "kitten-yellow-card-v1",
+      "type": "game_object",
+      "status": "approved",
+      "candidatePath": "",
+      "runtimePath": "/static/images/runtime/game-objects/kitten-yellow-card-v1.png",
+      "ageBands": ["starter", "growth", "advanced", "teen"],
+      "gameTags": ["visual_search", "memory", "sorting"]
+    },
+    {
+      "id": "car-yellow-card-v1",
+      "type": "game_object",
+      "status": "approved",
+      "candidatePath": "",
+      "runtimePath": "/static/images/runtime/game-objects/car-yellow-card-v1.png",
+      "ageBands": ["starter", "growth", "advanced", "teen"],
+      "gameTags": ["visual_search", "memory", "sorting"]
+    },
+    {
+      "id": "boat-blue-card-v1",
+      "type": "game_object",
+      "status": "approved",
+      "candidatePath": "",
+      "runtimePath": "/static/images/runtime/game-objects/boat-blue-card-v1.png",
+      "ageBands": ["starter", "growth", "advanced", "teen"],
+      "gameTags": ["visual_search", "memory", "sorting"]
+    },
+    {
+      "id": "mascot-space-fox-v1",
+      "type": "mascot",
+      "status": "needs_background_fix",
+      "candidatePath": "/static/images/drafts/space-fox-candidate-v1.png",
+      "runtimePath": "",
+      "ageBands": ["starter", "growth", "advanced", "teen"],
+      "gameTags": ["home", "result", "tutorial"],
+      "reviewNotes": "Character quality is acceptable, but the checkerboard is baked into RGB pixels and must not be published."
+    },
+    {
+      "id": "object-pack-food-animals-v1",
+      "type": "object_pack",
+      "status": "queued",
+      "candidatePath": "",
+      "runtimePath": "",
+      "ageBands": ["starter", "growth", "advanced"],
+      "gameTags": ["visual_search", "memory", "matching"]
+    },
+    {
+      "id": "spot-difference-space-picnic-v1",
+      "type": "spot_difference_pair",
+      "status": "queued",
+      "candidatePath": "",
+      "runtimePath": "",
+      "ageBands": ["growth", "advanced"],
+      "gameTags": ["spot_difference", "selective_attention"],
+      "differenceCount": 5,
+      "hotspots": []
+    },
+    {
+      "id": "forest-search-board-v1",
+      "type": "scene",
+      "status": "queued",
+      "candidatePath": "",
+      "runtimePath": "",
+      "ageBands": ["growth", "advanced"],
+      "gameTags": ["visual_search", "selective_attention"],
+      "hotspots": []
+    }
+  ]
+}

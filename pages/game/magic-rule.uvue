@@ -1,0 +1,202 @@
+<template>
+  <view class="page">
+    <view class="game-header">
+      <view>
+        <text class="round-label">转换注意训练</text>
+        <text class="game-title">跟随魔法规则</text>
+      </view>
+      <view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view>
+    </view>
+
+    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+
+    <view class="rule-card" :class="currentRule == 'color' ? 'rule-color' : 'rule-shape'">
+      <text class="rule-kicker">当前规则</text>
+      <text class="rule-title">{{ currentRule == 'color' ? '按照颜色分类' : '按照形状分类' }}</text>
+      <text class="rule-tip">{{ currentRule == 'color' ? '蓝色放左边，黄色放右边' : '圆形放左边，方形放右边' }}</text>
+    </view>
+
+    <view class="play-area">
+      <view v-if="!started" class="instruction">
+        <YoungChildCue kind="match"></YoungChildCue>
+        <text class="instruction-title">规则会发生变化</text>
+        <text class="instruction-copy">先看清上方规则，再把图形放到正确的一边。</text>
+        <button class="tap-target primary" @click="begin">▶ 开始训练</button>
+      </view>
+
+      <view v-if="started" class="challenge">
+        <text v-if="justSwitched" class="switch-badge">规则变了</text>
+        <view class="stimulus-wrap">
+          <view v-if="stimulusShape == 'circle'" class="stimulus stimulus-circle" :style="{ backgroundColor: stimulusColorValue }"></view>
+          <view v-else class="stimulus stimulus-square" :style="{ backgroundColor: stimulusColorValue }"></view>
+        </view>
+        <text class="question">它应该放在哪一边？</text>
+        <view v-if="feedback != ''" class="feedback" :class="feedback == '正确' ? 'feedback-good' : 'feedback-again'">
+          <text :class="feedback == '正确' ? 'feedback-text-good' : 'feedback-text-again'">{{ feedback }}</text>
+        </view>
+      </view>
+    </view>
+
+    <view v-if="started" class="answer-row">
+      <button class="tap-target answer-button answer-left" @click="answer('left')">
+        <view v-if="currentRule == 'color'" class="answer-dot blue-dot tap-content"></view>
+        <view v-else class="answer-symbol circle-symbol tap-content"></view>
+        <text class="answer-label tap-content">{{ currentRule == 'color' ? '蓝色' : '圆形' }}</text>
+      </button>
+      <button class="tap-target answer-button answer-right" @click="answer('right')">
+        <view v-if="currentRule == 'color'" class="answer-dot yellow-dot tap-content"></view>
+        <view v-else class="answer-symbol square-symbol tap-content"></view>
+        <text class="answer-label tap-content">{{ currentRule == 'color' ? '黄色' : '方形' }}</text>
+      </button>
+    </view>
+
+    <view class="footer-stats">
+      <view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view>
+      <view class="footer-stat"><text class="footer-value">{{ errors }}</text><text class="footer-label">错误</text></view>
+      <view class="footer-stat"><text class="footer-value">{{ switchErrors }}</text><text class="footer-label">切换错误</text></view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+
+const started = ref(false)
+const totalRounds = ref(14)
+const blockSize = ref(4)
+const roundIndex = ref(0)
+const currentRule = ref('color')
+const stimulusColor = ref('blue')
+const stimulusShape = ref('circle')
+const justSwitched = ref(false)
+const acceptingAnswer = ref(false)
+const feedback = ref('')
+const correct = ref(0)
+const errors = ref(0)
+const switchErrors = ref(0)
+const reactions = ref([] as number[])
+let appearedAt = 0
+let gameStartedAt = 0
+let answerTimer = 0
+
+const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
+const progressWidth = computed((): string => {
+  if (!started.value) return '0%'
+  return Math.min(100, Math.round((roundIndex.value / totalRounds.value) * 100)).toString() + '%'
+})
+const stimulusColorValue = computed((): string => stimulusColor.value == 'blue' ? '#5B8DEF' : '#FFC857')
+
+function configureDifficulty() {
+  const age = getGameTuningAge('magic-rule')
+  if (age <= 6) { totalRounds.value = 10; blockSize.value = 5 }
+  else if (age <= 9) { totalRounds.value = 14; blockSize.value = 4 }
+  else if (age <= 12) { totalRounds.value = 18; blockSize.value = 3 }
+  else { totalRounds.value = 22; blockSize.value = 3 }
+}
+
+function clearTimer() { if (answerTimer > 0) clearTimeout(answerTimer) }
+function finishGame() {
+  clearTimer()
+  const accuracy = Math.round((correct.value / totalRounds.value) * 100)
+  const reactionTotal = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
+  const average = reactions.value.length == 0 ? 0 : Math.round(reactionTotal / reactions.value.length)
+  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  uni.redirectTo({
+    url: '/pages/result/result?gameId=magic-rule&dimensionId=alternating&score=' + accuracy.toString() +
+      '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() +
+      '&switchErrors=' + switchErrors.value.toString()
+  })
+}
+function prepareRound() {
+  if (roundIndex.value >= totalRounds.value) {
+    finishGame()
+    return
+  }
+  justSwitched.value = roundIndex.value > 0 && roundIndex.value % blockSize.value == 0
+  if (justSwitched.value) currentRule.value = currentRule.value == 'color' ? 'shape' : 'color'
+  stimulusColor.value = Math.random() < 0.5 ? 'blue' : 'yellow'
+  stimulusShape.value = Math.random() < 0.5 ? 'circle' : 'square'
+  feedback.value = ''
+  acceptingAnswer.value = true
+  appearedAt = Date.now()
+}
+
+function begin() {
+  configureDifficulty()
+  started.value = true
+  gameStartedAt = Date.now()
+  prepareRound()
+}
+
+function correctSide(): string {
+  if (currentRule.value == 'color') return stimulusColor.value == 'blue' ? 'left' : 'right'
+  return stimulusShape.value == 'circle' ? 'left' : 'right'
+}
+
+function answer(side: string) {
+  if (!started.value || !acceptingAnswer.value) return
+  acceptingAnswer.value = false
+  reactions.value.push(Date.now() - appearedAt)
+  if (side == correctSide()) {
+    correct.value += 1
+    feedback.value = '正确'
+  } else {
+    errors.value += 1
+    if (justSwitched.value) switchErrors.value += 1
+    feedback.value = '再看规则'
+  }
+  answerTimer = setTimeout(() => {
+    roundIndex.value += 1
+    prepareRound()
+  }, 520)
+}
+
+onUnload(() => clearTimer())
+</script>
+
+<style>
+.page { flex: 1; padding: 20px; }
+.game-header { flex-direction: row; justify-content: space-between; align-items: center; }
+.round-label { color: #8568c5; font-size: 12px; font-weight: 700; }
+.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #eee9fa; align-items: center; justify-content: center; }
+.counter-value { color: #7a5abb; font-size: 13px; font-weight: 700; }
+.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }
+.progress-fill { height: 8px; border-radius: 4px; background-color: #9b7ede; }
+.rule-card { margin-top: 14px; padding: 15px 17px; border-radius: 18px; }
+.rule-color { background-color: #eaf0ff; }.rule-shape { background-color: #f0eafa; }
+.rule-kicker { color: #7c86a0; font-size: 10px; font-weight: 700; }
+.rule-title { margin-top: 3px; color: #37435c; font-size: 17px; font-weight: 700; }
+.rule-tip { margin-top: 4px; color: #727d94; font-size: 11px; }
+.play-area { margin-top: 14px; height: 300px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+.instruction { width: 80%; align-items: center; }
+.sample-row { flex-direction: row; align-items: center; }
+.sample-circle { width: 56px; height: 56px; border-radius: 28px; background-color: #5b8def; }
+.sample-square { margin-left: 20px; width: 56px; height: 56px; border-radius: 12px; background-color: #ffc857; transform: rotate(8deg); }
+.instruction-title { margin-top: 19px; color: #25314a; font-size: 19px; font-weight: 700; }
+.instruction-copy { margin-top: 8px; color: #7b8599; font-size: 12px; line-height: 19px; text-align: center; }
+.primary { margin-top: 18px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #9b7ede; color: #ffffff; font-size: 14px; font-weight: 700; }
+.challenge { align-items: center; }
+.switch-badge { margin-bottom: 12px; padding: 6px 12px; border-radius: 12px; background-color: #fff2cc; color: #a4730d; font-size: 11px; font-weight: 700; }
+.stimulus-wrap { width: 126px; height: 126px; align-items: center; justify-content: center; }
+.stimulus { width: 92px; height: 92px; }
+.stimulus-circle { border-radius: 46px; }.stimulus-square { border-radius: 18px; transform: rotate(8deg); }
+.question { margin-top: 8px; color: #6f7a90; font-size: 13px; }
+.feedback { position: absolute; bottom: 14px; padding: 7px 14px; border-radius: 13px; }
+.feedback-good { background-color: #e6f7f0; }.feedback-again { background-color: #fff0f1; }
+.feedback-text-good { color: #338e72; font-size: 12px; font-weight: 700; }.feedback-text-again { color: #c65b66; font-size: 12px; font-weight: 700; }
+.answer-row { margin-top: 13px; flex-direction: row; }
+.answer-button { flex: 1; height: 64px; border-radius: 17px; background-color: #ffffff; flex-direction: row; align-items: center; justify-content: center; }
+.answer-left { margin-right: 6px; }.answer-right { margin-left: 6px; }
+.answer-label { margin-left: 8px; color: #3d485f; font-size: 14px; font-weight: 700; }
+.answer-dot, .answer-symbol { width: 23px; height: 23px; }
+.blue-dot { border-radius: 12px; background-color: #5b8def; }.yellow-dot { border-radius: 12px; background-color: #ffc857; }
+.circle-symbol { border-radius: 12px; background-color: #9b7ede; }.square-symbol { border-radius: 5px; background-color: #9b7ede; }
+.footer-stats { margin-top: 14px; flex-direction: row; }
+.footer-stat { flex: 1; align-items: center; }
+.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }
+.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+</style>

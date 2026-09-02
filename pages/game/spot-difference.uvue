@@ -1,0 +1,98 @@
+<template>
+  <scroll-view class="page" scroll-y="true" show-scrollbar="false"><view class="content">
+    <view class="header"><view><text class="dimension">选择注意训练</text><text class="title">找茬乐园</text></view><view class="counter"><text class="counter-value">{{ found.length }}/{{ targetCount }}</text></view></view>
+    <view class="difficulty-display"><text class="difficulty-title">当前难度 {{ difficultyLevel }}/4</text><text class="difficulty-name">{{ difficultyName }}</text></view>
+    <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+    <view class="tip"><view><text class="tip-title">本关有 {{ targetCount }} 处不同</text><text class="tip-copy">上下两张图中的不同位置都可以点</text></view><button class="tap-target hint-button" :disabled="found.length >= targetCount" @click="showHint">提示</button></view>
+
+    <view class="scene-card"><text class="scene-label">{{ topUsesAlternate ? '变化图' : '参考图' }} · 可以点击</text><view class="scene-wrap" :style="{ height: sceneHeightStyle }" @click="miss">
+      <image class="scene tap-content" :style="{ height: sceneHeightStyle }" src="/static/images/runtime/spot-difference/spot-park-a-v1.png" mode="aspectFit"></image>
+      <view v-for="item in candidates" :key="item.id" class="scene-object tap-content" :style="{ left: item.left, top: item.top, width: item.width, height: item.height }"><text class="object-symbol" :style="{ color: objectColor(item, true), fontSize: item.fontSize }">{{ objectSymbol(item, true) }}</text></view>
+      <view v-for="item in activeCandidates" :key="item.id" class="hotspot" :class="found.indexOf(item.id) >= 0 ? 'hotspot-found' : hintId == item.id ? 'hotspot-hint' : ''" :style="{ left: item.left, top: item.top, width: item.width, height: item.height }" @click.stop="find(item.id)"><text v-if="found.indexOf(item.id) >= 0" class="found-mark tap-content">✓</text><text v-else-if="hintId == item.id" class="hint-mark tap-content">!</text></view>
+    </view></view>
+
+    <view class="scene-card"><text class="scene-label">{{ topUsesAlternate ? '参考图' : '变化图' }} · 可以点击</text><view class="scene-wrap" :style="{ height: sceneHeightStyle }" @click="miss">
+      <image class="scene tap-content" :style="{ height: sceneHeightStyle }" src="/static/images/runtime/spot-difference/spot-park-a-v1.png" mode="aspectFit"></image>
+      <view v-for="item in candidates" :key="item.id" class="scene-object tap-content" :style="{ left: item.left, top: item.top, width: item.width, height: item.height }"><text class="object-symbol" :style="{ color: objectColor(item, false), fontSize: item.fontSize }">{{ objectSymbol(item, false) }}</text></view>
+      <view v-for="item in activeCandidates" :key="item.id" class="hotspot" :class="found.indexOf(item.id) >= 0 ? 'hotspot-found' : hintId == item.id ? 'hotspot-hint' : ''" :style="{ left: item.left, top: item.top, width: item.width, height: item.height }" @click.stop="find(item.id)"><text v-if="found.indexOf(item.id) >= 0" class="found-mark tap-content">✓</text><text v-else-if="hintId == item.id" class="hint-mark tap-content">!</text></view>
+    </view></view>
+
+    <button class="tap-target another-button" @click="newRound">换一组差异</button>
+    <view class="stats"><view class="stat"><text class="value">{{ errors }}</text><text class="label">误点</text></view><view class="stat"><text class="value">{{ hintsUsed }}</text><text class="label">提示</text></view><view class="stat"><text class="value">{{ elapsedLabel }}</text><text class="label">用时</text></view></view>
+  </view></scroll-view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+type DifferenceCandidate = { id: string, left: string, top: string, width: string, height: string, symbolA: string, symbolB: string, colorA: string, colorB: string, fontSize: string, difficulty: number, zone: number }
+const candidates: DifferenceCandidate[] = [
+  { id:'balloon', left:'23%', top:'8%', width:'7%', height:'13%', symbolA:'●', symbolB:'●', colorA:'#ef4f5f', colorB:'#ffd34e', fontSize:'24px', difficulty:1, zone:0 },
+  { id:'birds', left:'52%', top:'8%', width:'11%', height:'10%', symbolA:'⌁⌁', symbolB:'⌁', colorA:'#43516a', colorB:'#43516a', fontSize:'18px', difficulty:2, zone:1 },
+  { id:'kite', left:'82%', top:'6%', width:'11%', height:'23%', symbolA:'◆', symbolB:'◆', colorA:'#f04444', colorB:'#8b55d9', fontSize:'31px', difficulty:1, zone:2 },
+  { id:'chimney', left:'20%', top:'36%', width:'6%', height:'12%', symbolA:'▮', symbolB:'▮', colorA:'#ffd46f', colorB:'#68a7e8', fontSize:'21px', difficulty:2, zone:3 },
+  { id:'flower', left:'3%', top:'56%', width:'7%', height:'13%', symbolA:'✿', symbolB:'✿', colorA:'#8c5ce0', colorB:'#ff9d43', fontSize:'23px', difficulty:1, zone:4 },
+  { id:'window', left:'10%', top:'52%', width:'8%', height:'13%', symbolA:'▦', symbolB:'□', colorA:'#70a9c9', colorB:'#70a9c9', fontSize:'24px', difficulty:3, zone:5 },
+  { id:'doorknob', left:'17%', top:'57%', width:'6%', height:'10%', symbolA:'●', symbolB:'', colorA:'#ffd34e', colorB:'#ffd34e', fontSize:'12px', difficulty:2, zone:5 },
+  { id:'tree-apple', left:'42%', top:'31%', width:'8%', height:'13%', symbolA:'●', symbolB:'', colorA:'#ef404a', colorB:'#ef404a', fontSize:'22px', difficulty:1, zone:6 },
+  { id:'yellow-apple', left:'51%', top:'35%', width:'8%', height:'13%', symbolA:'●', symbolB:'●', colorA:'#ef404a', colorB:'#ffd34e', fontSize:'22px', difficulty:2, zone:7 },
+  { id:'tree-leaf', left:'46%', top:'24%', width:'8%', height:'13%', symbolA:'◆', symbolB:'◆', colorA:'#3c963f', colorB:'#e88d38', fontSize:'20px', difficulty:2, zone:6 },
+  { id:'bench', left:'64%', top:'51%', width:'20%', height:'18%', symbolA:'━', symbolB:'━', colorA:'#246fc0', colorB:'#f1b92f', fontSize:'40px', difficulty:1, zone:8 },
+  { id:'bench-star', left:'73%', top:'52%', width:'8%', height:'12%', symbolA:'★', symbolB:'', colorA:'#fff1a8', colorB:'#fff1a8', fontSize:'18px', difficulty:3, zone:8 },
+  { id:'pond-bubbles', left:'60%', top:'77%', width:'10%', height:'10%', symbolA:'○○', symbolB:'○', colorA:'#ffffff', colorB:'#ffffff', fontSize:'18px', difficulty:3, zone:9 },
+  { id:'duck-hat', left:'72%', top:'72%', width:'8%', height:'11%', symbolA:'★', symbolB:'', colorA:'#ef5a64', colorB:'#ef5a64', fontSize:'18px', difficulty:2, zone:10 },
+  { id:'toy-boat', left:'85%', top:'82%', width:'9%', height:'11%', symbolA:'▲', symbolB:'▼', colorA:'#f28b34', colorB:'#f28b34', fontSize:'21px', difficulty:3, zone:11 },
+  { id:'ball-stripe', left:'14%', top:'77%', width:'9%', height:'12%', symbolA:'━', symbolB:'━', colorA:'#ffffff', colorB:'#ffd34e', fontSize:'26px', difficulty:2, zone:12 },
+  { id:'grass-flower', left:'28%', top:'69%', width:'8%', height:'12%', symbolA:'✿', symbolB:'✿', colorA:'#ffd34e', colorB:'#8b55d9', fontSize:'20px', difficulty:2, zone:13 },
+  { id:'picnic', left:'38%', top:'80%', width:'9%', height:'12%', symbolA:'▦', symbolB:'▦', colorA:'#ef5a64', colorB:'#5797df', fontSize:'24px', difficulty:1, zone:14 },
+  { id:'butterfly', left:'54%', top:'67%', width:'8%', height:'12%', symbolA:'✦', symbolB:'♥', colorA:'#e65c9e', colorB:'#e65c9e', fontSize:'20px', difficulty:4, zone:15 },
+  { id:'path-sign', left:'90%', top:'69%', width:'8%', height:'13%', symbolA:'▲', symbolB:'▼', colorA:'#4e9c61', colorB:'#4e9c61', fontSize:'20px', difficulty:4, zone:16 }
+]
+const difficultyLevel = ref(1), activeIds = ref([] as string[]), found = ref([] as string[])
+const errors = ref(0), hintsUsed = ref(0), hintId = ref(''), sceneHeight = ref(180), elapsed = ref(0), topUsesAlternate = ref(false)
+let ticker = 0, hintTimer = 0, startedAt = 0
+const difficultyName = computed((): string => difficultyLevel.value == 1 ? '轻松' : difficultyLevel.value == 2 ? '成长' : difficultyLevel.value == 3 ? '进阶' : '挑战')
+const targetCount = computed((): number => difficultyLevel.value == 1 ? 3 : difficultyLevel.value == 2 ? 4 : 5)
+const activeCandidates = computed((): DifferenceCandidate[] => candidates.filter((item: DifferenceCandidate): boolean => activeIds.value.indexOf(item.id) >= 0))
+const progressWidth = computed((): string => Math.round((found.value.length / targetCount.value) * 100).toString() + '%')
+const elapsedLabel = computed((): string => elapsed.value.toString() + 's')
+const sceneHeightStyle = computed((): string => sceneHeight.value.toString() + 'px')
+function isAlternate(item: DifferenceCandidate, isTop: boolean): boolean { if (activeIds.value.indexOf(item.id) < 0) return false; return isTop == topUsesAlternate.value }
+function objectSymbol(item: DifferenceCandidate, isTop: boolean): string { return isAlternate(item, isTop) ? item.symbolB : item.symbolA }
+function objectColor(item: DifferenceCandidate, isTop: boolean): string { return isAlternate(item, isTop) ? item.colorB : item.colorA }
+function shuffle(source: DifferenceCandidate[]): DifferenceCandidate[] { const result = source.slice(); for (let i = result.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const value = result[i]; result[i] = result[j]; result[j] = value }; return result }
+function makeRecipe(): string[] {
+  let pool = candidates.filter((item: DifferenceCandidate): boolean => difficultyLevel.value == 1 ? item.difficulty <= 2 : difficultyLevel.value == 2 ? item.difficulty <= 3 : difficultyLevel.value == 3 ? item.difficulty <= 4 : item.difficulty >= 2)
+  pool = shuffle(pool)
+  const result = [] as string[], zones = [] as number[]
+  for (let i = 0; i < pool.length && result.length < targetCount.value; i++) { if (zones.indexOf(pool[i].zone) < 0) { result.push(pool[i].id); zones.push(pool[i].zone) } }
+  return result
+}
+function newRound() {
+  const lastValue = uni.getStorageSync('spot_last_recipe_' + difficultyLevel.value.toString())
+  const lastRecipe = lastValue == null ? '' : lastValue as string
+  let next = makeRecipe(), signature = next.slice().sort().join(',')
+  for (let attempt = 0; attempt < 8 && signature == lastRecipe; attempt++) { next = makeRecipe(); signature = next.slice().sort().join(',') }
+  activeIds.value = next; uni.setStorageSync('spot_last_recipe_' + difficultyLevel.value.toString(), signature)
+  found.value = [] as string[]; errors.value = 0; hintsUsed.value = 0; hintId.value = ''; elapsed.value = 0; startedAt = Date.now(); topUsesAlternate.value = Math.random() < 0.5
+}
+function finish() { if (ticker > 0) clearInterval(ticker); const count = targetCount.value; const accuracy = Math.round((count / Math.max(count, count + errors.value)) * 100); uni.redirectTo({ url: '/pages/result/result?gameId=spot-difference&dimensionId=selective&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + Math.max(1, elapsed.value).toString() }) }
+function find(id: string) { if (found.value.indexOf(id) >= 0) return; found.value.push(id); if (hintId.value == id) hintId.value = ''; if (found.value.length >= targetCount.value) setTimeout(() => finish(), 650) }
+function miss() { errors.value += 1 }
+function showHint() { if (found.value.length >= targetCount.value) return; if (hintTimer > 0) clearTimeout(hintTimer); const remaining = activeCandidates.value.filter((item: DifferenceCandidate): boolean => found.value.indexOf(item.id) < 0); remaining.sort((a: DifferenceCandidate, b: DifferenceCandidate): number => a.difficulty - b.difficulty); if (remaining.length > 0) hintId.value = remaining[0].id; hintsUsed.value += 1; hintTimer = setTimeout(() => { hintId.value = '' }, 1800) }
+onLoad((_options: OnLoadOptions) => {
+  const info = uni.getWindowInfo(); sceneHeight.value = Math.round((info.windowWidth - 48) * 9 / 16)
+  difficultyLevel.value = getGameDifficulty('spot-difference')
+  newRound(); ticker = setInterval(() => { elapsed.value = Math.round((Date.now() - startedAt) / 1000) }, 1000)
+})
+onUnload(() => { if (ticker > 0) clearInterval(ticker); if (hintTimer > 0) clearTimeout(hintTimer) })
+</script>
+
+<style>
+.page { height: 100%; }.content { padding: 20px 16px 34px; }.header { flex-direction: row; align-items: center; justify-content: space-between; }.dimension { color: #ad7a10; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #fff4d7; align-items: center; justify-content: center; }.counter-value { color: #a97810; font-size: 13px; font-weight: 700; }
+.difficulty-display { margin-top: 14px; min-height: 48px; padding: 0 15px; border-radius: 15px; background-color: #fff7e5; flex-direction: row; align-items: center; justify-content: space-between; }.difficulty-title { color: #6d5115; font-size: 13px; font-weight: 700; }.difficulty-name { color: #a97810; font-size: 12px; font-weight: 700; }
+.progress { margin-top: 12px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; background-color: #ffc857; }.tip { margin-top: 12px; padding: 9px 10px 9px 13px; border-radius: 16px; background-color: #fff7e5; flex-direction: row; align-items: center; justify-content: space-between; }.tip-title { color: #594b2f; font-size: 14px; font-weight: 700; }.tip-copy { margin-top: 3px; color: #8b7b59; font-size: 10px; }.hint-button { margin: 0; padding: 0 14px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #ffc857; color: #6d5115; font-size: 12px; font-weight: 700; }
+.scene-card { margin-top: 12px; padding: 8px; border-radius: 18px; background-color: #ffffff; }.scene-label { margin: 2px 0 7px 5px; color: #728097; font-size: 10px; font-weight: 700; }.scene-wrap { width: 100%; position: relative; overflow: hidden; border-radius: 13px; }.scene { width: 100%; border-radius: 13px; }.scene-object { position: absolute; align-items: center; justify-content: center; z-index: 2; }.object-symbol { font-weight: 800; text-align: center; }.hotspot { position: absolute; border-radius: 12px; z-index: 3; }.hotspot-found { border: 3px solid #55c9a5; background-color: rgba(255,255,255,0.35); align-items: center; justify-content: center; }.hotspot-hint { border: 4px solid #ff9f43; background-color: rgba(255,245,218,0.48); align-items: center; justify-content: center; }.found-mark { color: #278567; font-size: 20px; font-weight: 800; }.hint-mark { color: #d86e16; font-size: 20px; font-weight: 800; }
+.another-button { margin-top: 12px; width: 150px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #fff4d7; color: #9b7119; font-size: 12px; font-weight: 700; }.stats { margin-top: 14px; flex-direction: row; }.stat { flex: 1; align-items: center; }.value { color: #25314a; font-size: 18px; font-weight: 700; }.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+</style>

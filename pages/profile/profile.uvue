@@ -1,0 +1,77 @@
+<template>
+  <view class="page">
+    <view class="planet">
+      <view class="planet-ring"></view>
+      <text class="planet-face">•ᴗ•</text>
+    </view>
+    <text class="title">欢迎来到专注星球</text>
+    <text class="subtitle">先创建训练档案，年龄只用于设置各游戏的首次默认难度。</text>
+
+    <view class="form-card">
+      <text class="label">怎么称呼你？</text>
+      <input class="input" v-model="nickname" maxlength="10" placeholder="输入昵称" />
+
+      <text class="label age-label">年龄</text>
+      <view class="age-row">
+        <button class="tap-target age-button" @click="changeAge(-1)">−</button>
+        <view class="age-value">
+          <text class="age-number">{{ age }}</text>
+          <text class="age-unit">岁</text>
+        </view>
+        <button class="tap-target age-button" @click="changeAge(1)">＋</button>
+      </view>
+      <view class="mode-badge">
+        <text class="mode-badge-text">首次难度参考 · 建议每次 {{ band.sessionMinutes }} 分钟</text>
+      </view>
+    </view>
+
+    <button class="tap-target primary" @click="createProfile">进入我的星球</button>
+    <text class="guardian-note">低龄儿童建议由家长陪同完成设置</text>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import { getAgeBand } from '../../utils/catalog.uts'
+import { saveProfile } from '../../utils/storage.uts'
+
+const nickname = ref('小小探索家')
+const age = ref(8)
+const band = computed(() => getAgeBand(age.value))
+
+function changeAge(delta: number) {
+  age.value = Math.min(16, Math.max(3, age.value + delta))
+}
+
+function createProfile() {
+  const name = nickname.value.trim()
+  if (name.length == 0) {
+    uni.showToast({ title: '请先输入昵称', icon: 'none' })
+    return
+  }
+  saveProfile({ nickname: name, age: age.value, createdAt: Date.now() })
+  uni.reLaunch({ url: '/pages/index/index' })
+}
+</script>
+
+<style>
+.page { padding: 54px 24px 32px; align-items: center; }
+.planet { width: 112px; height: 112px; border-radius: 56px; background-color: #5b8def; align-items: center; justify-content: center; position: relative; }
+.planet-ring { position: absolute; width: 142px; height: 34px; border: 7px solid #ffc857; border-radius: 50%; transform: rotate(-12deg); }
+.planet-face { color: #ffffff; font-size: 26px; font-weight: 700; z-index: 2; }
+.title { margin-top: 30px; font-size: 26px; font-weight: 700; color: #1f2a44; }
+.subtitle { margin-top: 10px; color: #68738d; font-size: 15px; line-height: 23px; text-align: center; }
+.form-card { margin-top: 30px; width: 100%; padding: 22px; border-radius: 22px; background-color: #ffffff; }
+.label { font-size: 14px; font-weight: 600; color: #4a5570; }
+.input { margin-top: 10px; height: 48px; padding: 0 14px; border-radius: 14px; background-color: #f2f5fa; font-size: 16px; }
+.age-label { margin-top: 22px; }
+.age-row { margin-top: 12px; flex-direction: row; align-items: center; justify-content: space-between; }
+.age-button { width: 52px; height: 48px; line-height: 48px; padding: 0; border-radius: 14px; background-color: #eaf0ff; color: #436fc7; font-size: 24px; }
+.age-value { flex-direction: row; align-items: flex-end; }
+.age-number { font-size: 38px; font-weight: 700; color: #1f2a44; }
+.age-unit { margin: 0 0 5px 4px; font-size: 14px; color: #68738d; }
+.mode-badge { margin-top: 16px; padding: 10px; border-radius: 12px; background-color: #eef9f5; align-items: center; }
+.mode-badge-text { color: #308f73; font-size: 13px; }
+.primary { margin-top: 24px; width: 100%; height: 52px; line-height: 52px; border-radius: 16px; background-color: #5b8def; color: #ffffff; font-size: 17px; font-weight: 600; }
+.guardian-note { margin-top: 14px; font-size: 12px; color: #8a93a8; }
+</style>

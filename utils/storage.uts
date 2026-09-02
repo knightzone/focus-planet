@@ -1,0 +1,114 @@
+export type ChildProfile = {
+  nickname: string,
+  age: number,
+  createdAt: number
+}
+
+export type TrainingRecord = {
+  id: string,
+  gameId: string,
+  dimensionId: string,
+  score: number,
+  difficultyLevel?: number,
+  accuracy: number,
+  averageReaction: number,
+  durationSeconds?: number,
+  omissions?: number,
+  falseAlarms?: number,
+  switchErrors?: number,
+  interferenceErrors?: number,
+  completedAt: number
+}
+
+const PROFILE_KEY = 'focus_planet_profile'
+const RECORDS_KEY = 'focus_planet_records'
+const SCHEMA_KEY = 'focus_planet_schema_version'
+const CURRENT_SCHEMA_VERSION = 2
+
+function ensureSchema() {
+  const versionValue = uni.getStorageSync(SCHEMA_KEY)
+  const version = versionValue == null || versionValue == '' ? 1 : versionValue as number
+  if (version < 2) {
+    const oldRecords = uni.getStorageSync(RECORDS_KEY)
+    if (oldRecords != null && oldRecords != '') {
+      const records = JSON.parse<TrainingRecord[]>(JSON.stringify(oldRecords))
+      if (records != null) {
+        for (let i = 0; i < records.length; i++) {
+          if (records[i].durationSeconds == null) records[i].durationSeconds = 0
+        }
+        uni.setStorageSync(RECORDS_KEY, records)
+      }
+    }
+    uni.setStorageSync(SCHEMA_KEY, CURRENT_SCHEMA_VERSION)
+  }
+}
+
+export function getProfile(): ChildProfile | null {
+  const value = uni.getStorageSync(PROFILE_KEY)
+  if (value == null || value == '') return null
+  return JSON.parse<ChildProfile>(JSON.stringify(value))
+}
+
+export function saveProfile(profile: ChildProfile) {
+  uni.setStorageSync(PROFILE_KEY, profile)
+}
+
+export function getRecords(): TrainingRecord[] {
+  ensureSchema()
+  const value = uni.getStorageSync(RECORDS_KEY)
+  if (value == null || value == '') return [] as TrainingRecord[]
+  const records = JSON.parse<TrainingRecord[]>(JSON.stringify(value))
+  return records == null ? [] as TrainingRecord[] : records
+}
+
+export function addRecord(record: TrainingRecord) {
+  const records = getRecords()
+  records.unshift(record)
+  uni.setStorageSync(RECORDS_KEY, records)
+}
+
+export function clearTrainingRecords() {
+  uni.removeStorageSync(RECORDS_KEY)
+  uni.removeStorageSync('focus_planet_difficulty_states')
+}
+
+export function getLocalDayKey(timestamp: number): string {
+  const date = new Date(timestamp)
+  const month = (date.getMonth() + 1).toString().padStart(2, '0')
+  const day = date.getDate().toString().padStart(2, '0')
+  return date.getFullYear().toString() + '-' + month + '-' + day
+}
+
+export function formatRecordDate(timestamp: number): string {
+  const date = new Date(timestamp)
+  return (date.getMonth() + 1).toString() + '月' + date.getDate().toString() + '日 ' +
+    date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0')
+}
+
+export function getWeeklyRecords(records: TrainingRecord[]): TrainingRecord[] {
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const firstDay = today - 6 * 24 * 60 * 60 * 1000
+  return records.filter((item: TrainingRecord): boolean => item.completedAt >= firstDay)
+}
+
+export function calculateStreak(records: TrainingRecord[]): number {
+  if (records.length == 0) return 0
+  const uniqueDays = [] as number[]
+  for (let i = 0; i < records.length; i++) {
+    const date = new Date(records[i].completedAt)
+    const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+    if (uniqueDays.indexOf(dayStart) < 0) uniqueDays.push(dayStart)
+  }
+  uniqueDays.sort((a: number, b: number): number => b - a)
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  const oneDay = 24 * 60 * 60 * 1000
+  if (uniqueDays[0] < today - oneDay) return 0
+  let streak = 1
+  for (let i = 1; i < uniqueDays.length; i++) {
+    if (Math.round((uniqueDays[i - 1] - uniqueDays[i]) / oneDay) == 1) streak += 1
+    else break
+  }
+  return streak
+}

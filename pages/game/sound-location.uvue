@@ -1,0 +1,81 @@
+<template>
+  <view class="page">
+    <view class="game-header"><view><text class="round-label">集中注意训练</text><text class="game-title">声音在哪里</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
+    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+    <view class="tip-card"><text class="tip-title">戴上耳机效果更清楚</text><text class="tip-copy">听到提示音后，点击声音传来的方向。</text><button class="tap-target replay" :disabled="!accepting" @click="replay">再听一次</button></view>
+
+    <view v-if="!started" class="instruction">
+      <YoungChildCue kind="listen"></YoungChildCue><text class="instruction-title">先听，再判断方向</text>
+      <text class="instruction-copy">开始按钮会播放第一段声音。请确认设备音量适中，不需要开得很大。</text>
+      <button class="tap-target primary" @click="begin">▶ 开始训练</button>
+    </view>
+    <view v-else class="direction-area">
+      <button class="tap-target direction side" :disabled="!accepting" @click="answer('left')"><text class="arrow tap-content">←</text><text class="direction-label tap-content">左边</text></button>
+      <button v-if="includeCenter" class="tap-target direction center" :disabled="!accepting" @click="answer('center')"><text class="sound-icon tap-content">♫</text><text class="direction-label tap-content">中间</text></button>
+      <button class="tap-target direction side" :disabled="!accepting" @click="answer('right')"><text class="arrow tap-content">→</text><text class="direction-label tap-content">右边</text></button>
+      <text class="feedback" :class="feedback == '判断正确' ? 'good' : 'again'">{{ feedback == '' ? '声音已播放' : feedback }}</text>
+    </view>
+    <view class="footer-stats"><view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view><view class="footer-stat"><text class="footer-value">{{ errors }}</text><text class="footer-label">错误</text></view><view class="footer-stat"><text class="footer-value">{{ replayCount }}</text><text class="footer-label">重听</text></view></view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+
+const started = ref(false), accepting = ref(false), includeCenter = ref(false)
+const totalRounds = ref(10), roundIndex = ref(0), targetDirection = ref('left')
+const correct = ref(0), errors = ref(0), replayCount = ref(0), feedback = ref('')
+const reactions = ref([] as number[])
+const audio = ref<InnerAudioContext | null>(null)
+let appearedAt = 0, gameStartedAt = 0, nextTimer = 0
+const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
+const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
+
+function configure() {
+  const age = getGameTuningAge('sound-location')
+  if (age <= 6) totalRounds.value = 8
+  else if (age <= 9) totalRounds.value = 10
+  else if (age <= 12) { totalRounds.value = 14; includeCenter.value = true }
+  else { totalRounds.value = 18; includeCenter.value = true }
+}
+function soundPath(): string { return '/static/audio/location/' + targetDirection.value + '.wav' }
+function playSound() {
+  if (audio.value == null) audio.value = uni.createInnerAudioContext(); else audio.value!.stop()
+  audio.value!.src = soundPath(); audio.value!.play()
+}
+function clearResources() { if (nextTimer > 0) clearTimeout(nextTimer); audio.value?.stop() }
+function finish() {
+  clearResources(); const accuracy = Math.round((correct.value / totalRounds.value) * 100)
+  const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0)
+  const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length)
+  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  uni.redirectTo({ url: '/pages/result/result?gameId=sound-location&dimensionId=focused&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&falseAlarms=' + errors.value.toString() })
+}
+function prepare() {
+  if (roundIndex.value >= totalRounds.value) { finish(); return }
+  const directions = includeCenter.value ? ['left', 'center', 'right'] : ['left', 'right']
+  targetDirection.value = directions[Math.floor(Math.random() * directions.length)]
+  feedback.value = ''; accepting.value = true; appearedAt = Date.now(); playSound()
+}
+function begin() { started.value = true; gameStartedAt = Date.now(); prepare() }
+function replay() { if (!accepting.value) return; replayCount.value += 1; playSound() }
+function answer(direction: string) {
+  if (!accepting.value) return; accepting.value = false; reactions.value.push(Date.now() - appearedAt)
+  if (direction == targetDirection.value) { correct.value += 1; feedback.value = '判断正确' }
+  else { errors.value += 1; feedback.value = '方向在' + (targetDirection.value == 'left' ? '左边' : targetDirection.value == 'right' ? '右边' : '中间') }
+  nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 620)
+}
+onLoad((_options: OnLoadOptions) => configure())
+onUnload(() => { clearResources(); audio.value?.destroy(); audio.value = null })
+</script>
+
+<style>
+.page { flex: 1; padding: 20px; }.game-header { flex-direction: row; justify-content: space-between; align-items: center; }.round-label { color: #4d74c2; font-size: 12px; font-weight: 700; }.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #eaf0ff; align-items: center; justify-content: center; }.counter-value { color: #4d74c2; font-size: 13px; font-weight: 700; }
+.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; background-color: #5b8def; }.tip-card { margin-top: 14px; padding: 14px 112px 14px 14px; min-height: 76px; border-radius: 18px; background-color: #eaf0ff; position: relative; }.tip-title { color: #405d97; font-size: 14px; font-weight: 700; }.tip-copy { margin-top: 4px; color: #7284a7; font-size: 10px; }.replay { position: absolute; right: 12px; top: 14px; margin: 0; padding: 0 12px; height: 48px; line-height: 48px; border-radius: 11px; background-color: #ffffff; color: #4d74c2; font-size: 11px; }
+.instruction { margin-top: 14px; height: 360px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; }.headphone { width: 92px; height: 92px; border-radius: 46px; background-color: #eaf0ff; align-items: center; justify-content: center; }.headphone-symbol { color: #5b8def; font-size: 42px; }.instruction-title { margin-top: 18px; color: #25314a; font-size: 19px; font-weight: 700; }.instruction-copy { margin-top: 8px; width: 78%; color: #7b8599; font-size: 11px; line-height: 18px; text-align: center; }.primary { margin-top: 20px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #5b8def; color: #ffffff; font-size: 14px; font-weight: 700; }
+.direction-area { margin-top: 14px; height: 360px; border-radius: 25px; background-color: #ffffff; flex-direction: row; align-items: center; justify-content: center; position: relative; }.direction { margin: 0 5px; padding: 0; width: 29%; height: 180px; border-radius: 22px; background-color: #f1f5fb; align-items: center; justify-content: center; }.center { background-color: #fff6df; }.arrow { color: #5b8def; font-size: 48px; }.sound-icon { color: #e2a72b; font-size: 40px; }.direction-label { margin-top: 12px; color: #3e4a61; font-size: 13px; font-weight: 700; }.feedback { position: absolute; bottom: 24px; font-size: 12px; font-weight: 700; }.good { color: #338e72; }.again { color: #c65b66; }
+.footer-stats { margin-top: 14px; flex-direction: row; }.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+</style>

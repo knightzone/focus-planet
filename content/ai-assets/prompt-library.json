@@ -1,0 +1,26 @@
+{
+  "style": {
+    "id": "focus-planet-soft-2d-v1",
+    "description": "Polished flat 2D mobile game illustration with rounded geometric forms and clean soft outlines. Calm, modern and suitable for ages 3–16 without looking preschoolish.",
+    "palette": ["#5B8DEF", "#55C9A5", "#FFC857", "#F17C8D", "#F5F8FC"],
+    "avoid": ["text", "watermark", "brand logo", "photorealism", "glossy 3D", "violent imagery", "frightening expressions", "baked checkerboard background"]
+  },
+  "templates": {
+    "singleObject": {
+      "required": ["assetId", "subject", "ageBand", "background"],
+      "prompt": "One complete {subject}, centered, isolated, consistent scale, focus-planet-soft-2d-v1 style, intended for {ageBand}, {background}, no text, no watermark, no cropped silhouette."
+    },
+    "spotDifference": {
+      "required": ["assetId", "scene", "differenceCount", "ageBand"],
+      "prompt": "Two equal side-by-side panels of {scene}, identical framing with exactly {differenceCount} deliberate differences suitable for {ageBand}. Differences may use color, missing object, direction, shape or count. No microscopic differences, text or watermark."
+    },
+    "forestSearchBoard": {
+      "required": ["assetId", "targets", "ageBand"],
+      "prompt": "A calm forest clearing containing exactly {targets}, with every target fully visible and enough empty space for touch hotspots. Landscape focus-planet-soft-2d-v1 style suitable for {ageBand}; no text, watermark, microscopic targets or dense clutter."
+    },
+    "mascotPose": {
+      "required": ["assetId", "pose", "emotion", "background"],
+      "prompt": "Space fox mascot in {pose}, showing {emotion}, preserve approved character identity and costume, {background}, no additional characters, text or watermark."
+    }
+  }
+}

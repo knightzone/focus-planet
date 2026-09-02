@@ -1,0 +1,98 @@
+export type AgeBand = {
+  id: string,
+  label: string,
+  min: number,
+  max: number,
+  sessionMinutes: number
+}
+
+export type TrainingGame = {
+  id: string,
+  dimensionId: string,
+  name: string,
+  summary: string,
+  status: string
+}
+
+export type FocusDimension = {
+  id: string,
+  name: string,
+  shortName: string,
+  color: string,
+  description: string
+}
+
+export const AGE_BANDS: AgeBand[] = [
+  { id: 'starter', label: '启蒙模式', min: 3, max: 6, sessionMinutes: 5 },
+  { id: 'growth', label: '成长模式', min: 7, max: 9, sessionMinutes: 10 },
+  { id: 'advanced', label: '进阶模式', min: 10, max: 12, sessionMinutes: 15 },
+  { id: 'teen', label: '青少年模式', min: 13, max: 16, sessionMinutes: 25 }
+]
+
+export const DIMENSIONS: FocusDimension[] = [
+  { id: 'focused', name: '集中注意', shortName: '集中', color: '#5B8DEF', description: '快速发现目标并作出回应' },
+  { id: 'sustained', name: '持续注意', shortName: '持续', color: '#55C9A5', description: '在一段时间内保持稳定投入' },
+  { id: 'selective', name: '选择注意', shortName: '选择', color: '#FFC857', description: '忽略干扰并找到关键信息' },
+  { id: 'alternating', name: '转换注意', shortName: '转换', color: '#9B7EDE', description: '在不同任务规则之间灵活切换' },
+  { id: 'divided', name: '分配注意', shortName: '分配', color: '#F17C8D', description: '同时关注两类简单信息' }
+]
+
+export const GAMES: TrainingGame[] = [
+  { id: 'star-catcher', dimensionId: 'focused', name: '星星捕手', summary: '目标出现后快速点击', status: 'ready' },
+  { id: 'sound-location', dimensionId: 'focused', name: '声音在哪里', summary: '根据声音方向寻找目标', status: 'ready' },
+  { id: 'shape-match', dimensionId: 'focused', name: '图形配对', summary: '快速找到相同图形', status: 'ready' },
+  { id: 'light-tracking', dimensionId: 'focused', name: '萤火虫追踪', summary: '追踪并点击移动的萤火虫', status: 'ready' },
+  { id: 'number-tap', dimensionId: 'focused', name: '数字连点', summary: '按照 1 到 9 的顺序快速点击', status: 'ready' },
+  { id: 'penalty-kick', dimensionId: 'focused', name: '点球小将', summary: '观察门将并选择射门方向', status: 'ready' },
+
+  { id: 'sky-watcher', dimensionId: 'sustained', name: '星空守望员', summary: '长时间观察指定目标', status: 'ready' },
+  { id: 'car-patrol', dimensionId: 'sustained', name: '小车巡逻', summary: '保持路线并避开障碍', status: 'ready' },
+  { id: 'spot-change', dimensionId: 'sustained', name: '找出变化', summary: '发现画面中的偶发变化', status: 'ready' },
+  { id: 'breathing-planet', dimensionId: 'sustained', name: '呼吸小星球', summary: '跟随节奏完成连续操作', status: 'ready' },
+  { id: 'audio-sequence', dimensionId: 'sustained', name: '听音节奏', summary: '听声音并按顺序复现图案', status: 'ready' },
+  { id: 'bird-cloud', dimensionId: 'sustained', name: '小鸟穿云', summary: '持续调整高度穿过云门', status: 'ready' },
+
+  { id: 'forest-search', dimensionId: 'selective', name: '森林寻宝', summary: '在复杂场景中寻找物品', status: 'ready' },
+  { id: 'color-command', dimensionId: 'selective', name: '颜色指令', summary: '忽略干扰并选择目标颜色', status: 'ready' },
+  { id: 'sound-filter', dimensionId: 'selective', name: '声音过滤器', summary: '忽略背景音识别目标声音', status: 'ready' },
+  { id: 'symbol-detective', dimensionId: 'selective', name: '字符侦探', summary: '在大量字符中寻找目标', status: 'ready' },
+  { id: 'spot-difference', dimensionId: 'selective', name: '找茬乐园', summary: '比较两幅场景并找出不同', status: 'ready' },
+
+  { id: 'magic-rule', dimensionId: 'alternating', name: '魔法规则', summary: '在颜色与形状规则间切换', status: 'ready' },
+  { id: 'sorting-station', dimensionId: 'alternating', name: '分类车站', summary: '按照变化的规则分类', status: 'ready' },
+  { id: 'number-track', dimensionId: 'alternating', name: '奇偶轨道', summary: '在数字规则之间切换', status: 'ready' },
+  { id: 'red-green', dimensionId: 'alternating', name: '红绿指令', summary: '根据提示点击或停止', status: 'ready' },
+  { id: 'water-sort', dimensionId: 'alternating', name: '倒水小实验', summary: '规划步骤并把颜色分开', status: 'ready' },
+  { id: 'pattern-find', dimensionId: 'alternating', name: '规律小侦探', summary: '观察图案顺序并补全规律', status: 'ready' },
+
+  { id: 'little-driver', dimensionId: 'divided', name: '一心二用小司机', summary: '控制路线并回应路边目标', status: 'ready' },
+  { id: 'listen-find', dimensionId: 'divided', name: '听声找图', summary: '同时记住声音和目标颜色', status: 'ready' },
+  { id: 'memory-search', dimensionId: 'divided', name: '记忆与搜索', summary: '记住目标并完成寻找', status: 'ready' },
+  { id: 'dual-track', dimensionId: 'divided', name: '双轨任务', summary: '同时监控两个区域', status: 'ready' }
+]
+
+export function getAgeBand(age: number): AgeBand {
+  for (let i = 0; i < AGE_BANDS.length; i++) {
+    if (age >= AGE_BANDS[i].min && age <= AGE_BANDS[i].max) return AGE_BANDS[i]
+  }
+  return AGE_BANDS[0]
+}
+
+export function gamesForDimension(dimensionId: string): TrainingGame[] {
+  return GAMES.filter((game: TrainingGame): boolean => game.dimensionId == dimensionId)
+}
+
+export function getGameName(gameId: string): string {
+  const game = GAMES.find((item: TrainingGame): boolean => item.id == gameId)
+  return game == null ? '专注训练' : game.name
+}
+
+export function getGameRoute(gameId: string): string {
+  if (gameId == 'spot-change' || gameId == 'symbol-detective' || gameId == 'memory-search') {
+    return '/pages/game/grid-challenge?gameId=' + gameId
+  }
+  if (gameId == 'light-tracking' || gameId == 'car-patrol' || gameId == 'little-driver') {
+    return '/pages/game/motion-challenge?gameId=' + gameId
+  }
+  return '/pages/game/' + gameId
+}

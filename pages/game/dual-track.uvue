@@ -1,0 +1,183 @@
+<template>
+  <view class="page">
+    <view class="game-header">
+      <view><text class="round-label">分配注意训练</text><text class="game-title">同时守住两条轨道</text></view>
+      <view class="counter"><text class="counter-value">{{ displayTick }}/{{ totalTicks }}</text></view>
+    </view>
+    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+    <view class="rule-card">
+      <text class="rule-title">看到金色星星，就点击它所在的轨道</text>
+      <text class="rule-tip">蓝色圆点是干扰，不要点击。两边可能同时出现金色星星。</text>
+    </view>
+
+    <view class="tracks">
+      <view class="track left-track" @click="tapSide('left')">
+        <text class="track-label tap-content">左轨道</text>
+        <view v-if="started && visible" class="signal tap-content" :class="leftTarget ? 'target-signal' : 'distractor-signal'">
+          <text :class="leftTarget ? 'signal-target-symbol' : 'signal-distractor-symbol'">{{ leftTarget ? '✦' : '●' }}</text>
+        </view>
+        <view v-else class="waiting-dot tap-content"></view>
+        <view v-if="leftResponded" class="response-mark tap-content"><text class="response-symbol">{{ leftTarget ? '✓' : '×' }}</text></view>
+      </view>
+      <view class="track right-track" @click="tapSide('right')">
+        <text class="track-label tap-content">右轨道</text>
+        <view v-if="started && visible" class="signal tap-content" :class="rightTarget ? 'target-signal' : 'distractor-signal'">
+          <text :class="rightTarget ? 'signal-target-symbol' : 'signal-distractor-symbol'">{{ rightTarget ? '✦' : '●' }}</text>
+        </view>
+        <view v-else class="waiting-dot tap-content"></view>
+        <view v-if="rightResponded" class="response-mark tap-content"><text class="response-symbol">{{ rightTarget ? '✓' : '×' }}</text></view>
+      </view>
+    </view>
+
+    <view v-if="!started" class="instruction">
+      <YoungChildCue kind="watch"></YoungChildCue>
+      <text class="instruction-title">准备同时观察左右两边</text>
+      <text class="instruction-copy">低龄模式会先从单侧目标开始，随着年龄增加，两边同时出现目标的机会会提高。</text>
+      <button class="tap-target primary" @click="begin">▶ 开始训练</button>
+    </view>
+
+    <view class="footer-stats" :class="started ? 'footer-playing' : 'footer-ready'">
+      <view class="footer-stat"><text class="footer-value">{{ hits }}</text><text class="footer-label">命中</text></view>
+      <view class="footer-stat"><text class="footer-value">{{ omissions }}</text><text class="footer-label">遗漏</text></view>
+      <view class="footer-stat"><text class="footer-value">{{ falseAlarms }}</text><text class="footer-label">误点</text></view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+
+const started = ref(false)
+const visible = ref(false)
+const totalTicks = ref(14)
+const tickDuration = ref(1200)
+const doubleTargetRate = ref(0.1)
+const tickIndex = ref(0)
+const leftTarget = ref(false)
+const rightTarget = ref(false)
+const leftResponded = ref(false)
+const rightResponded = ref(false)
+const hits = ref(0)
+const omissions = ref(0)
+const falseAlarms = ref(0)
+const reactions = ref([] as number[])
+let appearedAt = 0
+let gameStartedAt = 0
+let tickTimer = 0
+let gapTimer = 0
+
+const displayTick = computed((): number => started.value ? Math.min(totalTicks.value, tickIndex.value + 1) : 0)
+const progressWidth = computed((): string => {
+  if (!started.value) return '0%'
+  return Math.min(100, Math.round((tickIndex.value / totalTicks.value) * 100)).toString() + '%'
+})
+
+function configureDifficulty() {
+  const age = getGameTuningAge('dual-track')
+  if (age <= 6) { totalTicks.value = 10; tickDuration.value = 1500; doubleTargetRate.value = 0 }
+  else if (age <= 9) { totalTicks.value = 14; tickDuration.value = 1250; doubleTargetRate.value = 0.1 }
+  else if (age <= 12) { totalTicks.value = 18; tickDuration.value = 1000; doubleTargetRate.value = 0.2 }
+  else { totalTicks.value = 22; tickDuration.value = 850; doubleTargetRate.value = 0.3 }
+}
+
+function clearTimers() {
+  if (tickTimer > 0) clearTimeout(tickTimer)
+  if (gapTimer > 0) clearTimeout(gapTimer)
+}
+
+function finishGame() {
+  clearTimers()
+  const targetTotal = hits.value + omissions.value
+  const targetAccuracy = targetTotal == 0 ? 0 : hits.value / targetTotal
+  const responseTotal = hits.value + falseAlarms.value
+  const responseAccuracy = responseTotal == 0 ? 0 : hits.value / responseTotal
+  const accuracy = Math.round((targetAccuracy * 0.65 + responseAccuracy * 0.35) * 100)
+  const reactionTotal = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
+  const average = reactions.value.length == 0 ? 0 : Math.round(reactionTotal / reactions.value.length)
+  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  uni.redirectTo({
+    url: '/pages/result/result?gameId=dual-track&dimensionId=divided&score=' + accuracy.toString() +
+      '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() +
+      '&omissions=' + omissions.value.toString() + '&falseAlarms=' + falseAlarms.value.toString()
+  })
+}
+
+function prepareTick() {
+  if (tickIndex.value >= totalTicks.value) { finishGame(); return }
+  const doubleTarget = Math.random() < doubleTargetRate.value
+  if (doubleTarget) {
+    leftTarget.value = true; rightTarget.value = true
+  } else {
+    leftTarget.value = Math.random() < 0.38
+    rightTarget.value = Math.random() < 0.38
+    if (!leftTarget.value && !rightTarget.value && Math.random() < 0.35) {
+      if (Math.random() < 0.5) leftTarget.value = true
+      else rightTarget.value = true
+    }
+    if (doubleTargetRate.value == 0 && leftTarget.value && rightTarget.value) rightTarget.value = false
+  }
+  leftResponded.value = false; rightResponded.value = false
+  visible.value = true
+  appearedAt = Date.now()
+  tickTimer = setTimeout(() => {
+    if (leftTarget.value && !leftResponded.value) omissions.value += 1
+    if (rightTarget.value && !rightResponded.value) omissions.value += 1
+    visible.value = false
+    tickIndex.value += 1
+    gapTimer = setTimeout(() => prepareTick(), 260)
+  }, tickDuration.value)
+}
+
+function begin() {
+  started.value = true
+  gameStartedAt = Date.now()
+  prepareTick()
+}
+
+function tapSide(side: string) {
+  if (!started.value || !visible.value) return
+  const isLeft = side == 'left'
+  if ((isLeft && leftResponded.value) || (!isLeft && rightResponded.value)) return
+  if (isLeft) leftResponded.value = true
+  else rightResponded.value = true
+  const isTarget = isLeft ? leftTarget.value : rightTarget.value
+  if (isTarget) {
+    hits.value += 1
+    reactions.value.push(Date.now() - appearedAt)
+  } else falseAlarms.value += 1
+}
+
+onLoad((_options: OnLoadOptions) => configureDifficulty())
+onUnload(() => clearTimers())
+</script>
+
+<style>
+.page { flex: 1; padding: 20px; }
+.game-header { flex-direction: row; justify-content: space-between; align-items: center; }
+.round-label { color: #d15f70; font-size: 12px; font-weight: 700; }
+.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #fde9ec; align-items: center; justify-content: center; }
+.counter-value { color: #c95869; font-size: 13px; font-weight: 700; }
+.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }
+.progress-fill { height: 8px; border-radius: 4px; background-color: #f17c8d; }
+.rule-card { margin-top: 14px; padding: 15px 17px; border-radius: 18px; background-color: #fff0f2; }
+.rule-title { color: #74434b; font-size: 14px; font-weight: 700; }.rule-tip { margin-top: 5px; color: #927078; font-size: 10px; line-height: 16px; }
+.tracks { margin-top: 14px; height: 335px; flex-direction: row; }
+.track { flex: 1; border-radius: 24px; align-items: center; justify-content: center; position: relative; overflow: hidden; }
+.left-track { margin-right: 6px; background-color: #eaf0ff; }.right-track { margin-left: 6px; background-color: #eef9f5; }
+.track-label { position: absolute; top: 17px; color: #69758d; font-size: 11px; font-weight: 700; }
+.signal { width: 90px; height: 90px; border-radius: 45px; align-items: center; justify-content: center; }
+.target-signal { background-color: #fff1c9; }.distractor-signal { background-color: #dae5f8; }
+.signal-target-symbol { color: #f1b52e; font-size: 54px; }.signal-distractor-symbol { color: #7b9ed9; font-size: 46px; }
+.waiting-dot { width: 12px; height: 12px; border-radius: 6px; background-color: #cbd4e3; }
+.response-mark { position: absolute; bottom: 20px; width: 32px; height: 32px; border-radius: 16px; background-color: #ffffff; align-items: center; justify-content: center; }
+.response-symbol { color: #50617e; font-size: 16px; font-weight: 700; }
+.instruction { margin-top: -230px; padding: 24px; border-radius: 20px; background-color: #ffffff; align-items: center; z-index: 5; }
+.instruction-title { color: #25314a; font-size: 17px; font-weight: 700; }.instruction-copy { margin-top: 8px; color: #7b8599; font-size: 11px; line-height: 18px; text-align: center; }
+.primary { margin-top: 16px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #f17c8d; color: #ffffff; font-size: 14px; font-weight: 700; }
+.footer-stats { flex-direction: row; }.footer-ready { margin-top: 245px; }.footer-playing { margin-top: 14px; }
+.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+</style>

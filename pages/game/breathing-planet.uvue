@@ -1,0 +1,80 @@
+<template>
+  <view class="page">
+    <view class="game-header"><view><text class="round-label">持续注意训练</text><text class="game-title">呼吸小星球</text></view><view class="counter"><text class="counter-value">{{ displayCycle }}/{{ totalCycles }}</text></view></view>
+    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+    <view class="guide-card"><text class="guide-title">跟随星球的节奏</text><text class="guide-copy">吸气时变大，呼气时变小。保持自然，不要憋气或勉强。</text></view>
+    <view class="space">
+      <view v-if="!started" class="instruction"><YoungChildCue kind="breathe"></YoungChildCue><text class="instruction-title">准备一段安静练习</text><text class="instruction-copy">星球变大时慢慢吸气，变小时缓缓呼气。</text><button class="tap-target primary" @click="begin">▶ 开始跟随</button></view>
+      <view v-else class="practice">
+        <text class="phase-label">{{ phaseLabel }}</text><text class="phase-count">{{ phaseSeconds }}</text>
+        <view class="planet-glow" :style="{ transform: planetScale, transitionDuration: transitionDuration }"><view class="planet"><text class="planet-symbol">✦</text></view><view class="ring"></view></view>
+        <button v-if="phase == 'confirm'" class="tap-target confirm" :disabled="responded" @click="confirmCycle">{{ responded ? '✓' : '✓  完成' }}</button>
+        <text v-else class="phase-tip">{{ phase == 'inhale' ? '慢慢吸气' : phase == 'hold' ? '轻松停留' : '缓缓呼气' }}</text>
+      </view>
+    </view>
+    <view class="footer-stats"><view class="footer-stat"><text class="footer-value">{{ completed }}</text><text class="footer-label">跟随</text></view><view class="footer-stat"><text class="footer-value">{{ omissions }}</text><text class="footer-label">遗漏</text></view><view class="footer-stat"><text class="footer-value">{{ averageReactionLabel }}</text><text class="footer-label">确认反应</text></view></view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameTuningAge } from '../../utils/difficulty.uts'
+
+const started = ref(false), phase = ref('ready'), phaseLabel = ref('准备'), phaseSeconds = ref(0)
+const totalCycles = ref(4), cycleIndex = ref(0), completed = ref(0), omissions = ref(0), responded = ref(false)
+const inhaleMs = ref(3200), holdMs = ref(900), exhaleMs = ref(3800), confirmMs = ref(1800)
+const reactions = ref([] as number[])
+let phaseTimer = 0, countdownTimer = 0, confirmStartedAt = 0, gameStartedAt = 0
+const displayCycle = computed((): number => started.value ? Math.min(totalCycles.value, cycleIndex.value + 1) : 0)
+const progressWidth = computed((): string => started.value ? Math.round((cycleIndex.value / totalCycles.value) * 100).toString() + '%' : '0%')
+const planetScale = computed((): string => phase.value == 'inhale' || phase.value == 'hold' ? 'scale(1.35)' : 'scale(0.78)')
+const transitionDuration = computed((): string => (phase.value == 'inhale' ? inhaleMs.value : phase.value == 'exhale' ? exhaleMs.value : 300).toString() + 'ms')
+const averageReactionLabel = computed((): string => {
+  if (reactions.value.length == 0) return '—'
+  const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0)
+  return Math.round(sum / reactions.value.length).toString() + 'ms'
+})
+function configure() {
+  const age = getGameTuningAge('breathing-planet')
+  if (age <= 6) { totalCycles.value = 3; inhaleMs.value = 2800; holdMs.value = 500; exhaleMs.value = 3200 }
+  else if (age <= 9) totalCycles.value = 4
+  else if (age <= 12) { totalCycles.value = 5; inhaleMs.value = 3600; exhaleMs.value = 4200 }
+  else { totalCycles.value = 6; inhaleMs.value = 3800; holdMs.value = 1100; exhaleMs.value = 4500 }
+}
+function clearTimers() { if (phaseTimer > 0) clearTimeout(phaseTimer); if (countdownTimer > 0) clearInterval(countdownTimer) }
+function finish() {
+  clearTimers(); const accuracy = Math.round((completed.value / totalCycles.value) * 100)
+  const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length)
+  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  uni.redirectTo({ url: '/pages/result/result?gameId=breathing-planet&dimensionId=sustained&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&omissions=' + omissions.value.toString() })
+}
+function startPhase(nextPhase: string, duration: number) {
+  clearTimers(); phase.value = nextPhase; phaseLabel.value = nextPhase == 'inhale' ? '吸气' : nextPhase == 'hold' ? '停留' : nextPhase == 'exhale' ? '呼气' : '确认'
+  phaseSeconds.value = Math.max(1, Math.ceil(duration / 1000)); responded.value = false
+  countdownTimer = setInterval(() => { if (phaseSeconds.value > 1) phaseSeconds.value -= 1 }, 1000)
+  if (nextPhase == 'confirm') confirmStartedAt = Date.now()
+  phaseTimer = setTimeout(() => {
+    if (phase.value == 'inhale') startPhase('hold', holdMs.value)
+    else if (phase.value == 'hold') startPhase('exhale', exhaleMs.value)
+    else if (phase.value == 'exhale') startPhase('confirm', confirmMs.value)
+    else {
+      if (!responded.value) omissions.value += 1
+      cycleIndex.value += 1
+      if (cycleIndex.value >= totalCycles.value) finish(); else startPhase('inhale', inhaleMs.value)
+    }
+  }, duration)
+}
+function begin() { started.value = true; gameStartedAt = Date.now(); startPhase('inhale', inhaleMs.value) }
+function confirmCycle() { if (phase.value != 'confirm' || responded.value) return; responded.value = true; completed.value += 1; reactions.value.push(Date.now() - confirmStartedAt) }
+onLoad((_options: OnLoadOptions) => configure()); onUnload(() => clearTimers())
+</script>
+
+<style>
+.page { flex: 1; padding: 20px; }.game-header { flex-direction: row; justify-content: space-between; align-items: center; }.round-label { color: #3f987a; font-size: 12px; font-weight: 700; }.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #e5f6ef; align-items: center; justify-content: center; }.counter-value { color: #3f987a; font-size: 13px; font-weight: 700; }
+.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; background-color: #55c9a5; }.guide-card { margin-top: 14px; padding: 15px; border-radius: 18px; background-color: #e8f7f1; }.guide-title { color: #337e67; font-size: 14px; font-weight: 700; }.guide-copy { margin-top: 4px; color: #668c7f; font-size: 10px; line-height: 16px; }
+.space { margin-top: 14px; height: 390px; border-radius: 26px; background-color: #20355f; align-items: center; justify-content: center; overflow: hidden; }.instruction, .practice { width: 100%; align-items: center; }.mini-planet { width: 88px; height: 88px; border-radius: 44px; background-color: #55c9a5; align-items: center; justify-content: center; }.mini-planet-symbol { color: #ffffff; font-size: 36px; }.instruction-title { margin-top: 18px; color: #ffffff; font-size: 19px; font-weight: 700; }.instruction-copy { margin-top: 8px; width: 78%; color: #b7c5df; font-size: 11px; line-height: 18px; text-align: center; }.primary { margin-top: 20px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #55c9a5; color: #ffffff; font-size: 14px; font-weight: 700; }
+.phase-label { color: #d9e7ff; font-size: 22px; font-weight: 700; }.phase-count { margin-top: 3px; color: #8fa8d3; font-size: 13px; }.planet-glow { margin-top: 46px; width: 122px; height: 122px; border-radius: 61px; background-color: #355783; align-items: center; justify-content: center; position: relative; transition-property: transform; transition-timing-function: ease-in-out; }.planet { width: 86px; height: 86px; border-radius: 43px; background-color: #55c9a5; align-items: center; justify-content: center; }.planet-symbol { color: #ffffff; font-size: 35px; }.ring { position: absolute; width: 121px; height: 34px; border: 5px solid #87d9bd; border-radius: 50%; transform: rotate(-12deg); }.phase-tip { margin-top: 48px; color: #b8c8e3; font-size: 12px; }.confirm { margin-top: 43px; width: 150px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #ffffff; color: #337e67; font-size: 13px; font-weight: 700; }
+.footer-stats { margin-top: 14px; flex-direction: row; }.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+</style>
