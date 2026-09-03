@@ -1,7 +1,7 @@
 <template>
   <view class="page">
     <view class="profile-card">
-      <view class="avatar"><text class="avatar-value">{{ age }}</text></view>
+      <image class="settings-mascot" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image>
       <view class="profile-copy">
         <text class="profile-name">{{ nickname }}</text>
         <text class="profile-mode">年龄用于首次默认难度 · 建议每次 {{ sessionMinutes }} 分钟</text>
@@ -17,6 +17,21 @@
         <button class="tap-target age-button" @click="changeAge(1)">＋</button>
       </view>
       <button class="tap-target save-button" @click="saveChanges">保存档案</button>
+    </view>
+    <view class="test-card">
+      <view class="test-heading">
+        <view><text class="test-title">测试难度</text><text class="test-copy">临时锁定已接入难度系统的游戏，方便逐级检查</text></view>
+        <text class="test-badge">仅测试阶段</text>
+      </view>
+      <view class="difficulty-row">
+        <button class="tap-target difficulty-button" @click="changeTestDifficulty(-1)">−</button>
+        <view class="difficulty-value">
+          <text class="difficulty-number">{{ testDifficulty == 0 ? '自动' : testDifficulty.toString() }}</text>
+          <text v-if="testDifficulty > 0" class="difficulty-unit">/10</text>
+        </view>
+        <button class="tap-target difficulty-button" @click="changeTestDifficulty(1)">＋</button>
+      </view>
+      <button class="tap-target auto-button" :class="testDifficulty == 0 ? 'auto-button-active' : ''" @click="useAutoDifficulty">{{ testDifficulty == 0 ? '当前为自动难度' : '恢复自动难度' }}</button>
     </view>
     <view class="menu-card">
       <view class="menu-row" @click="openHistory">
@@ -39,14 +54,17 @@
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getAgeBand } from '../../utils/catalog.uts'
+import { defaultDifficultyForAge, getTestDifficultyOverride, setTestDifficultyOverride } from '../../utils/difficulty.uts'
 import { getProfile, saveProfile, clearTrainingRecords } from '../../utils/storage.uts'
 
 const nickname = ref('')
 const age = ref(8)
+const testDifficulty = ref(0)
 const band = computed(() => getAgeBand(age.value))
 const sessionMinutes = computed((): number => band.value.sessionMinutes)
 
 onShow(() => {
+  testDifficulty.value = getTestDifficultyOverride()
   const profile = getProfile()
   if (profile != null) {
     nickname.value = profile.nickname
@@ -55,6 +73,19 @@ onShow(() => {
 })
 
 function changeAge(delta: number) { age.value = Math.min(16, Math.max(3, age.value + delta)) }
+function changeTestDifficulty(delta: number) {
+  let current = testDifficulty.value
+  if (current == 0) current = defaultDifficultyForAge(age.value)
+  const next = Math.max(1, Math.min(10, current + delta))
+  testDifficulty.value = next
+  setTestDifficultyOverride(next)
+  uni.showToast({ title: '已锁定难度 ' + next.toString(), icon: 'none' })
+}
+function useAutoDifficulty() {
+  testDifficulty.value = 0
+  setTestDifficultyOverride(0)
+  uni.showToast({ title: '已恢复自动难度', icon: 'none' })
+}
 function saveChanges() {
   const name = nickname.value.trim()
   if (name.length == 0) {
@@ -85,12 +116,11 @@ function confirmClear() {
 <style>
 .page { padding: 20px 18px 34px; }
 .profile-card { padding: 19px; border-radius: 22px; background-color: #5b8def; flex-direction: row; align-items: center; }
-.avatar { width: 56px; height: 56px; border-radius: 28px; background-color: #ffffff; align-items: center; justify-content: center; }
-.avatar-value { color: #5b8def; font-size: 19px; font-weight: 700; }
+.settings-mascot { width: 74px; height: 74px; border-radius: 37px; }
 .profile-copy { margin-left: 14px; }
 .profile-name { color: #ffffff; font-size: 19px; font-weight: 700; }
 .profile-mode { margin-top: 5px; color: #dfe8ff; font-size: 12px; }
-.form-card, .menu-card { margin-top: 16px; padding: 19px; border-radius: 22px; background-color: #ffffff; }
+.form-card, .menu-card, .test-card { margin-top: 16px; padding: 19px; border-radius: 22px; background-color: #ffffff; }
 .label { color: #4f5a73; font-size: 13px; font-weight: 600; }
 .input { margin-top: 9px; height: 46px; padding: 0 13px; border-radius: 13px; background-color: #f2f5fa; font-size: 15px; }
 .age-label { margin-top: 20px; }
@@ -100,6 +130,17 @@ function confirmClear() {
 .age-number { color: #25314a; font-size: 34px; font-weight: 700; }
 .age-unit { margin: 0 0 5px 4px; color: #7d879b; font-size: 12px; }
 .save-button { margin-top: 19px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #5b8def; color: #ffffff; font-size: 15px; font-weight: 700; }
+.test-heading { flex-direction: row; align-items: flex-start; justify-content: space-between; }
+.test-title { color: #344059; font-size: 15px; font-weight: 700; }
+.test-copy { margin-top: 5px; color: #8992a4; font-size: 11px; }
+.test-badge { padding: 5px 8px; border-radius: 10px; background-color: #fff2dc; color: #b57416; font-size: 10px; font-weight: 700; }
+.difficulty-row { margin-top: 16px; flex-direction: row; align-items: center; justify-content: space-between; }
+.difficulty-button { width: 52px; height: 48px; line-height: 48px; padding: 0; border-radius: 13px; background-color: #eaf0ff; color: #4d74c2; font-size: 23px; }
+.difficulty-value { min-width: 94px; flex-direction: row; align-items: flex-end; justify-content: center; }
+.difficulty-number { color: #25314a; font-size: 30px; font-weight: 700; }
+.difficulty-unit { margin: 0 0 4px 4px; color: #7d879b; font-size: 12px; }
+.auto-button { margin-top: 14px; height: 42px; line-height: 42px; border-radius: 12px; background-color: #f2f5fa; color: #63708a; font-size: 13px; font-weight: 600; }
+.auto-button-active { background-color: #e8f7f1; color: #31866c; }
 .menu-row { min-height: 68px; padding-bottom: 12px; border-bottom: 1px solid #edf0f5; flex-direction: row; align-items: center; justify-content: space-between; }
 .menu-row-last { padding-top: 12px; padding-bottom: 0; border-bottom-width: 0; }
 .menu-title { color: #344059; font-size: 14px; font-weight: 600; }

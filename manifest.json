@@ -1,5 +1,5 @@
 {
-	"name": "专注星球",
+	"name": "专注星伴",
 	"appid": "__UNI__B5780B0",
 	"description": "面向3-16岁儿童与学生的专注力训练应用",
 	"versionName": "0.1.0",
@@ -21,6 +21,8 @@
 	},
 	"app-ios": {
 		"distribute": {
+			"bundleIdentifier": "com.zhuanzhuapp.mate",
+			"CFBundleName": "专注星伴",
 			"modules": {},
 			"icons": {},
 			"splashScreens": {}

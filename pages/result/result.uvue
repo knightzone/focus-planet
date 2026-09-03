@@ -1,9 +1,13 @@
 <template>
   <view class="page">
-    <view class="celebration"><text class="celebration-symbol">✦</text></view>
+    <view class="celebration-pair">
+      <image class="result-bunny" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image>
+      <view class="celebration"><text class="celebration-symbol">✦</text></view>
+      <image class="result-kitten" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.png" mode="aspectFit"></image>
+    </view>
     <text class="title">训练完成</text>
-    <text class="subtitle">{{ gameName }} · 今天的专注星球又明亮了一点</text>
-    <text class="difficulty-badge">本次难度 {{ playedDifficulty }}/4</text>
+    <text class="subtitle">{{ gameName }} · 今天的专注星伴又进步了一点</text>
+    <text class="difficulty-badge">本次难度 {{ playedDifficulty }}/10</text>
 
     <view class="score-card">
       <text class="score-label">本次专注得分</text>
@@ -15,12 +19,12 @@
           <text class="metric-label">正确率</text>
         </view>
         <view class="metric">
-          <text class="metric-value">{{ reaction }}ms</text>
-          <text class="metric-label">平均反应</text>
+          <text class="metric-value">{{ reaction > 0 ? reaction.toString() + 'ms' : '--' }}</text>
+          <text class="metric-label">{{ reaction > 0 ? '平均反应' : '节奏完成' }}</text>
         </view>
         <view class="metric">
-          <text class="metric-value">+{{ score }}</text>
-          <text class="metric-label">星星能量</text>
+          <text class="metric-value">{{ performance.completionScore }}%</text>
+          <text class="metric-label">完成度</text>
         </view>
       </view>
     </view>
@@ -31,7 +35,7 @@
     </view>
 
     <view class="difficulty-card" :class="difficultyChange > 0 ? 'difficulty-up' : difficultyChange < 0 ? 'difficulty-down' : ''">
-      <text class="difficulty-title">下次难度 {{ nextDifficulty }}/4</text>
+      <text class="difficulty-title">下次难度 {{ nextDifficulty }}/10</text>
       <text class="difficulty-copy">{{ difficultyMessage }}</text>
     </view>
 
@@ -47,6 +51,7 @@ import { addRecord, getProfile, getRecords } from '../../utils/storage.uts'
 import { getGameName, getGameRoute } from '../../utils/catalog.uts'
 import { DailyPlanItem, buildDailyPlan, nextPendingPlanItem } from '../../utils/training-plan.uts'
 import { getGameDifficulty, updateGameDifficulty } from '../../utils/difficulty.uts'
+import { evaluatePerformance, PerformanceEvaluation } from '../../utils/performance.uts'
 
 const score = ref(0)
 const accuracy = ref(0)
@@ -59,16 +64,35 @@ const omissions = ref(0)
 const falseAlarms = ref(0)
 const switchErrors = ref(0)
 const interferenceErrors = ref(0)
+const completedCount = ref(0)
+const totalCount = ref(0)
+const passedFlag = ref(-1)
+const targetDuration = ref(0)
 const nextPlan = ref(null as DailyPlanItem | null)
 const playedDifficulty = ref(1)
 const nextDifficulty = ref(1)
 const difficultyChange = ref(0)
 const difficultyMessage = ref('继续保持当前难度')
 
+const performance = computed((): PerformanceEvaluation => evaluatePerformance({
+  gameId: gameId.value,
+  accuracy: accuracy.value,
+  reaction: reaction.value,
+  duration: duration.value,
+  completed: completedCount.value,
+  total: totalCount.value,
+  omissions: omissions.value,
+  falseAlarms: falseAlarms.value,
+  switchErrors: switchErrors.value,
+  interferenceErrors: interferenceErrors.value
+}))
 const feedback = computed((): string => {
-  if (score.value >= 85) return '目标出现时反应很稳定，保持轻松的节奏就很好。'
-  if (score.value >= 65) return '已经完成挑战，下次可以试着减少点错的位置。'
-  return '完成比速度更重要，休息一下再挑战会更轻松。'
+  if (gameId.value == 'number-tap' && passedFlag.value == 0) {
+    if (accuracy.value < 100) return '这次已经完成全部数字，但出现了误点。数字连点需要100%准确，下次看准顺序再点击。'
+    return '顺序全部正确！本次总用时超过了 ' + targetDuration.value.toString() + ' 秒，再熟悉一下数字位置就能过关。'
+  }
+  if (gameId.value == 'number-tap' && passedFlag.value == 1) return '太棒了！三组数字全部完成，准确率100%，总用时也达到本级要求！'
+  return performance.value.feedback
 })
 
 function optionString(options: UTSJSONObject, key: string, fallback: string): string {
@@ -93,6 +117,12 @@ onLoad((options: UTSJSONObject) => {
   falseAlarms.value = optionNumber(options, 'falseAlarms')
   switchErrors.value = optionNumber(options, 'switchErrors')
   interferenceErrors.value = optionNumber(options, 'interferenceErrors')
+  completedCount.value = optionNumber(options, 'completed')
+  totalCount.value = optionNumber(options, 'total')
+  passedFlag.value = optionNumber(options, 'passed')
+  targetDuration.value = optionNumber(options, 'targetDuration')
+  score.value = performance.value.score
+  if (gameId.value == 'number-tap') score.value = passedFlag.value == 1 ? 100 : Math.min(84, score.value)
   playedDifficulty.value = getGameDifficulty(gameId.value)
   const completedAt = Date.now()
   addRecord({
@@ -108,12 +138,15 @@ onLoad((options: UTSJSONObject) => {
     falseAlarms: falseAlarms.value,
     switchErrors: switchErrors.value,
     interferenceErrors: interferenceErrors.value,
+    completedCount: completedCount.value,
+    totalCount: totalCount.value,
     completedAt: completedAt
   })
   const difficultyUpdate = updateGameDifficulty(gameId.value, playedDifficulty.value, score.value, completedAt, getRecords())
   nextDifficulty.value = difficultyUpdate.currentLevel
   difficultyChange.value = difficultyUpdate.change
   difficultyMessage.value = difficultyUpdate.message
+  if (gameId.value == 'number-tap' && passedFlag.value == 0) difficultyMessage.value = accuracy.value < 100 ? '本级需要100%准确率，保持当前难度继续练习' : '准确率已达标，但总用时还未达标，保持当前难度继续练习'
   const profile = getProfile()
   if (profile != null) nextPlan.value = nextPendingPlanItem(buildDailyPlan(profile.age, getRecords(), Date.now()))
 })
@@ -125,7 +158,10 @@ function again() { uni.redirectTo({ url: getGameRoute(gameId.value) }) }
 
 <style>
 .page { padding: 38px 20px 32px; align-items: center; }
-.celebration { width: 92px; height: 92px; border-radius: 46px; background-color: #ffc857; align-items: center; justify-content: center; }
+.celebration-pair { width: 100%; height: 114px; flex-direction: row; align-items: center; justify-content: center; }
+.result-bunny { width: 96px; height: 108px; border-radius: 48px; }
+.result-kitten { width: 96px; height: 108px; border-radius: 48px; }
+.celebration { margin: 0 -11px; width: 70px; height: 70px; border-radius: 35px; background-color: #ffc857; align-items: center; justify-content: center; z-index: 2; }
 .celebration-symbol { color: #ffffff; font-size: 42px; }
 .title { margin-top: 21px; color: #1f2a44; font-size: 27px; font-weight: 700; }
 .subtitle { margin-top: 8px; color: #7b859b; font-size: 14px; }

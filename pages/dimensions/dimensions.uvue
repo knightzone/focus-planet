@@ -1,8 +1,8 @@
 <template>
   <scroll-view class="page" scroll-y="true">
     <view class="intro">
-      <text class="title">五维专注力训练</text>
-      <text class="subtitle">年龄只决定首次默认难度，之后会根据每天的最佳表现自动调整。</text>
+      <view class="intro-copy"><text class="title">五维专注力训练</text><text class="subtitle">年龄只决定首次默认难度，之后会根据每天的最佳表现自动调整。</text></view>
+      <image class="intro-mascot" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image>
     </view>
 
     <view v-for="dimension in dimensions" :key="dimension.id" class="dimension-block">
@@ -18,7 +18,7 @@
           <view class="game-index tap-content"><text class="game-index-value">{{ game.name.substring(0, 1) }}</text></view>
           <view class="game-copy tap-content">
             <text class="game-name">{{ game.name }}</text>
-            <text class="game-summary">{{ game.summary }} · 难度 {{ difficultyFor(game.id) }}/4</text>
+            <text class="game-summary">{{ game.summary }} · 难度 {{ difficultyFor(game.id) }}/10</text>
           </view>
           <text v-if="game.status == 'ready'" class="ready tap-content">开始</text>
           <text v-else class="planned tap-content">待开发</text>
@@ -47,7 +47,9 @@ function openGame(id: string, status: string) {
 
 <style>
 .page { height: 100%; }
-.intro { padding: 24px 20px 10px; }
+.intro { margin: 18px 16px 8px; padding: 18px 14px 12px 20px; border-radius: 22px; background-color: #eaf0ff; flex-direction: row; align-items: center; }
+.intro-copy { flex: 1; }
+.intro-mascot { width: 92px; height: 104px; border-radius: 46px; }
 .title { color: #1f2a44; font-size: 24px; font-weight: 700; }
 .subtitle { margin-top: 8px; color: #6f7a91; font-size: 13px; line-height: 20px; }
 .dimension-block { margin: 14px 16px; padding: 18px; border-radius: 22px; background-color: #ffffff; }

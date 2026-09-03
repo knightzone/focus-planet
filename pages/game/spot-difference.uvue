@@ -1,7 +1,7 @@
 <template>
   <scroll-view class="page" scroll-y="true" show-scrollbar="false"><view class="content">
     <view class="header"><view><text class="dimension">选择注意训练</text><text class="title">找茬乐园</text></view><view class="counter"><text class="counter-value">{{ found.length }}/{{ targetCount }}</text></view></view>
-    <view class="difficulty-display"><text class="difficulty-title">当前难度 {{ difficultyLevel }}/4</text><text class="difficulty-name">{{ difficultyName }}</text></view>
+    <view class="difficulty-display"><text class="difficulty-title">当前难度 {{ difficultyLevel }}/10</text><text class="difficulty-name">{{ difficultyName }}</text></view>
     <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
     <view class="tip"><view><text class="tip-title">本关有 {{ targetCount }} 处不同</text><text class="tip-copy">上下两张图中的不同位置都可以点</text></view><button class="tap-target hint-button" :disabled="found.length >= targetCount" @click="showHint">提示</button></view>
 
@@ -52,8 +52,8 @@ const candidates: DifferenceCandidate[] = [
 const difficultyLevel = ref(1), activeIds = ref([] as string[]), found = ref([] as string[])
 const errors = ref(0), hintsUsed = ref(0), hintId = ref(''), sceneHeight = ref(180), elapsed = ref(0), topUsesAlternate = ref(false)
 let ticker = 0, hintTimer = 0, startedAt = 0
-const difficultyName = computed((): string => difficultyLevel.value == 1 ? '轻松' : difficultyLevel.value == 2 ? '成长' : difficultyLevel.value == 3 ? '进阶' : '挑战')
-const targetCount = computed((): number => difficultyLevel.value == 1 ? 3 : difficultyLevel.value == 2 ? 4 : 5)
+const difficultyName = computed((): string => difficultyLevel.value <= 2 ? '轻松' : difficultyLevel.value <= 5 ? '成长' : difficultyLevel.value <= 8 ? '进阶' : '挑战')
+const targetCount = computed((): number => difficultyLevel.value <= 2 ? 3 : difficultyLevel.value <= 5 ? 4 : 5)
 const activeCandidates = computed((): DifferenceCandidate[] => candidates.filter((item: DifferenceCandidate): boolean => activeIds.value.indexOf(item.id) >= 0))
 const progressWidth = computed((): string => Math.round((found.value.length / targetCount.value) * 100).toString() + '%')
 const elapsedLabel = computed((): string => elapsed.value.toString() + 's')

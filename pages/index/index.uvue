@@ -3,7 +3,7 @@
     <view class="page-content">
     <view class="top-row">
       <view>
-        <text class="eyebrow">专注星球</text>
+        <text class="eyebrow">专注星伴</text>
         <text class="greeting">你好，{{ nickname }}</text>
       </view>
       <view class="avatar" @click="openSettings"><text class="avatar-value tap-content">{{ age }}</text></view>
@@ -16,14 +16,14 @@
         <text class="hero-meta">年龄仅用于首次难度 · 约 {{ sessionMinutes }} 分钟</text>
         <button class="tap-target start-button" @click="startTraining">{{ planButtonLabel }}</button>
       </view>
-      <view class="mini-planet"><text class="mini-planet-symbol">✦</text></view>
+      <view class="hero-mascot-wrap"><image class="hero-mascot" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.png" mode="aspectFit"></image></view>
     </view>
 
     <view class="plan-card">
       <view class="plan-head"><text class="plan-title">今日三段训练</text><text class="plan-progress">{{ completedPlanCount }}/3</text></view>
       <view v-for="(item, index) in dailyPlan" :key="item.gameId" class="plan-row" :class="item.completed ? 'plan-done' : ''">
         <view class="plan-index"><text class="plan-index-value">{{ item.completed ? '✓' : (index + 1).toString() }}</text></view>
-        <view class="plan-copy"><text class="plan-role">{{ item.role }} · 难度 {{ item.difficultyLevel }}/4</text><text class="plan-game">{{ item.name }}</text></view>
+        <view class="plan-copy"><text class="plan-role">{{ item.role }} · 难度 {{ item.difficultyLevel }}/10</text><text class="plan-game">{{ item.name }}</text></view>
         <text class="plan-state">{{ item.completed ? '已完成' : (index == nextPlanIndex ? '下一项' : '待完成') }}</text>
       </view>
     </view>
@@ -66,6 +66,10 @@
     <view class="notice">
       <view class="notice-icon"><text class="notice-icon-value">i</text></view>
       <text class="notice-text">训练用于日常能力练习，不替代专业评估或医疗诊断。</text>
+    </view>
+    <view class="mascot-message">
+      <image class="message-mascot" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image>
+      <view class="message-copy"><text class="message-name">蓝蓝的观察提示</text><text class="message-text">慢一点、看清楚，再做选择。稳定专注比追求速度更重要。</text></view>
     </view>
     </view>
   </scroll-view>
@@ -134,8 +138,8 @@ function openSettings() { uni.navigateTo({ url: '/pages/settings/settings' }) }
 .hero-title { margin-top: 8px; color: #ffffff; font-size: 23px; font-weight: 700; }
 .hero-meta { margin-top: 9px; color: #e7eeff; font-size: 13px; }
 .start-button { margin: 22px 0 0; width: 132px; height: 48px; line-height: 48px; padding: 0; border-radius: 14px; background-color: #ffffff; color: #416fc7; font-size: 14px; font-weight: 700; }
-.mini-planet { margin: 25px -12px 0 8px; width: 102px; height: 102px; border-radius: 51px; background-color: #ffc857; align-items: center; justify-content: center; transform: rotate(12deg); }
-.mini-planet-symbol { color: #ffffff; font-size: 36px; }
+.hero-mascot-wrap { margin: 13px -18px -20px 8px; width: 126px; height: 160px; border-radius: 63px; background-color: #ffffff; align-items: center; justify-content: center; overflow: hidden; }
+.hero-mascot { width: 122px; height: 154px; }
 .plan-card { margin-top: 16px; padding: 18px; border-radius: 20px; background-color: #ffffff; }.plan-head { margin-bottom: 7px; flex-direction: row; align-items: center; justify-content: space-between; }.plan-title { color: #28344f; font-size: 16px; font-weight: 700; }.plan-progress { color: #5b8def; font-size: 13px; font-weight: 700; }.plan-row { min-height: 55px; border-top: 1px solid #edf0f5; flex-direction: row; align-items: center; }.plan-index { width: 30px; height: 30px; border-radius: 15px; background-color: #eaf0ff; align-items: center; justify-content: center; }.plan-index-value { color: #5b8def; font-size: 12px; font-weight: 700; }.plan-copy { margin-left: 10px; flex: 1; }.plan-role { color: #8791a5; font-size: 10px; }.plan-game { margin-top: 2px; color: #344059; font-size: 13px; font-weight: 700; }.plan-state { color: #8b94a7; font-size: 11px; }.plan-done { opacity: 0.62; }
 .section-header { margin-top: 28px; flex-direction: row; align-items: center; justify-content: space-between; }
 .section-title { color: #1f2a44; font-size: 18px; font-weight: 700; }
@@ -155,4 +159,9 @@ function openSettings() { uni.navigateTo({ url: '/pages/settings/settings' }) }
 .notice-icon { width: 22px; height: 22px; border-radius: 11px; background-color: #dbe6f8; align-items: center; justify-content: center; }
 .notice-icon-value { color: #5b8def; font-size: 12px; font-weight: 700; }
 .notice-text { margin-left: 9px; flex: 1; color: #6d7890; font-size: 11px; line-height: 16px; }
+.mascot-message { margin-top: 16px; padding: 12px 15px 12px 8px; border-radius: 20px; background-color: #ffffff; flex-direction: row; align-items: center; }
+.message-mascot { width: 72px; height: 72px; border-radius: 36px; }
+.message-copy { margin-left: 9px; flex: 1; }
+.message-name { color: #4c73c2; font-size: 12px; font-weight: 700; }
+.message-text { margin-top: 4px; color: #6f7a91; font-size: 11px; line-height: 17px; }
 </style>

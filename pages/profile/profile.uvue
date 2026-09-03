@@ -1,10 +1,11 @@
 <template>
   <view class="page">
-    <view class="planet">
-      <view class="planet-ring"></view>
-      <text class="planet-face">•ᴗ•</text>
+    <view class="mascot-pair">
+      <image class="profile-bunny" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image>
+      <view class="planet"><view class="planet-ring"></view><text class="planet-face">✦</text></view>
+      <image class="profile-kitten" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.png" mode="aspectFit"></image>
     </view>
-    <text class="title">欢迎来到专注星球</text>
+    <text class="title">欢迎来到专注星伴</text>
     <text class="subtitle">先创建训练档案，年龄只用于设置各游戏的首次默认难度。</text>
 
     <view class="form-card">
@@ -56,9 +57,12 @@ function createProfile() {
 
 <style>
 .page { padding: 54px 24px 32px; align-items: center; }
-.planet { width: 112px; height: 112px; border-radius: 56px; background-color: #5b8def; align-items: center; justify-content: center; position: relative; }
-.planet-ring { position: absolute; width: 142px; height: 34px; border: 7px solid #ffc857; border-radius: 50%; transform: rotate(-12deg); }
-.planet-face { color: #ffffff; font-size: 26px; font-weight: 700; z-index: 2; }
+.mascot-pair { width: 100%; height: 150px; flex-direction: row; align-items: flex-end; justify-content: center; }
+.profile-bunny { width: 108px; height: 128px; border-radius: 54px; }
+.profile-kitten { width: 108px; height: 128px; border-radius: 54px; }
+.planet { margin: 0 -18px 7px; width: 76px; height: 76px; border-radius: 38px; background-color: #5b8def; align-items: center; justify-content: center; position: relative; z-index: 2; }
+.planet-ring { position: absolute; width: 96px; height: 25px; border: 5px solid #ffc857; border-radius: 50%; transform: rotate(-12deg); }
+.planet-face { color: #ffffff; font-size: 24px; font-weight: 700; z-index: 2; }
 .title { margin-top: 30px; font-size: 26px; font-weight: 700; color: #1f2a44; }
 .subtitle { margin-top: 10px; color: #68738d; font-size: 15px; line-height: 23px; text-align: center; }
 .form-card { margin-top: 30px; width: 100%; padding: 22px; border-radius: 22px; background-color: #ffffff; }

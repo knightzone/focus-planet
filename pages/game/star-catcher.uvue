@@ -1,44 +1,39 @@
 <template>
-  <view class="page">
-    <view class="game-header">
+  <view class="sc-page">
+    <view class="sc-header">
       <view>
-        <text class="round-label">集中注意训练</text>
-        <text class="game-title">找到闪亮的星星</text>
+        <text class="sc-round-label">集中注意训练</text>
+        <text class="sc-title">找到闪亮的星星</text>
       </view>
-      <view class="counter"><text class="counter-value">{{ hits }}/{{ targetCount }}</text></view>
+      <view class="sc-counter"><text class="sc-counter-value">{{ hits }}/{{ targetCount }}</text></view>
     </view>
 
-    <view class="progress-track">
-      <view class="progress-fill" :style="{ width: progressWidth }"></view>
+    <view class="sc-progress-track">
+      <view class="sc-progress-fill" :style="{ width: progressWidth }"></view>
     </view>
 
-    <view class="play-area" @click="missTarget">
-      <view class="cloud cloud-one tap-content"></view>
-      <view class="cloud cloud-two tap-content"></view>
+    <view class="sc-play-area" @click="missTarget">
+      <image class="sc-sky-background tap-content" src="/static/images/runtime/backgrounds/star-catcher-sky-v1.png" mode="aspectFill"></image>
+      <view class="sc-sky-vignette tap-content"></view>
       <view
         v-if="started && !finished"
-        class="target"
-        :style="{ left: targetX + 'px', top: targetY + 'px' }"
+        :key="starId"
+        class="star-target"
+        :style="{ left: targetX + 'px', top: targetY + 'px', transform: starTransform, opacity: starOpacity }"
         @click.stop="hitTarget"
       >
-        <text class="target-symbol tap-content">✦</text>
-      </view>
-      <view v-if="!started" class="instruction">
-        <YoungChildCue kind="tap"></YoungChildCue>
-        <text class="instruction-title">准备好了吗？</text>
-        <text class="instruction-copy">星星出现后尽快点击它。点错位置不会扣分，但会记录下来。</text>
-        <button class="tap-target primary" @click.stop="begin">▶ 开始</button>
+        <image class="star-target-image tap-content" src="/static/images/runtime/game-objects/star-four-point-gold-v1.svg" mode="aspectFit"></image>
       </view>
     </view>
 
-    <view class="footer-stats">
-      <view class="footer-stat">
-        <text class="footer-value">{{ misses }}</text>
-        <text class="footer-label">误触</text>
+    <view class="sc-footer-stats">
+      <view class="sc-footer-stat">
+        <text class="sc-footer-value">{{ misses }}</text>
+        <text class="sc-footer-label">误触</text>
       </view>
-      <view class="footer-stat">
-        <text class="footer-value">{{ reactionLabel }}</text>
-        <text class="footer-label">平均反应</text>
+      <view class="sc-footer-stat">
+        <text class="sc-footer-value">{{ reactionLabel }}</text>
+        <text class="sc-footer-label">平均反应</text>
       </view>
     </view>
   </view>
@@ -46,7 +41,7 @@
 
 <script setup lang="uts">
 import { ref, computed } from 'vue'
-import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
 
 const targetCount = 12
 const started = ref(false)
@@ -55,25 +50,61 @@ const hits = ref(0)
 const misses = ref(0)
 const targetX = ref(40)
 const targetY = ref(120)
+const starId = ref(0)
+const starFlashing = ref(false)
+const starCaptured = ref(false)
+const accepting = ref(false)
 const reactions = ref([] as number[])
 let appearedAt = 0
 let gameStartedAt = 0
+let flashStartTimer = 0
+let flashEndTimer = 0
+let flashRepeatTimer = 0
+let captureTimer = 0
 
 const progressWidth = computed((): string => ((hits.value / targetCount) * 100).toString() + '%')
+const starTransform = computed((): string => starCaptured.value ? 'scale(1.48)' : starFlashing.value ? 'scale(1.20)' : 'scale(1)')
+const starOpacity = computed((): number => starCaptured.value ? 0 : 1)
 const reactionLabel = computed((): string => {
   if (reactions.value.length == 0) return '--'
   const total = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
   return Math.round(total / reactions.value.length).toString() + 'ms'
 })
 
+function clearStarAnimation() {
+  if (flashStartTimer > 0) clearTimeout(flashStartTimer)
+  if (flashEndTimer > 0) clearTimeout(flashEndTimer)
+  if (flashRepeatTimer > 0) clearInterval(flashRepeatTimer)
+  if (captureTimer > 0) clearTimeout(captureTimer)
+  flashStartTimer = 0
+  flashEndTimer = 0
+  flashRepeatTimer = 0
+  captureTimer = 0
+}
+
+function triggerStarFlash() {
+  if (finished.value) return
+  if (flashEndTimer > 0) clearTimeout(flashEndTimer)
+  starFlashing.value = true
+  flashEndTimer = setTimeout(() => { starFlashing.value = false }, 130)
+}
+
 function moveTarget() {
+  clearStarAnimation()
+  starId.value += 1
+  starFlashing.value = false
+  starCaptured.value = false
+  accepting.value = true
   targetX.value = 18 + Math.floor(Math.random() * 250)
   targetY.value = 28 + Math.floor(Math.random() * 350)
   appearedAt = Date.now()
+  flashStartTimer = setTimeout(() => triggerStarFlash(), 40)
+  flashRepeatTimer = setInterval(() => triggerStarFlash(), 3000)
 }
 
 function finishGame() {
   finished.value = true
+  clearStarAnimation()
   const total = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
   const average = reactions.value.length > 0 ? Math.round(total / reactions.value.length) : 0
   const accuracy = Math.round((hits.value / (hits.value + misses.value)) * 100)
@@ -92,45 +123,46 @@ function begin() {
 }
 
 function hitTarget() {
-  if (!started.value || finished.value) return
+  if (!started.value || finished.value || !accepting.value) return
+  accepting.value = false
   reactions.value.push(Date.now() - appearedAt)
   hits.value += 1
-  if (hits.value >= targetCount) {
-    finishGame()
-  } else {
-    moveTarget()
-  }
+  if (flashStartTimer > 0) clearTimeout(flashStartTimer)
+  if (flashEndTimer > 0) clearTimeout(flashEndTimer)
+  if (flashRepeatTimer > 0) clearInterval(flashRepeatTimer)
+  starFlashing.value = false
+  starCaptured.value = true
+  captureTimer = setTimeout(() => {
+    if (hits.value >= targetCount) finishGame()
+    else moveTarget()
+  }, 180)
 }
 
 function missTarget() {
   if (started.value && !finished.value) misses.value += 1
 }
 
+onLoad((_options: OnLoadOptions) => begin())
+onUnload(() => clearStarAnimation())
+
 </script>
 
 <style>
-.page { flex: 1; padding: 20px; }
-.game-header { flex-direction: row; justify-content: space-between; align-items: center; }
-.round-label { color: #5b8def; font-size: 12px; font-weight: 700; }
-.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
-.counter { width: 58px; height: 38px; border-radius: 19px; background-color: #eaf0ff; align-items: center; justify-content: center; }
-.counter-value { color: #4c78d0; font-size: 13px; font-weight: 700; }
-.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }
-.progress-fill { height: 8px; border-radius: 4px; background-color: #55c9a5; }
-.play-area { margin-top: 18px; height: 470px; border-radius: 26px; background-color: #dfeaff; position: relative; overflow: hidden; align-items: center; justify-content: center; }
-.cloud { position: absolute; height: 30px; border-radius: 15px; background-color: #eef4ff; }
-.cloud-one { width: 110px; left: -20px; top: 56px; }
-.cloud-two { width: 90px; right: -15px; top: 180px; }
-.target { position: absolute; width: 64px; height: 64px; border-radius: 32px; background-color: #ffc857; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(255, 184, 60, 0.35); }
-.target-symbol { color: #ffffff; font-size: 32px; }
-.instruction { width: 78%; padding: 24px; border-radius: 24px; background-color: #ffffff; align-items: center; z-index: 3; }
-.sample-star { width: 70px; height: 70px; border-radius: 35px; background-color: #ffc857; align-items: center; justify-content: center; }
-.sample-star-symbol { color: #ffffff; font-size: 34px; }
-.instruction-title { margin-top: 17px; color: #25314a; font-size: 20px; font-weight: 700; }
-.instruction-copy { margin-top: 8px; color: #778198; font-size: 13px; line-height: 20px; text-align: center; }
-.primary { margin-top: 20px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #5b8def; color: #ffffff; font-size: 15px; font-weight: 700; }
-.footer-stats { margin-top: 16px; flex-direction: row; }
-.footer-stat { flex: 1; align-items: center; }
-.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }
-.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+.sc-page { flex: 1; padding: 20px; }
+.sc-header { flex-direction: row; justify-content: space-between; align-items: center; }
+.sc-round-label { color: #5b8def; font-size: 12px; font-weight: 700; }
+.sc-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.sc-counter { width: 58px; height: 38px; border-radius: 19px; background-color: #eaf0ff; align-items: center; justify-content: center; }
+.sc-counter-value { color: #4c78d0; font-size: 13px; font-weight: 700; }
+.sc-progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }
+.sc-progress-fill { height: 8px; border-radius: 4px; background-color: #55c9a5; }
+.sc-play-area { margin-top: 18px; height: 470px; border-radius: 26px; background-color: #17266d; position: relative; overflow: hidden; align-items: center; justify-content: center; }
+.sc-sky-background { position: absolute; left: 0; top: 0; width: 100%; height: 470px; }
+.sc-sky-vignette { position: absolute; left: 0; bottom: 0; width: 100%; height: 90px; background-color: rgba(16, 32, 105, 0.18); }
+.star-target { position: absolute; width: 72px; height: 72px; align-items: center; justify-content: center; transition-property: transform, opacity; transition-duration: 120ms; transition-timing-function: ease-out; }
+.star-target-image { width: 54px; height: 54px; }
+.sc-footer-stats { margin-top: 16px; flex-direction: row; }
+.sc-footer-stat { flex: 1; align-items: center; }
+.sc-footer-value { color: #25314a; font-size: 18px; font-weight: 700; }
+.sc-footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
 </style>

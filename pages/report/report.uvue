@@ -1,9 +1,8 @@
 <template>
   <scroll-view class="page" scroll-y="true">
     <view class="summary-card">
-      <text class="summary-label">累计训练</text>
-      <text class="summary-number">{{ records.length }} 次</text>
-      <text class="summary-copy">现阶段报告仅基于已完成的训练生成，不用于能力诊断。</text>
+      <view class="summary-content"><text class="summary-label">累计训练</text><text class="summary-number">{{ records.length }} 次</text><text class="summary-copy">现阶段报告仅基于已完成的训练生成，不用于能力诊断。</text></view>
+      <image class="report-mascot" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.png" mode="aspectFit"></image>
     </view>
 
     <text class="section-title">五维成长概览</text>
@@ -25,6 +24,7 @@
       <view class="tap-link" @click="openHistory"><text class="section-link tap-content">查看全部</text></view>
     </view>
     <view v-if="records.length == 0" class="empty-card">
+      <image class="empty-mascot" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image>
       <text class="empty-title">还没有训练记录</text>
       <text class="empty-copy">完成一次“星星捕手”后，这里会展示成长数据。</text>
       <button class="tap-target small-button" @click="startTraining">去训练</button>
@@ -34,7 +34,7 @@
         <view>
           <text class="history-name">{{ gameName(record.gameId) }}</text>
           <text class="history-date">{{ recordDate(record.completedAt) }}</text>
-          <text class="history-meta">难度 {{ record.difficultyLevel == null ? '-' : record.difficultyLevel }}/4 · 正确率 {{ record.accuracy }}% · {{ record.averageReaction }}ms</text>
+          <text class="history-meta">难度 {{ record.difficultyLevel == null ? '-' : record.difficultyLevel }}/10 · 正确率 {{ record.accuracy }}% · {{ record.averageReaction }}ms</text>
         </view>
         <text class="history-score">{{ record.score }}</text>
       </view>
@@ -79,7 +79,9 @@ function gameName(gameId: string): string { return getGameName(gameId) }
 
 <style>
 .page { height: 100%; }
-.summary-card { margin: 22px 18px 0; padding: 24px; border-radius: 24px; background-color: #5b8def; }
+.summary-card { margin: 22px 18px 0; padding: 20px 12px 20px 24px; border-radius: 24px; background-color: #5b8def; flex-direction: row; align-items: center; overflow: hidden; }
+.summary-content { flex: 1; }
+.report-mascot { width: 102px; height: 124px; border-radius: 51px; }
 .summary-label { color: #dce7ff; font-size: 13px; }
 .summary-number { margin-top: 5px; color: #ffffff; font-size: 31px; font-weight: 700; }
 .summary-copy { margin-top: 10px; color: #e6edff; font-size: 12px; line-height: 18px; }
@@ -97,6 +99,7 @@ function gameName(gameId: string): string { return getGameName(gameId) }
 .value { margin-left: 10px; width: 24px; color: #68738b; font-size: 12px; text-align: right; }
 .empty-card, .history-card { margin: 0 18px; padding: 20px; border-radius: 21px; background-color: #ffffff; }
 .empty-card { align-items: center; }
+.empty-mascot { width: 92px; height: 92px; border-radius: 46px; }
 .empty-title { color: #36415a; font-size: 15px; font-weight: 700; }
 .empty-copy { margin-top: 7px; color: #858ea2; font-size: 12px; text-align: center; }
 .small-button { margin-top: 15px; width: 120px; height: 48px; line-height: 48px; border-radius: 13px; background-color: #eaf0ff; color: #4f77c5; font-size: 13px; }

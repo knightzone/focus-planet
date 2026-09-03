@@ -1,129 +1,219 @@
 <template>
-  <view class="page">
-    <view class="game-header">
-      <view><text class="round-label">集中注意训练</text><text class="game-title">找到相同图形</text></view>
-      <view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view>
+  <view class="sm-page">
+    <view class="sm-header">
+      <view><text class="sm-eyebrow">视觉辨别训练 · 难度 {{ level }}/10</text><text class="sm-title">把图案送回影子</text></view>
+      <view class="sm-counter"><text class="sm-counter-text">{{ displayRound }}/{{ rounds }}</text></view>
     </view>
-    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+    <view class="sm-progress"><view class="sm-progress-fill" :style="{ width: progressWidth }"></view></view>
 
-    <view class="target-card">
-      <text class="target-label">请找到</text>
-      <view class="target-symbol"><text class="target-symbol-value">{{ targetSymbol }}</text></view>
-    </view>
-
-    <view v-if="!started" class="instruction">
+    <view v-if="!started" class="sm-intro">
       <YoungChildCue kind="match"></YoungChildCue>
-      <text class="instruction-title">观察目标，再从下面找到一样的图形</text>
-      <text class="instruction-copy">每一轮只有一个正确答案，图形数量会随当前难度调整。</text>
-      <button class="tap-target primary" @click="begin">▶ 开始配对</button>
+      <text class="sm-intro-title">拖动上面的卡通图案</text>
+      <text class="sm-intro-copy">把图案放到形状相同的灰色影子上。也可以先点图案，再点影子。</text>
+      <view class="sm-chips"><text class="sm-chip">{{ sourceCount }}张图案</text><text class="sm-chip">{{ shadowCount }}个影子</text><text class="sm-chip">{{ rounds }}轮</text></view>
+      <button class="sm-start" @click="begin">开始配对</button>
     </view>
 
-    <view v-else class="option-grid">
-      <view v-for="(symbol, index) in options" :key="index" class="option-card" @click="choose(symbol)">
-        <text class="option-symbol tap-content">{{ symbol }}</text>
+    <view v-else class="sm-board">
+      <view class="sm-board-head"><text class="sm-board-title">上方：卡通图案</text><text class="sm-board-hint">拖到下方影子</text></view>
+      <view class="sm-area" :style="{ height: areaHeight.toString() + 'px' }">
+        <view v-for="slot in slots" :key="'s-'+slot.id" class="sm-slot" :class="slot.filled ? 'sm-slot-done' : ''"
+          :style="{ left: slot.x.toString() + 'px', top: slot.y.toString() + 'px' }" @click="tapSlot(slot.id)">
+          <image class="sm-image" :src="slot.filled ? slot.image : slot.shadow" mode="aspectFit"></image>
+          <view v-if="slot.filled" class="sm-check"><text class="sm-check-text">✓</text></view>
+        </view>
+        <view v-for="item in items" :key="'i-'+item.id" v-show="!item.matched" class="sm-item"
+          :class="selectedId == item.id ? 'sm-item-selected' : ''"
+          :style="{ left: item.x.toString() + 'px', top: item.y.toString() + 'px' }"
+          @touchstart="dragStart(item.id)" @touchmove="dragMove" @touchend="dragEnd(item.id)"
+          @touchcancel="dragEnd(item.id)" @click="tapItem(item.id)">
+          <image class="sm-image" :src="item.image" mode="aspectFit"></image>
+        </view>
+        <view class="sm-divider" :style="{ top: dividerY.toString() + 'px' }"></view>
+        <text class="sm-shadow-label" :style="{ top: (dividerY + 10).toString() + 'px' }">下方：灰色影子</text>
       </view>
     </view>
 
-    <view class="feedback-space">
-      <text v-if="feedback != ''" :class="feedback == '正确' ? 'good' : 'again'">{{ feedback }}</text>
-    </view>
-    <view class="footer-stats">
-      <view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view>
-      <view class="footer-stat"><text class="footer-value">{{ errors }}</text><text class="footer-label">错误</text></view>
-      <view class="footer-stat"><text class="footer-value">{{ reactionLabel }}</text><text class="footer-label">平均反应</text></view>
+    <view class="sm-feedback"><text v-if="feedback != ''" :class="feedbackGood ? 'sm-good' : 'sm-again'">{{ feedback }}</text></view>
+    <view class="sm-stats">
+      <view class="sm-stat"><text class="sm-stat-value">{{ correct }}</text><text class="sm-stat-label">已配对</text></view>
+      <view class="sm-stat"><text class="sm-stat-value">{{ errors }}</text><text class="sm-stat-label">误放</text></view>
+      <view class="sm-stat"><text class="sm-stat-value">{{ timeLabel }}</text><text class="sm-stat-label">每轮用时</text></view>
     </view>
   </view>
 </template>
 
 <script setup lang="uts">
-import { ref, computed } from 'vue'
-import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { ref, computed, nextTick } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { getGameTuningAge } from '../../utils/difficulty.uts'
+import YoungChildCue from '../../components/YoungChildCue.uvue'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
 
-const SHAPES = ['●', '■', '▲', '◆', '★', '✚']
-const started = ref(false)
-const totalRounds = ref(12)
-const optionCount = ref(4)
-const roundIndex = ref(0)
-const targetSymbol = ref('●')
-const options = ref([] as string[])
-const acceptingAnswer = ref(false)
-const feedback = ref('')
-const correct = ref(0)
-const errors = ref(0)
-const reactions = ref([] as number[])
-let appearedAt = 0
-let gameStartedAt = 0
-let nextTimer = 0
+type MatchObject = { id: string, label: string, image: string, shadow: string }
+type DragItem = { id: string, label: string, image: string, x: number, y: number, homeX: number, homeY: number, matched: boolean }
+type ShadowSlot = { id: string, label: string, image: string, shadow: string, x: number, y: number, filled: boolean }
+type Recipe = { sources: number, shadows: number, rounds: number, group: string }
 
-const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
-const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
-const reactionLabel = computed((): string => {
-  if (reactions.value.length == 0) return '--'
-  const total = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
-  return Math.round(total / reactions.value.length).toString() + 'ms'
+function illustration(groupId: string, id: string, label: string): MatchObject {
+  const root = '/static/images/runtime/illustrations/shadow-match/' + groupId + '/'
+  return { id: 'illustration-' + groupId + '-' + id, label: label, image: root + id + '.png', shadow: root + id + '-shadow.png' }
+}
+const LOW_GROUPS = [
+  [illustration('easy-animals','rabbit','微笑兔子'),illustration('easy-animals','squirrel','快乐松鼠'),illustration('easy-animals','owl','圆眼猫头鹰'),illustration('easy-animals','turtle','微笑乌龟'),illustration('easy-animals','elephant','快乐小象')],
+  [illustration('easy-fruits','apple','红苹果'),illustration('easy-fruits','banana','弯香蕉'),illustration('easy-fruits','pineapple','大菠萝'),illustration('easy-fruits','strawberry','红草莓'),illustration('easy-fruits','grapes','紫葡萄')],
+  [illustration('easy-vehicles','car','红色小汽车'),illustration('easy-vehicles','sailboat','彩色帆船'),illustration('easy-vehicles','train','蒸汽小火车'),illustration('easy-vehicles','airplane','客运飞机'),illustration('easy-vehicles','rocket','玩具火箭')],
+  [illustration('easy-garden','mushroom','红帽蘑菇'),illustration('easy-garden','flower','盆栽花朵'),illustration('easy-garden','tree','圆冠大树'),illustration('easy-garden','cactus','开花仙人掌'),illustration('easy-garden','snail','微笑蜗牛')],
+  [illustration('easy-foods','cupcake','草莓纸杯蛋糕'),illustration('easy-foods','ice-cream','樱桃冰淇淋'),illustration('easy-foods','donut','粉色甜甜圈'),illustration('easy-foods','pizza','三角披萨'),illustration('easy-foods','birthday-cake','蜡烛生日蛋糕')],
+  [illustration('medium-forest-animals','rabbit','森林兔子'),illustration('medium-forest-animals','fox','森林狐狸'),illustration('medium-forest-animals','bear','森林小熊'),illustration('medium-forest-animals','deer','森林小鹿'),illustration('medium-forest-animals','squirrel','森林松鼠'),illustration('medium-forest-animals','hedgehog','森林刺猬')],
+  [illustration('medium-musical-instruments','guitar','木吉他'),illustration('medium-musical-instruments','drum','小鼓'),illustration('medium-musical-instruments','trumpet','小号'),illustration('medium-musical-instruments','violin','小提琴'),illustration('medium-musical-instruments','piano','玩具钢琴'),illustration('medium-musical-instruments','maracas','沙锤')],
+  [illustration('medium-playground-toys','duck','小黄鸭'),illustration('medium-playground-toys','spinning-top','彩色陀螺'),illustration('medium-playground-toys','kite','彩色风筝'),illustration('medium-playground-toys','scooter','滑板车'),illustration('medium-playground-toys','rocking-horse','摇摇马'),illustration('medium-playground-toys','blocks','积木城堡')]
+] as MatchObject[][]
+const MID_GROUPS = [
+  [illustration('medium-farm-animals','cow','奶牛'),illustration('medium-farm-animals','pig','小猪'),illustration('medium-farm-animals','sheep','绵羊'),illustration('medium-farm-animals','horse','小马'),illustration('medium-farm-animals','chicken','母鸡'),illustration('medium-farm-animals','duck','白鸭')],
+  [illustration('medium-similar-flowers','flower-1','粉花盆栽'),illustration('medium-similar-flowers','flower-2','紫花盆栽'),illustration('medium-similar-flowers','flower-3','向日葵盆栽'),illustration('medium-similar-flowers','flower-4','蓝花盆栽'),illustration('medium-similar-flowers','flower-5','红花盆栽'),illustration('medium-similar-flowers','flower-6','黄花盆栽')],
+  [illustration('medium-puppies','puppy-1','垂耳小狗'),illustration('medium-puppies','puppy-2','尖耳小狗'),illustration('medium-puppies','puppy-3','半垂耳小狗'),illustration('medium-puppies','puppy-4','卷毛小狗'),illustration('medium-puppies','puppy-5','折耳小狗'),illustration('medium-puppies','puppy-6','长耳小狗')],
+  [illustration('medium-cottages','cottage-1','红顶小屋'),illustration('medium-cottages','cottage-2','圆顶小屋'),illustration('medium-cottages','cottage-3','尖顶小屋'),illustration('medium-cottages','cottage-4','绿顶小屋'),illustration('medium-cottages','cottage-5','树旁小屋'),illustration('medium-cottages','cottage-6','双顶小屋')],
+  [illustration('medium-trees','tree-1','阔叶树'),illustration('medium-trees','tree-2','柳树'),illustration('medium-trees','tree-3','椰子树'),illustration('medium-trees','tree-4','松树'),illustration('medium-trees','tree-5','枫树'),illustration('medium-trees','tree-6','白桦树')]
+] as MatchObject[][]
+const HIGH_GROUPS = [
+  [illustration('medium-similar-cars','car-1','圆顶红车'),illustration('medium-similar-cars','car-2','短顶蓝车'),illustration('medium-similar-cars','car-3','长身绿车'),illustration('medium-similar-cars','car-4','高顶黄车'),illustration('medium-similar-cars','car-5','低顶紫车'),illustration('medium-similar-cars','car-6','尾翼橙车'),illustration('high-similar-cars-extra','car-7','天线蓝绿车'),illustration('high-similar-cars-extra','car-8','短尾粉车')],
+  [illustration('hard-similar-cats','cat-1','左卷尾猫'),illustration('hard-similar-cats','cat-2','右卷尾猫'),illustration('hard-similar-cats','cat-3','额毛弯尾猫'),illustration('hard-similar-cats','cat-4','高钩尾猫'),illustration('hard-similar-cats','cat-5','圆耳环尾猫'),illustration('hard-similar-cats','cat-6','长弧尾猫'),illustration('hard-similar-cats','cat-7','短弯尾猫'),illustration('hard-similar-cats','cat-8','双额毛尾猫')],
+  [illustration('medium-similar-birds','bird-1','蓝色小鸟'),illustration('medium-similar-birds','bird-2','黄色小鸟'),illustration('medium-similar-birds','bird-3','棕色小鸟'),illustration('medium-similar-birds','bird-4','红色小鸟'),illustration('medium-similar-birds','bird-5','绿色小鸟'),illustration('medium-similar-birds','bird-6','紫色小鸟'),illustration('medium-similar-birds','bird-7','双冠青鸟'),illustration('medium-similar-birds','bird-8','弯冠橙鸟')],
+  [illustration('medium-similar-sailboats','sailboat-1','蓝帆小船'),illustration('medium-similar-sailboats','sailboat-2','双帆小船'),illustration('medium-similar-sailboats','sailboat-3','绿帆小船'),illustration('medium-similar-sailboats','sailboat-4','红帆小船'),illustration('medium-similar-sailboats','sailboat-5','旗帜小船'),illustration('medium-similar-sailboats','sailboat-6','圆帆小船'),illustration('medium-similar-sailboats','sailboat-7','窄帆小船'),illustration('medium-similar-sailboats','sailboat-8','弧帆小船')],
+  [illustration('high-similar-rockets','rocket-1','圆点红火箭'),illustration('high-similar-rockets','rocket-2','层顶蓝火箭'),illustration('high-similar-rockets','rocket-3','横杆绿火箭'),illustration('high-similar-rockets','rocket-4','尖顶紫火箭'),illustration('high-similar-rockets','rocket-5','铆钉黄火箭'),illustration('high-similar-rockets','rocket-6','短顶橙火箭'),illustration('high-similar-rockets','rocket-7','星顶粉火箭'),illustration('high-similar-rockets','rocket-8','圆环青火箭')],
+  [illustration('high-similar-airplanes','airplane-1','螺旋桨飞机'),illustration('high-similar-airplanes','airplane-2','双翼飞机'),illustration('high-similar-airplanes','airplane-3','客运飞机'),illustration('high-similar-airplanes','airplane-4','战斗机'),illustration('high-similar-airplanes','airplane-5','滑翔机'),illustration('high-similar-airplanes','airplane-6','水上飞机'),illustration('high-similar-airplanes','airplane-7','运输机'),illustration('high-similar-airplanes','airplane-8','农用飞机')],
+  [illustration('high-similar-penguins','penguin-1','弯毛企鹅'),illustration('high-similar-penguins','penguin-2','三毛企鹅'),illustration('high-similar-penguins','penguin-3','卷毛企鹅'),illustration('high-similar-penguins','penguin-4','圆毛企鹅'),illustration('high-similar-penguins','penguin-5','双毛企鹅'),illustration('high-similar-penguins','penguin-6','短卷企鹅'),illustration('high-similar-penguins','penguin-7','尖毛企鹅'),illustration('high-similar-penguins','penguin-8','单毛企鹅')],
+  [illustration('high-similar-teddy-bears','bear-1','棕色熊'),illustration('high-similar-teddy-bears','bear-2','米色熊'),illustration('high-similar-teddy-bears','bear-3','浅棕熊'),illustration('high-similar-teddy-bears','bear-4','黄色熊'),illustration('high-similar-teddy-bears','bear-5','灰色熊'),illustration('high-similar-teddy-bears','bear-6','橙色熊'),illustration('high-similar-teddy-bears','bear-7','深棕熊'),illustration('high-similar-teddy-bears','bear-8','粉色熊')]
+] as MatchObject[][]
+const RECIPES = [
+  {sources:3,shadows:3,rounds:3,group:'low'}, {sources:4,shadows:3,rounds:3,group:'low'},
+  {sources:5,shadows:3,rounds:3,group:'low-mid'}, {sources:5,shadows:4,rounds:4,group:'low-mid'},
+  {sources:6,shadows:4,rounds:4,group:'mid'}, {sources:6,shadows:4,rounds:4,group:'mid'},
+  {sources:6,shadows:4,rounds:4,group:'mid-high'}, {sources:6,shadows:5,rounds:5,group:'mid-high'},
+  {sources:7,shadows:5,rounds:5,group:'high'}, {sources:8,shadows:5,rounds:5,group:'high'}
+] as Recipe[]
+
+const started=ref(false), level=ref(1), rounds=ref(3), sourceCount=ref(3), shadowCount=ref(3), group=ref('low')
+const round=ref(0), items=ref([] as DragItem[]), slots=ref([] as ShadowSlot[]), selectedId=ref('')
+const feedback=ref(''), feedbackGood=ref(true), correct=ref(0), errors=ref(0), times=ref([] as number[])
+const areaWidth=ref(340), matchedThisRound=ref(0), activeDragId=ref('')
+let appearedAt=0, gameStartedAt=0, timer=0, lastGroupIndex=-1
+let touchAnchored=false, lastTouchX=0.0, lastTouchY=0.0, dragDistance=0.0, ignoreTapId=''
+
+const sourceColumns=computed(():number => sourceCount.value<=3?3:4)
+const dividerY=computed(():number => 36+Math.ceil(sourceCount.value/sourceColumns.value)*70)
+const shadowY=computed(():number => dividerY.value + 38)
+const areaHeight=computed(():number => shadowY.value+Math.ceil(shadowCount.value/4)*76+14)
+const displayRound=computed(():number => started.value ? Math.min(rounds.value,round.value+1) : 0)
+const progressWidth=computed(():string => started.value ? Math.round(round.value/rounds.value*100).toString()+'%' : '0%')
+const timeLabel=computed(():string => {
+  if(times.value.length==0)return '--'
+  const total=times.value.reduce((sum:number,v:number):number=>sum+v,0)
+  return (Math.round(total/times.value.length)/1000).toFixed(1)+'s'
 })
 
-function configureDifficulty() {
-  const age = getGameTuningAge('shape-match')
-  if (age <= 6) { totalRounds.value = 10; optionCount.value = 3 }
-  else if (age <= 9) { totalRounds.value = 12; optionCount.value = 4 }
-  else if (age <= 12) { totalRounds.value = 16; optionCount.value = 5 }
-  else { totalRounds.value = 20; optionCount.value = 6 }
+function configure(){
+  level.value=getGameDifficulty('shape-match')
+  const recipe=RECIPES[level.value-1]
+  sourceCount.value=recipe.sources; shadowCount.value=recipe.shadows; rounds.value=recipe.rounds; group.value=recipe.group
+  areaWidth.value=Math.max(300,uni.getWindowInfo().windowWidth-48)
 }
-
-function shuffled(values: string[]): string[] {
-  const result = values.slice()
-  for (let i = result.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1)); const value = result[i]; result[i] = result[j]; result[j] = value
+function groupSet(): MatchObject[][] {
+  if(group.value=='high')return HIGH_GROUPS
+  if(group.value=='mid')return MID_GROUPS
+  if(group.value=='low-mid'){
+    const useMid=level.value==3?round.value==1:round.value%2==1
+    return useMid?MID_GROUPS:LOW_GROUPS
   }
+  if(group.value=='mid-high'){
+    const useHigh=level.value==7?round.value==1:(round.value==1||round.value==3)
+    return useHigh?HIGH_GROUPS:MID_GROUPS
+  }
+  return LOW_GROUPS
+}
+function pool():MatchObject[]{
+  const groups=groupSet()
+  let index=Math.floor(Math.random()*groups.length)
+  if(groups.length>1&&index==lastGroupIndex)index=(index+1+Math.floor(Math.random()*(groups.length-1)))%groups.length
+  lastGroupIndex=index
+  return groups[index]
+}
+function shuffle(values:MatchObject[]):MatchObject[]{
+  const result=values.slice()
+  for(let i=result.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const v=result[i];result[i]=result[j];result[j]=v}
   return result
 }
-
-function clearTimer() { if (nextTimer > 0) clearTimeout(nextTimer) }
-function finishGame() {
-  clearTimer()
-  const accuracy = Math.round((correct.value / totalRounds.value) * 100)
-  const reactionTotal = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
-  const average = reactions.value.length == 0 ? 0 : Math.round(reactionTotal / reactions.value.length)
-  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
-  uni.redirectTo({ url: '/pages/result/result?gameId=shape-match&dimensionId=focused&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() })
+function gridX(index:number,total:number,columns:number):number{
+  const row=Math.floor(index/columns), start=row*columns, count=Math.min(columns,total-start), gap=columns==4?8:16
+  return Math.round((areaWidth.value-(count*62+Math.max(0,count-1)*gap))/2)+(index-start)*(62+gap)
 }
-
-function prepareRound() {
-  if (roundIndex.value >= totalRounds.value) { finishGame(); return }
-  targetSymbol.value = SHAPES[Math.floor(Math.random() * SHAPES.length)]
-  const pool = shuffled(SHAPES.filter((item: string): boolean => item != targetSymbol.value))
-  const roundOptions = pool.slice(0, optionCount.value - 1)
-  roundOptions.push(targetSymbol.value)
-  options.value = shuffled(roundOptions)
-  feedback.value = ''; acceptingAnswer.value = true; appearedAt = Date.now()
+function clearTimer(){if(timer>0)clearTimeout(timer);timer=0}
+function finish(){
+  clearTimer();const attempts=correct.value+errors.value,accuracy=attempts==0?0:Math.round(correct.value/attempts*100)
+  const sum=times.value.reduce((s:number,v:number):number=>s+v,0),average=times.value.length==0?0:Math.round(sum/times.value.length)
+  const duration=Math.max(1,Math.round((Date.now()-gameStartedAt)/1000)),required=shadowCount.value*rounds.value
+  uni.redirectTo({url:'/pages/result/result?gameId=shape-match&dimensionId=focused&score='+accuracy.toString()+'&accuracy='+accuracy.toString()+'&reaction='+average.toString()+'&duration='+duration.toString()+'&completed='+correct.value.toString()+'&total='+required.toString()})
 }
-
-function begin() { started.value = true; gameStartedAt = Date.now(); prepareRound() }
-
-function choose(symbol: string) {
-  if (!acceptingAnswer.value) return
-  acceptingAnswer.value = false
-  reactions.value.push(Date.now() - appearedAt)
-  if (symbol == targetSymbol.value) { correct.value += 1; feedback.value = '正确' }
-  else { errors.value += 1; feedback.value = '再仔细看看' }
-  nextTimer = setTimeout(() => { roundIndex.value += 1; prepareRound() }, 480)
+function prepare(){
+  if(round.value>=rounds.value){finish();return}
+  selectedId.value='';feedback.value='';matchedThisRound.value=0
+  const source=shuffle(pool()).slice(0,sourceCount.value), targets=shuffle(source).slice(0,shadowCount.value)
+  const shadowOrder=shuffle(targets), sourceOrder=shuffle(source), nextSlots=[] as ShadowSlot[], nextItems=[] as DragItem[]
+  for(let i=0;i<shadowOrder.length;i++){const v=shadowOrder[i];nextSlots.push({id:v.id,label:v.label,image:v.image,shadow:v.shadow,x:gridX(i,shadowOrder.length,4),y:shadowY.value+Math.floor(i/4)*76,filled:false})}
+  for(let i=0;i<sourceOrder.length;i++){const v=sourceOrder[i],columns=sourceColumns.value,x=gridX(i,sourceOrder.length,columns),y=18+Math.floor(i/columns)*70;nextItems.push({id:v.id,label:v.label,image:v.image,x:x,y:y,homeX:x,homeY:y,matched:false})}
+  slots.value=nextSlots;items.value=nextItems;appearedAt=Date.now()
 }
-
-onLoad((_options: OnLoadOptions) => configureDifficulty())
-onUnload(() => clearTimer())
+function begin(){started.value=true;gameStartedAt=Date.now();prepare()}
+function dragBy(id:string):DragItem|null{const v=items.value.find((x:DragItem):boolean=>x.id==id);return v==null?null:v}
+function slotBy(id:string):ShadowSlot|null{const v=slots.value.find((x:ShadowSlot):boolean=>x.id==id);return v==null?null:v}
+function dragStart(id:string){
+  activeDragId.value=id;touchAnchored=false;dragDistance=0.0
+}
+function dragMove(event:UniTouchEvent){
+  const item=dragBy(activeDragId.value);if(item==null||item.matched)return
+  if(event.touches.length==0)return
+  const touch=event.touches[0]
+  if(!touchAnchored){lastTouchX=touch.clientX;lastTouchY=touch.clientY;touchAnchored=true;return}
+  const dx=touch.clientX-lastTouchX,dy=touch.clientY-lastTouchY
+  lastTouchX=touch.clientX;lastTouchY=touch.clientY;dragDistance+=Math.abs(dx)+Math.abs(dy)
+  item.x=Math.max(0,Math.min(areaWidth.value-62,item.x+dx))
+  item.y=Math.max(0,Math.min(areaHeight.value-62,item.y+dy))
+}
+function reset(item:DragItem){
+  item.x+=0.1;item.y+=0.1
+  nextTick(()=>{item.x=item.homeX;item.y=item.homeY;items.value=items.value.slice()})
+}
+function nearest(item:DragItem):ShadowSlot|null{
+  let found=null as ShadowSlot|null, distance=9999.0
+  for(let i=0;i<slots.value.length;i++){const s=slots.value[i];if(s.filled)continue;const dx=item.x-s.x,dy=item.y-s.y,d=Math.sqrt(dx*dx+dy*dy);if(d<distance){distance=d;found=s}}
+  return distance<=52?found:null
+}
+function match(sourceId:string,slotId:string){
+  const item=dragBy(sourceId),slot=slotBy(slotId);if(item==null||slot==null||item.matched||slot.filled)return
+  selectedId.value=''
+  if(sourceId!=slotId){errors.value++;feedbackGood.value=false;feedback.value='这个影子不太像，再观察一下轮廓';reset(item);return}
+  item.matched=true;slot.filled=true;item.x=slot.x;item.y=slot.y;correct.value++;matchedThisRound.value++
+  feedbackGood.value=true;feedback.value='找对啦！'+item.label+'回到影子里了';items.value=items.value.slice();slots.value=slots.value.slice()
+  if(matchedThisRound.value>=shadowCount.value){times.value.push(Date.now()-appearedAt);clearTimer();timer=setTimeout(()=>{round.value++;prepare()},650)}
+}
+function dragEnd(id:string){
+  activeDragId.value='';touchAnchored=false;if(dragDistance>6)ignoreTapId=id
+  const item=dragBy(id);if(item==null||item.matched)return
+  const slot=nearest(item);if(slot==null)reset(item);else match(id,slot.id)
+}
+function tapItem(id:string){
+  if(ignoreTapId==id){ignoreTapId='';return}
+  const item=dragBy(id);if(item==null||item.matched)return
+  selectedId.value=selectedId.value==id?'':id;feedbackGood.value=true;feedback.value=selectedId.value==''?'':'已选中'+item.label+'，再点一个影子'
+}
+function tapSlot(id:string){if(selectedId.value!='')match(selectedId.value,id)}
+onLoad((_options:OnLoadOptions)=>configure())
+onUnload(()=>clearTimer())
 </script>
 
 <style>
-.page { flex: 1; padding: 20px; }
-.game-header { flex-direction: row; justify-content: space-between; align-items: center; }.round-label { color: #5b8def; font-size: 12px; font-weight: 700; }.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
-.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #eaf0ff; align-items: center; justify-content: center; }.counter-value { color: #4b75c7; font-size: 13px; font-weight: 700; }
-.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; background-color: #5b8def; }
-.target-card { margin-top: 16px; height: 155px; border-radius: 24px; background-color: #dfe9ff; align-items: center; justify-content: center; }.target-label { color: #7180a0; font-size: 11px; }.target-symbol { margin-top: 5px; width: 86px; height: 86px; border-radius: 24px; background-color: #ffffff; align-items: center; justify-content: center; }.target-symbol-value { color: #5b8def; font-size: 55px; }
-.instruction { margin-top: 16px; padding: 26px 20px; border-radius: 22px; background-color: #ffffff; align-items: center; }.instruction-title { color: #344059; font-size: 16px; font-weight: 700; text-align: center; }.instruction-copy { margin-top: 8px; color: #818a9f; font-size: 11px; line-height: 18px; text-align: center; }.primary { margin-top: 18px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #5b8def; color: #ffffff; font-size: 14px; font-weight: 700; }
-.option-grid { margin-top: 12px; flex-direction: row; flex-wrap: wrap; justify-content: center; }.option-card { margin: 6px; width: 28%; height: 86px; border-radius: 19px; background-color: #ffffff; align-items: center; justify-content: center; }.option-symbol { color: #52617d; font-size: 43px; }
-.feedback-space { height: 32px; align-items: center; justify-content: center; }.good { color: #338e72; font-size: 12px; font-weight: 700; }.again { color: #c65b66; font-size: 12px; font-weight: 700; }
-.footer-stats { flex-direction: row; }.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 17px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+.sm-page{flex:1;padding:18px 16px 22px;background-color:#f7f8fc}.sm-header{flex-direction:row;justify-content:space-between;align-items:center}.sm-eyebrow{color:#5b8def;font-size:12px;font-weight:700}.sm-title{margin-top:5px;color:#1f2a44;font-size:22px;font-weight:700}.sm-counter{width:64px;height:40px;border-radius:20px;background-color:#eaf0ff;align-items:center;justify-content:center}.sm-counter-text{color:#4b75c7;font-size:13px;font-weight:700}.sm-progress{margin-top:16px;height:7px;border-radius:4px;background-color:#e5eaf2;overflow:hidden}.sm-progress-fill{height:7px;border-radius:4px;background-color:#5b8def}
+.sm-intro{margin-top:18px;padding:24px 18px;border-radius:24px;background-color:#fff;align-items:center}.sm-intro-title{margin-top:10px;color:#344059;font-size:17px;font-weight:700}.sm-intro-copy{margin-top:8px;color:#818a9f;font-size:12px;line-height:19px;text-align:center}.sm-chips{margin-top:15px;flex-direction:row}.sm-chip{margin:3px;padding:6px 10px;border-radius:12px;background-color:#f0f4ff;color:#5873ac;font-size:11px;font-weight:700}.sm-start{margin-top:18px;width:150px;height:48px;line-height:48px;border-radius:15px;background-color:#5b8def;color:#fff;font-size:14px;font-weight:700}
+.sm-board{margin-top:14px;padding:12px 8px 8px;border-radius:24px;background-color:#fff}.sm-board-head{padding:0 5px 8px;flex-direction:row;justify-content:space-between}.sm-board-title{color:#344059;font-size:12px;font-weight:700}.sm-board-hint{color:#8c96aa;font-size:10px}.sm-area{position:relative;width:100%;border-radius:18px;background-color:#f7f9fe;overflow:hidden}.sm-item,.sm-slot{position:absolute;width:62px;height:62px;border-radius:17px;align-items:center;justify-content:center}.sm-item{z-index:6;background-color:#fff;border-width:2px;border-color:#e5eaff;box-shadow:0 5px 12px rgba(66,84,130,.14)}.sm-item-selected{border-color:#6b91ef;background-color:#edf3ff}.sm-slot{z-index:2;background-color:#edf0f5;border-width:2px;border-style:dashed;border-color:#cbd1dc}.sm-slot-done{background-color:#effaf4;border-style:solid;border-color:#7bcba4}.sm-image{width:54px;height:54px}.sm-check{position:absolute;right:-4px;top:-4px;width:20px;height:20px;border-radius:10px;background-color:#42b883;align-items:center;justify-content:center}.sm-check-text{color:#fff;font-size:12px;font-weight:700}.sm-divider{position:absolute;left:12px;right:12px;height:1px;background-color:#dfe4ee}.sm-shadow-label{position:absolute;left:16px;color:#8791a6;font-size:10px;font-weight:700}
+.sm-feedback{height:34px;align-items:center;justify-content:center}.sm-good{color:#338e72;font-size:12px;font-weight:700}.sm-again{color:#c65b66;font-size:12px;font-weight:700}.sm-stats{flex-direction:row}.sm-stat{flex:1;align-items:center}.sm-stat-value{color:#25314a;font-size:17px;font-weight:700}.sm-stat-label{margin-top:3px;color:#8a93a7;font-size:10px}
 </style>

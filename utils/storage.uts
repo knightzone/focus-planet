@@ -17,6 +17,8 @@ export type TrainingRecord = {
   falseAlarms?: number,
   switchErrors?: number,
   interferenceErrors?: number,
+  completedCount?: number,
+  totalCount?: number,
   completedAt: number
 }
 

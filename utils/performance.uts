@@ -1,0 +1,93 @@
+export type PerformanceInput = {
+  gameId: string,
+  accuracy: number,
+  reaction: number,
+  duration: number,
+  completed: number,
+  total: number,
+  omissions: number,
+  falseAlarms: number,
+  switchErrors: number,
+  interferenceErrors: number
+}
+
+export type PerformanceEvaluation = {
+  score: number,
+  accuracyScore: number,
+  timeScore: number,
+  completionScore: number,
+  controlScore: number,
+  feedback: string
+}
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+function reactionBenchmark(gameId: string): number {
+  if (gameId == 'star-catcher' || gameId == 'number-tap' || gameId == 'penalty-kick') return 850
+  if (gameId == 'shape-match' || gameId == 'sound-location' || gameId == 'light-tracking') return 1050
+  if (gameId == 'sky-watcher' || gameId == 'car-patrol') return 1200
+  if (gameId == 'forest-search' || gameId == 'color-command' || gameId == 'sound-filter') return 1450
+  if (gameId == 'magic-rule' || gameId == 'sorting-station' || gameId == 'number-track' || gameId == 'red-green') return 1550
+  if (gameId == 'dual-track' || gameId == 'listen-find' || gameId == 'little-driver') return 1800
+  return 1400
+}
+
+function completionRate(input: PerformanceInput): number {
+  if (input.total <= 0) return 100
+  return clampScore(input.completed / Math.max(1, input.total) * 100)
+}
+
+function controlQuality(input: PerformanceInput): number {
+  const errors = input.omissions + input.falseAlarms + input.switchErrors + input.interferenceErrors
+  if (errors <= 0) return 100
+  const base = input.total > 0 ? input.total : 10
+  return clampScore(100 - errors / Math.max(1, base) * 100)
+}
+
+function timeQuality(input: PerformanceInput): number {
+  if (input.reaction <= 0) return 0
+  const benchmark = reactionBenchmark(input.gameId)
+  if (input.reaction <= benchmark * 0.65) return 100
+  return clampScore(100 - (input.reaction - benchmark * 0.65) / (benchmark * 1.15) * 60)
+}
+
+function improvementTip(input: PerformanceInput, completion: number, time: number): string {
+  if (completion < 90) return '下次先把每一题都完成，稳定坚持到最后就是很大的进步。'
+  if (input.accuracy < 70) return '下次可以稍微慢一点，看清目标和规则后再回答，准确会越来越高。'
+  if (input.omissions > 0) return '有少量目标被漏掉了，下次保持观察节奏，看到目标再及时回应。'
+  if (input.falseAlarms > 0) return '有几次提前行动，下次先确认是目标再点击，会更加稳定。'
+  if (input.switchErrors > 0) return '规则变化时出现了小失误，下次切换前先停一下、看清新规则。'
+  if (input.interferenceErrors > 0) return '这次受到了一些干扰，下次先记住目标特征，再忽略无关信息。'
+  if (input.reaction > 0 && time < 65) return '判断已经不错了，熟悉规则后反应速度还会自然提高，不用着急。'
+  return '继续保持轻松稳定的节奏，每一次练习都会让专注更扎实。'
+}
+
+function praiseCopy(input: PerformanceInput, completion: number, time: number): string {
+  if (input.accuracy >= 95 && completion >= 100 && (input.reaction <= 0 || time >= 85)) return '太棒了！题目全部完成，判断准确又稳定，今天的专注状态非常出色！'
+  if (input.accuracy >= 90) return '做得很棒！大部分题目都判断正确，专注和准确性表现得很好！'
+  if (completion >= 100) return '顺利完成了全部挑战，坚持和投入都值得表扬！'
+  return '你认真完成了这次训练，已经取得了很好的进步！'
+}
+
+export function evaluatePerformance(input: PerformanceInput): PerformanceEvaluation {
+  const accuracy = clampScore(input.accuracy)
+  const completion = completionRate(input)
+  const control = controlQuality(input)
+  const time = timeQuality(input)
+  const hasReaction = input.reaction > 0
+  const score = hasReaction
+    ? clampScore(accuracy * 0.55 + time * 0.20 + completion * 0.15 + control * 0.10)
+    : clampScore(accuracy * 0.70 + completion * 0.20 + control * 0.10)
+  const praise = praiseCopy(input, completion, time)
+  const tip = improvementTip(input, completion, time)
+  return {
+    score: score,
+    accuracyScore: accuracy,
+    timeScore: time,
+    completionScore: completion,
+    controlScore: control,
+    feedback: score >= 85 ? praise : praise + tip
+  }
+}

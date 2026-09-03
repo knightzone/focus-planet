@@ -1,4 +1,4 @@
-# 专注星球 MVP
+# 专注星伴 MVP
 
 面向 3–16 岁儿童与学生的跨平台专注力训练应用原型。工程采用 uni-app x，目标平台为 iOS、Android 与 HarmonyOS NEXT。
 

@@ -75,7 +75,7 @@
     {
       "path": "pages/game/shape-match",
       "style": {
-        "navigationBarTitleText": "图形配对"
+        "navigationBarTitleText": "影子配对"
       }
     },
     {
@@ -183,7 +183,7 @@
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "专注星球",
+    "navigationBarTitleText": "专注星伴",
     "navigationBarBackgroundColor": "#F5F8FC",
     "backgroundColor": "#F5F8FC"
   }

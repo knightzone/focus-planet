@@ -20,7 +20,8 @@ type DailyPeak = {
 }
 
 const DIFFICULTY_KEY = 'focus_planet_difficulty_states'
-export const MAX_DIFFICULTY = 4
+const TEST_DIFFICULTY_KEY = 'focus_planet_test_difficulty'
+export const MAX_DIFFICULTY = 10
 export const UPGRADE_SCORE = 85
 export const LOW_SCORE = 60
 
@@ -28,11 +29,23 @@ function clampLevel(level: number): number {
   return Math.max(1, Math.min(MAX_DIFFICULTY, level))
 }
 
+export function getTestDifficultyOverride(): number {
+  const value = uni.getStorageSync(TEST_DIFFICULTY_KEY)
+  if (value == null || value == '') return 0
+  const level = value as number
+  return level <= 0 ? 0 : clampLevel(level)
+}
+
+export function setTestDifficultyOverride(level: number) {
+  if (level <= 0) {
+    uni.removeStorageSync(TEST_DIFFICULTY_KEY)
+    return
+  }
+  uni.setStorageSync(TEST_DIFFICULTY_KEY, clampLevel(level))
+}
+
 export function defaultDifficultyForAge(age: number): number {
-  if (age <= 6) return 1
-  if (age <= 9) return 2
-  if (age <= 12) return 3
-  return 4
+  return clampLevel(age - 4)
 }
 
 function readStates(): DifficultyState[] {
@@ -86,6 +99,8 @@ function closedDayPeaks(gameId: string, level: number, records: TrainingRecord[]
 }
 
 export function getGameDifficulty(gameId: string): number {
+  const testLevel = getTestDifficultyOverride()
+  if (testLevel > 0) return testLevel
   const state = ensureState(gameId)
   const previousLevel = state.level
   let shouldSave = false
@@ -109,21 +124,27 @@ export function getGameDifficulty(gameId: string): number {
 
 export function getGameTuningAge(gameId: string): number {
   const level = getGameDifficulty(gameId)
-  if (level == 1) return 5
-  if (level == 2) return 8
-  if (level == 3) return 11
-  return 14
+  return level + 4
 }
 
 export function getDifficultyLabel(level: number): string {
   const normalized = clampLevel(level)
-  if (normalized == 1) return '难度 1 · 轻松'
-  if (normalized == 2) return '难度 2 · 成长'
-  if (normalized == 3) return '难度 3 · 进阶'
-  return '难度 4 · 挑战'
+  if (normalized <= 2) return '难度 ' + normalized.toString() + ' · 轻松'
+  if (normalized <= 5) return '难度 ' + normalized.toString() + ' · 成长'
+  if (normalized <= 8) return '难度 ' + normalized.toString() + ' · 进阶'
+  return '难度 ' + normalized.toString() + ' · 挑战'
 }
 
 export function updateGameDifficulty(gameId: string, playedLevel: number, score: number, completedAt: number, records: TrainingRecord[]): DifficultyUpdate {
+  const testLevel = getTestDifficultyOverride()
+  if (testLevel > 0) {
+    return {
+      previousLevel: testLevel,
+      currentLevel: testLevel,
+      change: 0,
+      message: '测试模式已锁定难度 ' + testLevel.toString()
+    }
+  }
   const state = ensureState(gameId)
   const previousLevel = clampLevel(state.level)
   let message = '继续保持当前难度'

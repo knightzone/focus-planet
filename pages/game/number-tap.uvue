@@ -1,22 +1,105 @@
-<template><view class="page">
-  <view class="header"><view><text class="dimension">集中注意训练</text><text class="title">数字连点</text></view><view class="next"><text class="next-value">{{ current }}</text></view></view>
-  <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-  <view v-if="!started" class="instruction"><view class="number-demo"><text class="demo-number">1</text><text class="demo-arrow">→</text><text class="demo-number">2</text><text class="demo-arrow">→</text><text class="demo-number">3</text></view><text class="copy">从 1 开始，按顺序点到 9</text><button class="tap-target primary" @click="begin">▶ 开始</button></view>
-  <view v-else class="grid"><button v-for="number in numbers" :key="number" class="tap-target number-button" :class="number < current ? 'done' : ''" @click="tap(number)">{{ number < current ? '✓' : number.toString() }}</button></view>
-  <view class="stats"><view class="stat"><text class="value">{{ errors }}</text><text class="label">误点</text></view><view class="stat"><text class="value">{{ elapsed }}s</text><text class="label">用时</text></view></view>
-</view></template>
+<template>
+  <view class="page">
+    <view class="header">
+      <view><text class="dimension">集中注意训练 · 难度 {{ difficultyLevel }}/10</text><text class="title">数字连点</text></view>
+      <view class="next"><text class="next-label">下一个</text><text class="next-value">{{ current > itemCount ? '✓' : current.toString() }}</text></view>
+    </view>
+    <view class="round-row"><text class="round-label">第 {{ displayRound }}/3 组</text><text class="target-label" :class="overTime ? 'target-over' : ''">目标总时长 ≤ {{ timeLimit }}s</text></view>
+    <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+
+    <view v-if="!started" class="instruction">
+      <view class="number-demo"><text class="demo-number">1</text><text class="demo-arrow">→</text><text class="demo-number">2</text><text class="demo-arrow">→</text><text class="demo-number">3</text></view>
+      <text class="copy">每次完成3组，每组从 1 按顺序点到 {{ itemCount }}</text>
+      <text class="rule-copy">必须零误点，并在 {{ timeLimit }} 秒内完成全部3组</text>
+      <button class="tap-target primary" @click="begin">▶ 开始</button>
+    </view>
+
+    <view v-else class="grid">
+      <button v-for="number in numbers" :key="number" class="tap-target number-button" :class="buttonSizeClass + (number < current ? ' done' : '')" @click="tap(number)">{{ number < current ? '✓' : number.toString() }}</button>
+    </view>
+
+    <view class="feedback"><text v-if="feedback != ''" :class="feedbackGood ? 'good' : 'again'">{{ feedback }}</text></view>
+    <view class="stats">
+      <view class="stat"><text class="value">{{ errors }}</text><text class="label">误点</text></view>
+      <view class="stat"><text class="value" :class="overTime ? 'time-over' : ''">{{ elapsedText }}s</text><text class="label">总用时</text></view>
+      <view class="stat"><text class="value">{{ itemCount }}</text><text class="label">每组数量</text></view>
+    </view>
+  </view>
+</template>
+
 <script setup lang="uts">
 import { ref, computed } from 'vue'
-import { onUnload } from '@dcloudio/uni-app'
-const started = ref(false), current = ref(1), numbers = ref([] as number[]), errors = ref(0), elapsed = ref(0)
-let startedAt = 0, ticker = 0
-const progressWidth = computed((): string => Math.round(((current.value - 1) / 9) * 100).toString() + '%')
-function shuffle(): number[] { const result = [1,2,3,4,5,6,7,8,9]; for (let i = result.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const v = result[i]; result[i] = result[j]; result[j] = v }; return result }
-function finish() { if (ticker > 0) clearInterval(ticker); const accuracy = Math.round((9 / Math.max(9, 9 + errors.value)) * 100); uni.redirectTo({ url: '/pages/result/result?gameId=number-tap&dimensionId=focused&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + elapsed.value.toString() }) }
-function begin() { numbers.value = shuffle(); started.value = true; startedAt = Date.now(); ticker = setInterval(() => { elapsed.value = Math.round((Date.now() - startedAt) / 1000) }, 1000) }
-function tap(number: number) { if (number != current.value) { errors.value += 1; return }; current.value += 1; if (current.value > 9) setTimeout(() => finish(), 500) }
-onUnload(() => { if (ticker > 0) clearInterval(ticker) })
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+
+const started = ref(false), current = ref(1), numbers = ref([] as number[]), errors = ref(0), elapsedMs = ref(0)
+const difficultyLevel = ref(1), itemCount = ref(9), timeLimit = ref(60), roundIndex = ref(0), totalRounds = ref(3)
+const feedback = ref(''), feedbackGood = ref(true), accepting = ref(false)
+let startedAt = 0, ticker = 0, nextTimer = 0
+
+const displayRound = computed((): number => Math.min(totalRounds.value, roundIndex.value + 1))
+const totalRequired = computed((): number => itemCount.value * totalRounds.value)
+const completedCount = computed((): number => roundIndex.value * itemCount.value + Math.min(itemCount.value, current.value - 1))
+const progressWidth = computed((): string => Math.round((completedCount.value / totalRequired.value) * 100).toString() + '%')
+const elapsedText = computed((): string => (elapsedMs.value / 1000).toFixed(1))
+const overTime = computed((): boolean => started.value && elapsedMs.value > timeLimit.value * 1000)
+const buttonSizeClass = computed((): string => itemCount.value == 9 ? 'number-nine' : itemCount.value == 16 ? 'number-sixteen' : 'number-twenty-five')
+
+function configureDifficulty() {
+  difficultyLevel.value = getGameDifficulty('number-tap')
+  const level = difficultyLevel.value
+  if (level <= 3) itemCount.value = 9
+  else if (level <= 7) itemCount.value = 16
+  else itemCount.value = 25
+  if (level == 1) timeLimit.value = 60
+  else if (level == 2) timeLimit.value = 51
+  else if (level == 3) timeLimit.value = 42
+  else if (level == 4) timeLimit.value = 75
+  else if (level == 5) timeLimit.value = 68
+  else if (level == 6) timeLimit.value = 61
+  else if (level == 7) timeLimit.value = 54
+  else if (level == 8) timeLimit.value = 85
+  else if (level == 9) timeLimit.value = 78
+  else timeLimit.value = 72
+}
+function shuffleNumbers(count: number): number[] {
+  const result = [] as number[]
+  for (let number = 1; number <= count; number++) result.push(number)
+  for (let i = result.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const value = result[i]; result[i] = result[j]; result[j] = value }
+  return result
+}
+function clearTimers() { if (ticker > 0) clearInterval(ticker); if (nextTimer > 0) clearTimeout(nextTimer); ticker = 0; nextTimer = 0 }
+function finish() {
+  clearTimers(); accepting.value = false
+  const correctTotal = totalRequired.value
+  const accuracy = Math.round((correctTotal / Math.max(correctTotal, correctTotal + errors.value)) * 100)
+  const duration = Math.max(1, Math.round(elapsedMs.value / 1000))
+  const passed = errors.value == 0 && elapsedMs.value <= timeLimit.value * 1000
+  uni.redirectTo({ url: '/pages/result/result?gameId=number-tap&dimensionId=focused&score=' + (passed ? '100' : '0') + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + duration.toString() + '&falseAlarms=' + errors.value.toString() + '&completed=' + correctTotal.toString() + '&total=' + correctTotal.toString() + '&passed=' + (passed ? '1' : '0') + '&targetDuration=' + timeLimit.value.toString() })
+}
+function prepareRound() { current.value = 1; numbers.value = shuffleNumbers(itemCount.value); accepting.value = true; feedback.value = ''; feedbackGood.value = true }
+function completeRound() {
+  accepting.value = false
+  if (roundIndex.value + 1 >= totalRounds.value) { feedback.value = '全部完成，正在结算'; feedbackGood.value = errors.value == 0 && !overTime.value; nextTimer = setTimeout(() => finish(), 500); return }
+  feedback.value = '本组完成，准备下一组'; feedbackGood.value = true
+  nextTimer = setTimeout(() => { roundIndex.value += 1; prepareRound() }, 550)
+}
+function begin() {
+  started.value = true; startedAt = Date.now(); prepareRound()
+  ticker = setInterval(() => { elapsedMs.value = Date.now() - startedAt }, 100)
+}
+function tap(number: number) {
+  if (!accepting.value) return
+  if (number != current.value) { errors.value += 1; feedback.value = '顺序不对，准确率必须达到100%'; feedbackGood.value = false; return }
+  current.value += 1; feedback.value = ''; feedbackGood.value = true
+  if (current.value > itemCount.value) completeRound()
+}
+onLoad((_options: OnLoadOptions) => configureDifficulty())
+onUnload(() => clearTimers())
 </script>
+
 <style>
-.page { flex: 1; padding: 20px; }.header { flex-direction: row; justify-content: space-between; align-items: center; }.dimension { color: #4d74c2; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.next { width: 58px; height: 58px; border-radius: 18px; background-color: #5b8def; align-items: center; justify-content: center; }.next-value { color: #ffffff; font-size: 27px; font-weight: 800; }.progress { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; background-color: #5b8def; }.instruction { margin-top: 16px; height: 390px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; }.number-demo { flex-direction: row; align-items: center; }.demo-number { width: 58px; height: 58px; line-height: 58px; border-radius: 18px; background-color: #eaf0ff; color: #5b8def; font-size: 27px; font-weight: 800; text-align: center; }.demo-arrow { margin: 0 8px; color: #8a94a7; font-size: 22px; }.copy { margin-top: 20px; color: #69758d; font-size: 14px; }.primary { margin-top: 22px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #5b8def; color: #fff; font-size: 14px; font-weight: 700; }.grid { margin-top: 16px; padding: 10px; height: 390px; border-radius: 25px; background-color: #dfe9ff; flex-direction: row; flex-wrap: wrap; justify-content: center; align-content: center; }.number-button { margin: 5px; padding: 0; width: 29%; height: 105px; line-height: 105px; border-radius: 20px; background-color: #ffffff; color: #344059; font-size: 34px; font-weight: 800; }.done { background-color: #e5f6ef; color: #338e72; }.stats { margin-top: 14px; flex-direction: row; }.stat { flex: 1; align-items: center; }.value { color: #25314a; font-size: 18px; font-weight: 700; }.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+.page { flex: 1; padding: 16px 18px 20px; }.header { flex-direction: row; justify-content: space-between; align-items: center; }.dimension { color: #4d74c2; font-size: 11px; font-weight: 700; }.title { margin-top: 3px; color: #1f2a44; font-size: 21px; font-weight: 700; }.next { width: 58px; height: 58px; border-radius: 18px; background-color: #5b8def; align-items: center; justify-content: center; }.next-label { color: rgba(255,255,255,0.76); font-size: 8px; }.next-value { margin-top: 1px; color: #ffffff; font-size: 23px; font-weight: 800; }.round-row { margin-top: 12px; flex-direction: row; justify-content: space-between; }.round-label { color: #58667f; font-size: 11px; font-weight: 700; }.target-label { color: #3b9879; font-size: 11px; font-weight: 700; }.target-over { color: #cc5b67; }.progress { margin-top: 8px; height: 7px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 7px; background-color: #5b8def; }
+.instruction { margin-top: 14px; height: 370px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; }.number-demo { flex-direction: row; align-items: center; }.demo-number { width: 54px; height: 54px; line-height: 54px; border-radius: 17px; background-color: #eaf0ff; color: #5b8def; font-size: 25px; font-weight: 800; text-align: center; }.demo-arrow { margin: 0 8px; color: #8a94a7; font-size: 21px; }.copy { margin-top: 20px; color: #596780; font-size: 13px; }.rule-copy { margin-top: 8px; color: #cf6370; font-size: 11px; font-weight: 700; }.primary { margin-top: 22px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #5b8def; color: #ffffff; font-size: 14px; font-weight: 700; }
+.grid { margin-top: 13px; padding: 8px; height: 400px; border-radius: 24px; background-color: #dfe9ff; flex-direction: row; flex-wrap: wrap; justify-content: center; align-content: center; }.number-button { margin: 4px; padding: 0; border-radius: 16px; background-color: #ffffff; color: #344059; font-weight: 800; }.number-nine { width: 29%; height: 110px; line-height: 110px; font-size: 34px; }.number-sixteen { width: 22%; height: 84px; line-height: 84px; font-size: 27px; }.number-twenty-five { width: 17%; height: 65px; line-height: 65px; font-size: 21px; }.done { background-color: #e5f6ef; color: #338e72; }.feedback { height: 32px; align-items: center; justify-content: center; }.good { color: #338e72; font-size: 11px; font-weight: 700; }.again { color: #c65b66; font-size: 11px; font-weight: 700; }.stats { flex-direction: row; }.stat { flex: 1; align-items: center; }.value { color: #25314a; font-size: 17px; font-weight: 700; }.time-over { color: #cc5b67; }.label { margin-top: 2px; color: #8a93a7; font-size: 9px; }
 </style>

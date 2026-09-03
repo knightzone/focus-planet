@@ -1,7 +1,7 @@
 <script lang="uts">
 export default {
   onLaunch: function () {
-    console.log('专注星球启动')
+    console.log('专注星伴启动')
   }
 }
 </script>

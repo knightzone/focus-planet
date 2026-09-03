@@ -6,8 +6,17 @@
 
     <view v-if="!started" class="instruction"><YoungChildCue :kind="mode == 'light-tracking' ? 'track' : 'tap'"></YoungChildCue><text class="intro-copy">{{ introCopy }}</text><button class="tap-target primary" :style="{ backgroundColor: accentColor }" @click="begin">▶ 开始训练</button></view>
 
-    <view v-else-if="mode == 'light-tracking'" class="light-board">
-      <view v-for="index in 9" :key="index" class="light-cell" @click="tapLight(index - 1)"><image v-if="activeCell == index - 1" class="moving-firefly tap-content" src="/static/images/runtime/game-objects/firefly-tracking-v1.png" mode="aspectFit"></image></view>
+    <view v-else-if="mode == 'light-tracking'" class="light-game">
+      <view class="memory-head"><text class="memory-phase" :class="lightPhase == 'recall' ? 'phase-recall' : ''">{{ lightPhaseLabel }}</text><text class="memory-count">本轮 {{ currentMoveCount }} 次移动</text></view>
+      <view class="step-row"><view v-for="index in currentMoveCount" :key="'step-'+index" class="step-dot" :class="stepClass(index - 1)"><text class="step-symbol" :class="stepTextClass(index - 1)">{{ stepSymbol(index - 1) }}</text></view></view>
+      <view class="light-board" :class="lightPhase == 'watch' ? 'board-watching' : ''">
+        <image class="night-background" src="/static/images/runtime/backgrounds/firefly-night-forest-v1.png" mode="aspectFill"></image>
+        <view class="night-overlay" :class="lightPhase == 'watch' ? 'night-overlay-watch' : ''"></view>
+        <view v-for="index in 9" :key="index" class="light-cell" @click="tapLight(index - 1)"><view v-if="markCell == index - 1" class="answer-mark" :class="markCorrect ? 'mark-correct' : 'mark-wrong'"><text class="answer-symbol">{{ markCorrect ? '✓' : '×' }}</text></view></view>
+        <view v-if="activeCell >= 0" class="firefly-glow" :class="fireflyPositionClass"></view>
+        <image v-if="activeCell >= 0" class="moving-firefly" :class="fireflyPositionClass" src="/static/images/runtime/game-objects/firefly-tracking-v2.png" mode="aspectFit"></image>
+        <view v-if="lightPhase == 'recall'" class="recall-hint"><text class="recall-hint-text">按刚才的顺序点击格子</text></view>
+      </view>
     </view>
 
     <view v-else class="road-board">
@@ -19,7 +28,7 @@
       <text v-if="mode == 'little-driver'" class="dual-tip">避开障碍，同时点击路边金色星星</text>
     </view>
 
-    <view class="feedback"><text v-if="feedback != ''" :class="feedback == '正确' ? 'good' : 'again'">{{ feedback }}</text></view>
+    <view class="feedback"><text v-if="feedback != ''" :class="feedbackGood ? 'good' : 'again'">{{ feedback }}</text></view>
     <view class="stats"><view class="stat-item"><text class="value">{{ correct }}</text><text class="label">正确</text></view><view class="stat-item"><text class="value">{{ errors }}</text><text class="label">错误</text></view><view class="stat-item"><text class="value">{{ omissions }}</text><text class="label">遗漏</text></view></view>
   </view>
 </template>
@@ -28,53 +37,112 @@
 import { ref, computed } from 'vue'
 import YoungChildCue from '../../components/YoungChildCue.uvue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { getGameTuningAge } from '../../utils/difficulty.uts'
+import { getGameDifficulty, getGameTuningAge } from '../../utils/difficulty.uts'
 import { getGameName } from '../../utils/catalog.uts'
 
 const mode = ref('light-tracking'), gameName = ref('萤火虫追踪'), dimensionId = ref('focused')
-const started = ref(false), totalRounds = ref(12), roundIndex = ref(0), roundDuration = ref(1200)
+const started = ref(false), totalRounds = ref(12), roundIndex = ref(0), roundDuration = ref(1200), difficultyLevel = ref(1)
 const activeCell = ref(4), obstacleLane = ref('left'), chosenLane = ref(''), roadsideTarget = ref(false), roadsideDone = ref(false)
-const accepting = ref(false), feedback = ref(''), correct = ref(0), errors = ref(0), omissions = ref(0), reactions = ref([] as number[])
-let shownAt = 0, gameStartedAt = 0, roundTimer = 0, nextTimer = 0
+const accepting = ref(false), feedback = ref(''), feedbackGood = ref(true), correct = ref(0), errors = ref(0), omissions = ref(0), reactions = ref([] as number[])
+const lightPhase = ref('idle'), lightSequence = ref([] as number[]), stepResults = ref([] as string[]), inputIndex = ref(0), playbackIndex = ref(0), markCell = ref(-1), markCorrect = ref(false)
+const lightRoundMoves = ref([2, 2, 3] as number[])
+let shownAt = 0, gameStartedAt = 0, roundTimer = 0, nextTimer = 0, playbackTimer = 0, markerTimer = 0
 const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
 const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
-const dimensionLabel = computed((): string => mode.value == 'light-tracking' ? '集中注意训练' : mode.value == 'car-patrol' ? '持续注意训练' : '分配注意训练')
+const dimensionLabel = computed((): string => mode.value == 'light-tracking' ? '集中注意训练 · 难度 ' + difficultyLevel.value.toString() + '/10' : mode.value == 'car-patrol' ? '持续注意训练' : '分配注意训练')
 const accentColor = computed((): string => mode.value == 'light-tracking' ? '#5B8DEF' : mode.value == 'car-patrol' ? '#55C9A5' : '#F17C8D')
-const missionTitle = computed((): string => mode.value == 'light-tracking' ? '找到每次飞到新位置的小萤火虫' : mode.value == 'car-patrol' ? '选择没有障碍的车道' : '避障，同时收集路边金色星星')
-const missionTip = computed((): string => mode.value == 'light-tracking' ? '看准位置再点击，不要抢点' : mode.value == 'little-driver' ? '蓝色圆点不要点击' : '保持稳定，不要抢点')
-const introCopy = computed((): string => mode.value == 'light-tracking' ? '小萤火虫会在九宫格中飞来飞去，请追踪它的位置并快速点击。' : mode.value == 'car-patrol' ? '观察左右车道，选择安全的一边继续前进。' : '一边选择安全车道，一边留意路边是否出现金色星星。')
+const missionTitle = computed((): string => mode.value == 'light-tracking' ? lightPhase.value == 'recall' ? '按顺序复现萤火虫的移动路径' : '记住萤火虫飞过的位置和顺序' : mode.value == 'car-patrol' ? '选择没有障碍的车道' : '避障，同时收集路边金色星星')
+const missionTip = computed((): string => mode.value == 'light-tracking' ? lightPhase.value == 'watch' ? '观察期间不能点击，等萤火虫消失后再作答' : '每一步都必须和刚才的顺序一致' : mode.value == 'little-driver' ? '蓝色圆点不要点击' : '保持稳定，不要抢点')
+const introCopy = computed((): string => mode.value == 'light-tracking' ? '先观察萤火虫依次出现和移动，过程中不能点击；萤火虫消失后，请严格按照原来的顺序点击它出现过的位置。' : mode.value == 'car-patrol' ? '观察左右车道，选择安全的一边继续前进。' : '一边选择安全车道，一边留意路边是否出现金色星星。')
+const currentMoveCount = computed((): number => lightRoundMoves.value[Math.min(roundIndex.value, 2)])
+const lightPhaseLabel = computed((): string => lightPhase.value == 'watch' ? '观察路径' : lightPhase.value == 'recall' ? '轮到你了' : '本轮完成')
+const fireflyPositionClass = computed((): string => activeCell.value < 0 ? '' : 'firefly-position-' + activeCell.value.toString())
 
-function configureDifficulty() { const age = getGameTuningAge(mode.value); if (age <= 6) { totalRounds.value = 10; roundDuration.value = 1600 } else if (age <= 9) { totalRounds.value = 14; roundDuration.value = 1350 } else if (age <= 12) { totalRounds.value = 18; roundDuration.value = 1100 } else { totalRounds.value = 22; roundDuration.value = 900 } }
-function clearTimers() { if (roundTimer > 0) clearTimeout(roundTimer); if (nextTimer > 0) clearTimeout(nextTimer) }
-function finish() { clearTimers(); const attempts = correct.value + errors.value + omissions.value; const accuracy = Math.round((correct.value / Math.max(1, attempts)) * 100); const sum = reactions.value.reduce((a: number, b: number): number => a + b, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=' + mode.value + '&dimensionId=' + dimensionId.value + '&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&omissions=' + omissions.value.toString() }) }
+function configureLightDifficulty() {
+  difficultyLevel.value = getGameDifficulty('light-tracking'); totalRounds.value = 3
+  const level = difficultyLevel.value
+  if (level == 1) lightRoundMoves.value = [2, 2, 3]
+  else if (level == 2) lightRoundMoves.value = [2, 3, 3]
+  else if (level == 3) lightRoundMoves.value = [3, 3, 4]
+  else if (level == 4) lightRoundMoves.value = [3, 4, 4]
+  else if (level == 5) lightRoundMoves.value = [4, 4, 5]
+  else if (level == 6) lightRoundMoves.value = [4, 5, 5]
+  else if (level == 7) lightRoundMoves.value = [5, 5, 6]
+  else if (level == 8) lightRoundMoves.value = [6, 6, 7]
+  else if (level == 9) lightRoundMoves.value = [7, 7, 8]
+  else lightRoundMoves.value = [8, 8, 9]
+}
+function configureDifficulty() {
+  if (mode.value == 'light-tracking') { configureLightDifficulty(); return }
+  const age = getGameTuningAge(mode.value)
+  if (age <= 6) { totalRounds.value = 10; roundDuration.value = 1600 }
+  else if (age <= 9) { totalRounds.value = 14; roundDuration.value = 1350 }
+  else if (age <= 12) { totalRounds.value = 18; roundDuration.value = 1100 }
+  else { totalRounds.value = 22; roundDuration.value = 900 }
+}
+function stepClass(index: number): string { if (index >= stepResults.value.length) return lightPhase.value == 'recall' && index == inputIndex.value ? 'step-current' : ''; return stepResults.value[index] == 'correct' ? 'step-correct' : 'step-wrong' }
+function stepSymbol(index: number): string { if (index >= stepResults.value.length) return (index + 1).toString(); return stepResults.value[index] == 'correct' ? '✓' : '×' }
+function stepTextClass(index: number): string { return index < stepResults.value.length || (lightPhase.value == 'recall' && index == inputIndex.value) ? 'step-symbol-active' : 'step-symbol-pending' }
+function clearTimers() { if (roundTimer > 0) clearTimeout(roundTimer); if (nextTimer > 0) clearTimeout(nextTimer); if (playbackTimer > 0) clearTimeout(playbackTimer); if (markerTimer > 0) clearTimeout(markerTimer); roundTimer = 0; nextTimer = 0; playbackTimer = 0; markerTimer = 0 }
+function finish() { clearTimers(); const attempts = correct.value + errors.value + omissions.value; const accuracy = Math.round((correct.value / Math.max(1, attempts)) * 100); const sum = reactions.value.reduce((a: number, b: number): number => a + b, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=' + mode.value + '&dimensionId=' + dimensionId.value + '&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&omissions=' + omissions.value.toString() + '&completed=' + correct.value.toString() + '&total=' + attempts.toString() }) }
+function createLightSequence(count: number): number[] {
+  const result = [] as number[]
+  let previous = -1; activeCell.value = -1
+  for (let i = 0; i < count; i++) { let next = Math.floor(Math.random() * 9); while (next == previous) next = Math.floor(Math.random() * 9); result.push(next); previous = next }
+  return result
+}
+function advanceLightPlayback() {
+  if (playbackIndex.value >= lightSequence.value.length) { activeCell.value = -1; lightPhase.value = 'recall'; accepting.value = true; feedback.value = '轮到你了，请从第一个位置开始'; feedbackGood.value = true; shownAt = Date.now(); return }
+  activeCell.value = lightSequence.value[playbackIndex.value]; playbackIndex.value += 1
+  playbackTimer = setTimeout(() => advanceLightPlayback(), 720)
+}
 function prepare() {
   if (roundIndex.value >= totalRounds.value) { finish(); return }
-  feedback.value = ''; accepting.value = true; chosenLane.value = ''; roadsideDone.value = false; shownAt = Date.now()
-  if (mode.value == 'light-tracking') { let next = Math.floor(Math.random() * 9); while (next == activeCell.value) next = Math.floor(Math.random() * 9); activeCell.value = next }
-  else { obstacleLane.value = Math.random() < 0.5 ? 'left' : 'right'; roadsideTarget.value = mode.value == 'little-driver' && Math.random() < 0.45 }
+  feedback.value = ''; chosenLane.value = ''; roadsideDone.value = false
+  if (mode.value == 'light-tracking') {
+    accepting.value = false; lightPhase.value = 'watch'; stepResults.value = [] as string[]; inputIndex.value = 0; playbackIndex.value = 0; markCell.value = -1
+    lightSequence.value = createLightSequence(currentMoveCount.value); feedback.value = '准备观察，记住每次出现的位置'; feedbackGood.value = true
+    playbackTimer = setTimeout(() => advanceLightPlayback(), 520); return
+  }
+  accepting.value = true; shownAt = Date.now(); obstacleLane.value = Math.random() < 0.5 ? 'left' : 'right'; roadsideTarget.value = mode.value == 'little-driver' && Math.random() < 0.45
   roundTimer = setTimeout(() => {
     if (!accepting.value) return
     accepting.value = false
     if (mode.value == 'little-driver') { if (chosenLane.value == '') omissions.value += 1; if (roadsideTarget.value && !roadsideDone.value) omissions.value += 1 }
     else omissions.value += 1
-    feedback.value = '错过了'
+    feedback.value = '错过了'; feedbackGood.value = false
     nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 450)
   }, roundDuration.value)
 }
 function scheduleNext() { if (roundTimer > 0) clearTimeout(roundTimer); nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 450) }
-function completeSingle(success: boolean) { if (!accepting.value) return; accepting.value = false; if (success) { correct.value += 1; reactions.value.push(Date.now() - shownAt); feedback.value = '正确' } else { errors.value += 1; feedback.value = '再看仔细' }; scheduleNext() }
+function completeSingle(success: boolean) { if (!accepting.value) return; accepting.value = false; if (success) { correct.value += 1; reactions.value.push(Date.now() - shownAt); feedback.value = '正确'; feedbackGood.value = true } else { errors.value += 1; feedback.value = '再看仔细'; feedbackGood.value = false }; scheduleNext() }
 function begin() { started.value = true; gameStartedAt = Date.now(); prepare() }
-function tapLight(index: number) { if (!accepting.value) return; if (index == activeCell.value) completeSingle(true) else completeSingle(false) }
+function tapLight(index: number) {
+  if (!accepting.value || lightPhase.value != 'recall' || inputIndex.value >= lightSequence.value.length) return
+  const success = index == lightSequence.value[inputIndex.value]
+  markCell.value = index; markCorrect.value = success; stepResults.value.push(success ? 'correct' : 'wrong')
+  reactions.value.push(Date.now() - shownAt); shownAt = Date.now()
+  if (success) { correct.value += 1; feedback.value = '顺序正确，继续'; feedbackGood.value = true }
+  else { errors.value += 1; feedback.value = '顺序不对，继续下一步'; feedbackGood.value = false }
+  inputIndex.value += 1
+  if (markerTimer > 0) clearTimeout(markerTimer)
+  if (inputIndex.value >= lightSequence.value.length) {
+    accepting.value = false; lightPhase.value = 'complete'
+    feedback.value = stepResults.value.indexOf('wrong') < 0 ? '这一轮路径全部记对了！' : '本轮完成，下一轮再记准一点'
+    feedbackGood.value = stepResults.value.indexOf('wrong') < 0
+    nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 720)
+  } else markerTimer = setTimeout(() => { markCell.value = -1 }, 280)
+}
 function chooseLane(lane: string) {
   if (!accepting.value || chosenLane.value != '') return; chosenLane.value = lane
-  if (lane == obstacleLane.value) { errors.value += 1; feedback.value = '撞到障碍'; accepting.value = false; scheduleNext() }
+  if (lane == obstacleLane.value) { errors.value += 1; feedback.value = '撞到障碍'; feedbackGood.value = false; accepting.value = false; scheduleNext() }
   else if (mode.value == 'car-patrol') completeSingle(true)
-  else { correct.value += 1; reactions.value.push(Date.now() - shownAt); if (!roadsideTarget.value || roadsideDone.value) { accepting.value = false; feedback.value = '正确'; scheduleNext() } }
+  else { correct.value += 1; reactions.value.push(Date.now() - shownAt); feedbackGood.value = true; if (!roadsideTarget.value || roadsideDone.value) { accepting.value = false; feedback.value = '正确'; scheduleNext() } }
 }
 function tapRoadside() {
   if (!accepting.value || mode.value != 'little-driver' || roadsideDone.value) return; roadsideDone.value = true
-  if (roadsideTarget.value) { correct.value += 1; if (chosenLane.value != '') { accepting.value = false; feedback.value = '正确'; scheduleNext() } }
-  else { errors.value += 1; feedback.value = '蓝点不用收集' }
+  if (roadsideTarget.value) { correct.value += 1; feedbackGood.value = true; if (chosenLane.value != '') { accepting.value = false; feedback.value = '正确'; scheduleNext() } }
+  else { errors.value += 1; feedback.value = '蓝点不用收集'; feedbackGood.value = false }
 }
 onLoad((options: UTSJSONObject) => { const option = options['gameId']; mode.value = option == null || option == '' ? 'light-tracking' : option as string; gameName.value = getGameName(mode.value); dimensionId.value = mode.value == 'light-tracking' ? 'focused' : mode.value == 'car-patrol' ? 'sustained' : 'divided'; configureDifficulty() })
 onUnload(() => clearTimers())
@@ -83,7 +151,8 @@ onUnload(() => clearTimers())
 <style>
 .page { flex: 1; padding: 20px; }.header { flex-direction: row; align-items: center; justify-content: space-between; }.dimension { color: #7b8498; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #edf1f7; align-items: center; justify-content: center; }.counter-value { color: #65718b; font-size: 13px; font-weight: 700; }.progress { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; }.mission { margin-top: 14px; padding: 15px 17px; border-radius: 18px; background-color: #ffffff; }.mission-title { color: #3c485f; font-size: 15px; font-weight: 700; }.mission-tip { margin-top: 4px; color: #858fa3; font-size: 11px; }
 .instruction { margin-top: 16px; padding: 42px 22px; border-radius: 24px; background-color: #ffffff; align-items: center; }.intro-firefly { width: 126px; height: 126px; }.intro-icon { color: #6a7b99; font-size: 58px; }.intro-copy { margin-top: 14px; color: #737e94; font-size: 12px; line-height: 19px; text-align: center; }.primary { margin-top: 20px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; color: #ffffff; font-size: 14px; font-weight: 700; }
-.light-board { margin-top: 14px; padding: 10px; height: 370px; border-radius: 24px; background-color: #dfe9ff; flex-direction: row; flex-wrap: wrap; justify-content: center; align-content: center; }.light-cell { margin: 5px; width: 28%; height: 100px; border-radius: 18px; background-color: #ffffff; align-items: center; justify-content: center; }.moving-firefly { width: 78px; height: 78px; }
+.light-game { margin-top: 14px; }.memory-head { height: 30px; flex-direction: row; align-items: center; justify-content: space-between; }.memory-phase { color: #557bc4; font-size: 13px; font-weight: 700; }.phase-recall { color: #28896e; }.memory-count { color: #8a94a8; font-size: 10px; }.step-row { height: 36px; flex-direction: row; align-items: center; justify-content: center; }.step-dot { margin: 0 3px; width: 25px; height: 25px; border-radius: 13px; background-color: #e8edf5; align-items: center; justify-content: center; }.step-current { background-color: #5b8def; }.step-correct { background-color: #55c89f; }.step-wrong { background-color: #ef7884; }.step-symbol { font-size: 11px; font-weight: 800; }.step-symbol-active { color: #ffffff; }.step-symbol-pending { color: #8792a6; }
+.light-board { position: relative; padding: 10px; height: 330px; border-radius: 24px; background-color: #102d5a; flex-direction: row; flex-wrap: wrap; justify-content: center; align-content: center; overflow: hidden; }.night-background { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 0; }.night-overlay { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(4,20,55,0.2); z-index: 1; }.night-overlay-watch { background-color: rgba(4,18,50,0.3); }.light-cell { position: relative; margin: 5px; width: 28%; height: 84px; border-radius: 17px; border-width: 2px; border-color: rgba(181,218,255,0.68); background-color: rgba(22,58,111,0.7); box-shadow: 0 4px 10px rgba(0,11,38,0.3); align-items: center; justify-content: center; z-index: 2; }.answer-mark { width: 48px; height: 48px; border-radius: 24px; align-items: center; justify-content: center; z-index: 4; }.mark-correct { background-color: #55c89f; }.mark-wrong { background-color: #ef7884; }.answer-symbol { color: #ffffff; font-size: 30px; font-weight: 800; }.firefly-glow { position: absolute; width: 74px; height: 74px; border-radius: 37px; background-color: rgba(255,211,74,0.28); z-index: 5; transition-property: left, top, transform; transition-duration: 500ms; transition-timing-function: ease-in-out; }.moving-firefly { position: absolute; width: 74px; height: 74px; z-index: 6; transition-property: left, top, transform; transition-duration: 500ms; transition-timing-function: ease-in-out; }.firefly-position-0 { left: 7%; top: 9%; }.firefly-position-1 { left: 39%; top: 9%; }.firefly-position-2 { left: 71%; top: 9%; }.firefly-position-3 { left: 7%; top: 38%; }.firefly-position-4 { left: 39%; top: 38%; }.firefly-position-5 { left: 71%; top: 38%; }.firefly-position-6 { left: 7%; top: 67%; }.firefly-position-7 { left: 39%; top: 67%; }.firefly-position-8 { left: 71%; top: 67%; }.recall-hint { position: absolute; top: 8px; right: 10px; padding: 6px 9px; border-radius: 12px; background-color: rgba(42,137,110,0.9); z-index: 8; }.recall-hint-text { color: #ffffff; font-size: 9px; font-weight: 700; }
 .road-board { margin-top: 14px; height: 370px; border-radius: 24px; background-color: #dbe2eb; position: relative; overflow: hidden; }.roadside { height: 70px; align-items: center; justify-content: center; }.roadside-cue { width: 48px; height: 48px; border-radius: 24px; align-items: center; justify-content: center; }.cue-target { background-color: #fff0c4; }.cue-ignore { background-color: #d5deec; }.roadside-symbol-target { color: #e8ad27; font-size: 29px; }.roadside-symbol-ignore { color: #8094b5; font-size: 24px; }.lanes { flex: 1; flex-direction: row; padding: 0 18px 20px; }.lane { flex: 1; margin: 0 5px; border-radius: 18px; background-color: #ffffff; align-items: center; justify-content: center; position: relative; }.lane-label { position: absolute; top: 12px; color: #8a94a6; font-size: 10px; }.obstacle { width: 62px; height: 62px; border-radius: 16px; background-color: #fde1e5; align-items: center; justify-content: center; }.obstacle-symbol { color: #cf5d6c; font-size: 30px; }.car { position: absolute; bottom: 18px; }.car-symbol { color: #5b8def; font-size: 38px; }.dual-tip { position: absolute; bottom: 4px; width: 100%; text-align: center; color: #718097; font-size: 9px; }
 .feedback { height: 34px; align-items: center; justify-content: center; }.good { color: #338e72; font-size: 12px; font-weight: 700; }.again { color: #c65b66; font-size: 12px; font-weight: 700; }.stats { flex-direction: row; }.stat-item { flex: 1; align-items: center; }.value { color: #25314a; font-size: 17px; font-weight: 700; }.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
 </style>
