@@ -1,14 +1,18 @@
-<script lang="uts">
-export default {
-  onLaunch: function () {
-    console.log('专注星伴启动')
-  }
-}
+<script setup lang="uts">
+import { initializeOfflineSync, flushResults, refreshReports } from './utils/offline-sync.uts'
+import { initializeAppUpdate, resumeAppUpdate, pauseAppUpdate } from './utils/app-update.uts'
+onLaunch(() => {
+  initializeOfflineSync()
+  initializeAppUpdate()
+  console.log('专注星伴启动')
+})
+onShow(() => { resumeAppUpdate(); flushResults(); refreshReports() })
+onHide(() => pauseAppUpdate())
 </script>
 
 <style>
 .page {
-  background-color: #f5f8fc;
+  background-color: #eef4ff;
 }
 
 .tap-target {

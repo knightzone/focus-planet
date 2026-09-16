@@ -1,56 +1,69 @@
 <template>
+<TrainingFrame title="点球小将" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="page">
     <view class="header">
       <view><text class="dimension">集中注意训练</text><text class="title">点球小将</text></view>
       <view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view>
     </view>
     <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-    <view class="tip"><text class="tip-title">按住蓄力，拖向空位后松手</text><text class="tip-copy">门将按 中 → 左 → 中 → 右 的固定顺序移动</text></view>
+    <view class="tip"><text class="tip-title">看准力量，点空位射门</text></view>
 
     <view class="field">
-      <image class="stadium-background" src="/static/images/runtime/backgrounds/penalty-stadium-v1.png" mode="aspectFill"></image>
+      <image class="stadium-background" src="/static/images/runtime/backgrounds/penalty-stadium-v1.webp" mode="scaleToFill"></image>
       <view class="stadium-shade"></view>
       <view v-if="goalFlash" class="net-flash"></view>
-      <image class="keeper" :class="keeperClass" :src="keeperSource" mode="aspectFit"></image>
-      <image v-if="ballVisible" class="ball" src="/static/images/runtime/game-objects/football-v2.png" mode="aspectFit" :style="{ left: ballLeft, top: ballTop, opacity: ballOpacity.toString(), transform: ballTransform, transitionDuration: ballDuration.toString() + 'ms' }"></image>
+      <image class="keeper" :class="keeperClass" :src="keeperSource" mode="aspectFit" :style="{ left: keeperX.value.value + '%', top: keeperY.value.value + '%', transform: keeperRenderTransform, transitionDuration: '0ms' }"></image>
+      <image v-if="ballVisible" class="ball" src="/static/images/runtime/game-objects/football-v2.webp" mode="aspectFit" :style="{ left: ballX.value.value + '%', top: ballY.value.value + '%', opacity: ballAlpha.value.value, transform: ballRenderTransform, transitionDuration: '0ms' }"></image>
     </view>
 
     <view class="feedback-wrap"><text class="feedback" :class="feedbackGood ? 'good' : 'again'">{{ feedback }}</text></view>
     <view class="power-card">
-      <view class="power-head"><text class="power-title">射门力量</text><text class="power-value" :class="charging ? 'power-active' : ''">{{ power }}%</text></view>
-      <view class="power-track"><view class="power-safe"></view><view class="power-fill" :style="{ width: powerLeft }"></view><view class="power-marker" :style="{ left: powerLeft }"></view></view>
+      <view class="power-head"><text class="power-title">力量</text><text class="power-value" :class="accepting ? 'power-active' : ''">{{ power }}%</text></view>
+      <view class="power-track"><view class="power-safe" :style="{ left: powerSafeLeft, width: powerSafeWidth }"></view><view class="power-fill" :style="{ width: powerLeft }"></view><view class="power-marker" :style="{ left: powerLeft }"></view></view>
       <view class="power-labels"><text class="power-label">偏轻</text><text class="power-label safe-label">有效力量</text><text class="power-label">过强</text></view>
     </view>
-    <view class="aim-row"><view v-for="lane in lanes" :key="'aim-'+lane" class="aim-option" :class="aimLane == lane ? 'aim-selected' : ''"><text class="aim-arrow">{{ laneArrow(lane) }}</text><text class="aim-label">{{ laneLabel(lane) }}</text></view></view>
-    <view class="shoot-wrap">
-      <view class="shoot-button" :class="shootButtonClass" @touchstart="chargeStart" @touchmove="chargeMove" @touchend="chargeEnd" @touchcancel="chargeCancel">
-        <text class="shoot-arrow">{{ laneArrow(aimLane) }}</text><text class="shoot-title">{{ charging ? '拖动选方向 · 松手射门' : '按住射门' }}</text><text class="shoot-copy">{{ charging ? '力量会自动往返' : '按下后开始蓄力' }}</text>
-      </view>
-    </view>
+    <view class="shot-row"><button v-for="lane in lanes" :key="lane" class="lane-button" :disabled="!accepting || trainingPaused" @click="chooseLane(lane)">{{ laneArrow(lane) + '  ' + laneLabel(lane) }}</button></view>
     <view class="stats"><view class="stat"><text class="value">{{ goals }}</text><text class="label">进球</text></view><view class="stat"><text class="value">{{ saves }}</text><text class="label">扑出</text></view><view class="stat"><text class="value">{{ misses }}</text><text class="label">射偏</text></view></view>
   </view>
+</TrainingFrame>
 </template>
 
 <script setup lang="uts">
-import { ref, computed, nextTick } from 'vue'
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
+import { ref, computed, nextTick, watch } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { getGameTuningAge } from '../../utils/difficulty.uts'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { useTrainingTween } from '../../utils/training-tween.uts'
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+
 
 const lanes: string[] = ['left', 'center', 'right']
 const keeperPath: string[] = ['center', 'left', 'center', 'right']
-const POWER_MIN = 38, POWER_MAX = 78
 const totalRounds = ref(10), roundIndex = ref(0), keeperStep = ref(0), keeperLane = ref('center')
-const accepting = ref(true), charging = ref(false), power = ref(0), aimLane = ref('center')
-const goals = ref(0), saves = ref(0), misses = ref(0), feedback = ref('按住下方射门键开始蓄力'), feedbackGood = ref(true)
+const difficultyLevel = ref(1), powerMin = ref(25), powerMax = ref(85), keeperIntervalMs = ref(1000), powerStep = ref(2)
+const accepting = ref(true), power = ref(0), aimLane = ref('center')
+const goals = ref(0), saves = ref(0), misses = ref(0), feedback = ref(''), feedbackGood = ref(true)
 const ballVisible = ref(false), ballLeft = ref('46%'), ballTop = ref('82%'), ballOpacity = ref(1.0), ballDuration = ref(0), ballTransform = ref('scale(1) rotate(0deg)')
 const keeperPose = ref('ready'), goalFlash = ref(false)
+const ballX = useTrainingTween(trainingClock, 46), ballY = useTrainingTween(trainingClock, 82)
+const ballAlpha = useTrainingTween(trainingClock, 1), ballScale = useTrainingTween(trainingClock, 1), ballRotation = useTrainingTween(trainingClock, 0)
+const keeperX = useTrainingTween(trainingClock, 38), keeperY = useTrainingTween(trainingClock, 29)
+const keeperTilt = useTrainingTween(trainingClock, 0), keeperShiftX = useTrainingTween(trainingClock, 0), keeperShiftY = useTrainingTween(trainingClock, 0), keeperScale = useTrainingTween(trainingClock, 1)
+const ballRenderTransform = computed((): string => 'scale(' + ballScale.value.value + ') rotate(' + ballRotation.value.value + 'deg)')
+const keeperRenderTransform = computed((): string => 'rotate(' + keeperTilt.value.value + 'deg) translateX(' + keeperShiftX.value.value + 'px) translateY(' + keeperShiftY.value.value + 'px) scale(' + keeperScale.value.value + ')')
 const reactions = ref([] as number[])
 let keeperTimer = 0, powerTimer = 0, effectTimer = 0, actionTimer = 0, catchTimer = 0, nextTimer = 0
-let gameStartedAt = 0, readyAt = 0, chargeStartX = 0.0, powerGrowing = true
+let gameStartedAt = 0, readyAt = 0, powerGrowing = true
 
 const displayRound = computed((): number => Math.min(totalRounds.value, roundIndex.value + 1))
 const progressWidth = computed((): string => Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%')
 const powerLeft = computed((): string => power.value.toString() + '%')
+const powerSafeLeft = computed((): string => powerMin.value.toString() + '%')
+const powerSafeWidth = computed((): string => (powerMax.value - powerMin.value).toString() + '%')
+const keeperTransition = computed((): string => Math.max(220, Math.min(480, Math.round(keeperIntervalMs.value * 0.65))).toString() + 'ms')
 const keeperClass = computed((): string => {
   if (keeperPose.value == 'collect-left') return 'keeper-standing keeper-left keeper-collect-left'
   if (keeperPose.value == 'collect-right') return 'keeper-standing keeper-right keeper-collect-right'
@@ -63,105 +76,134 @@ const keeperClass = computed((): string => {
   return 'keeper-standing keeper-' + keeperLane.value
 })
 const keeperSource = computed((): string => {
-  if (keeperPose.value == 'hold') return '/static/images/runtime/game-characters/goalkeeper-hold-ball-v2.png'
-  if (keeperPose.value == 'dive-left') return '/static/images/runtime/game-characters/goalkeeper-dive-right-v2.png'
-  if (keeperPose.value == 'dive-right') return '/static/images/runtime/game-characters/goalkeeper-dive-left-v2.png'
-  return '/static/images/runtime/game-characters/goalkeeper-ready-v2.png'
+  if (keeperPose.value == 'hold') return '/static/images/runtime/game-characters/goalkeeper-cat-hold-v1.webp'
+  if (keeperPose.value == 'dive-left') return '/static/images/runtime/game-characters/goalkeeper-cat-dive-left-v1.webp'
+  if (keeperPose.value == 'dive-right') return '/static/images/runtime/game-characters/goalkeeper-cat-dive-right-v1.webp'
+  return '/static/images/runtime/game-characters/goalkeeper-cat-ready-v1.webp'
 })
-const shootButtonClass = computed((): string => !accepting.value ? 'shoot-disabled' : charging.value ? 'shoot-charging' : '')
 
 function laneLabel(lane: string): string { return lane == 'left' ? '左路' : lane == 'center' ? '中路' : '右路' }
 function laneArrow(lane: string): string { return lane == 'left' ? '↖' : lane == 'center' ? '↑' : '↗' }
 function targetLeft(lane: string): string { return lane == 'left' ? '15%' : lane == 'center' ? '46%' : '77%' }
-function flyApproachLeft(lane: string): string { return lane == 'left' ? '9%' : lane == 'center' ? '46%' : '83%' }
-function flyCrossbarLeft(lane: string): string { return lane == 'left' ? '1%' : lane == 'center' ? '46%' : '91%' }
-function flyExitLeft(lane: string): string { return lane == 'left' ? '-10%' : lane == 'center' ? '46%' : '102%' }
-function configure() { const age = getGameTuningAge('penalty-kick'); totalRounds.value = age <= 6 ? 8 : age <= 9 ? 10 : 12 }
-function clearKeeperTimer() { if (keeperTimer > 0) clearInterval(keeperTimer); keeperTimer = 0 }
-function clearPowerTimer() { if (powerTimer > 0) clearInterval(powerTimer); powerTimer = 0 }
-function clearEffectTimer() { if (effectTimer > 0) clearTimeout(effectTimer); effectTimer = 0 }
-function clearActionTimer() { if (actionTimer > 0) clearTimeout(actionTimer); actionTimer = 0 }
-function clearCatchTimer() { if (catchTimer > 0) clearTimeout(catchTimer); catchTimer = 0 }
-function clearNextTimer() { if (nextTimer > 0) clearTimeout(nextTimer); nextTimer = 0 }
+function flyApproachLeft(lane: string): string { return lane == 'left' ? '25%' : lane == 'center' ? '46%' : '67%' }
+function flyCrossbarLeft(lane: string): string { return lane == 'left' ? '19%' : lane == 'center' ? '46%' : '73%' }
+function flyExitLeft(lane: string): string { return lane == 'left' ? '15%' : lane == 'center' ? '46%' : '77%' }
+function configure() {
+  const level = getGameDifficulty('penalty-kick')
+  difficultyLevel.value = level
+  totalRounds.value = 7 + Math.ceil(level / 2)
+  keeperIntervalMs.value = 1000 - (level - 1) * 55
+  powerMin.value = 25 + (level - 1) * 2
+  powerMax.value = 85 - (level - 1) * 2
+  powerStep.value = 2 + Math.floor((level - 1) / 3)
+}
+function clearKeeperTimer() { if (keeperTimer > 0) trainingClock.clearInterval(keeperTimer); keeperTimer = 0 }
+function clearPowerTimer() { if (powerTimer > 0) trainingClock.clearInterval(powerTimer); powerTimer = 0 }
+function clearEffectTimer() { if (effectTimer > 0) trainingClock.clearTimeout(effectTimer); effectTimer = 0 }
+function clearActionTimer() { if (actionTimer > 0) trainingClock.clearTimeout(actionTimer); actionTimer = 0 }
+function clearCatchTimer() { if (catchTimer > 0) trainingClock.clearTimeout(catchTimer); catchTimer = 0 }
+function clearNextTimer() { if (nextTimer > 0) trainingClock.clearTimeout(nextTimer); nextTimer = 0 }
 function moveKeeper() { keeperStep.value = (keeperStep.value + 1) % keeperPath.length; keeperLane.value = keeperPath[keeperStep.value] }
-function startKeeper() { clearKeeperTimer(); keeperTimer = setInterval(() => moveKeeper(), 720) }
+function startKeeper() { clearKeeperTimer(); keeperTimer = trainingClock.setInterval(() => moveKeeper(), keeperIntervalMs.value) }
 
 function tickPower() {
-  if (powerGrowing) { power.value += 3; if (power.value >= 100) { power.value = 100; powerGrowing = false } }
-  else { power.value -= 3; if (power.value <= 0) { power.value = 0; powerGrowing = true } }
+  if (!accepting.value || trainingPaused.value) return
+  if (powerGrowing) { power.value += powerStep.value; if (power.value >= 100) { power.value = 100; powerGrowing = false } }
+  else { power.value -= powerStep.value; if (power.value <= 0) { power.value = 0; powerGrowing = true } }
 }
-function chargeStart(event: UniTouchEvent) {
-  if (!accepting.value || charging.value) return
-  if (event.touches.length > 0) chargeStartX = event.touches[0].clientX
-  charging.value = true; power.value = 0; powerGrowing = true; aimLane.value = 'center'
-  feedbackGood.value = true; feedback.value = '拖向左、中、右，在绿色力量范围内松手'
-  clearPowerTimer(); powerTimer = setInterval(() => tickPower(), 24)
+function startPower() {
+  power.value = 0; powerGrowing = true
+  clearPowerTimer(); powerTimer = trainingClock.setInterval(() => tickPower(), 24)
 }
-function chargeMove(event: UniTouchEvent) {
-  if (!charging.value || event.touches.length == 0) return
-  const dx = event.touches[0].clientX - chargeStartX
-  aimLane.value = dx < -34 ? 'left' : dx > 34 ? 'right' : 'center'
-}
-function chargeCancel(_event: UniTouchEvent) { if (!charging.value) return; charging.value = false; clearPowerTimer(); power.value = 0; aimLane.value = 'center'; feedback.value = '按住射门键，再拖动选择方向' }
 function primeBall() { ballVisible.value = true; ballDuration.value = 0; ballLeft.value = '46%'; ballTop.value = '82%'; ballOpacity.value = 1.0; ballTransform.value = 'scale(1) rotate(0deg)' }
 function animateGoal(lane: string) {
-  goals.value += 1; feedbackGood.value = true; feedback.value = '漂亮！看准空位，球进了！'; primeBall()
+  { goals.value += 1; training.playFeedback('correct') } feedbackGood.value = true; feedback.value = '漂亮！看准空位，球进了！'; primeBall()
   nextTick(() => { ballDuration.value = 460; ballLeft.value = targetLeft(lane); ballTop.value = '32%'; ballTransform.value = 'scale(0.54) rotate(420deg)' })
-  clearEffectTimer(); effectTimer = setTimeout(() => {
+  clearEffectTimer(); effectTimer = trainingClock.setTimeout(() => {
     goalFlash.value = true; ballDuration.value = 260; ballTop.value = '39%'; ballOpacity.value = 1.0; ballTransform.value = 'scale(0.48) rotate(650deg)'
   }, 470)
-  clearCatchTimer(); catchTimer = setTimeout(() => { goalFlash.value = false }, 850)
+  clearCatchTimer(); catchTimer = trainingClock.setTimeout(() => { goalFlash.value = false }, 850)
 }
 function animateDirectSave(lane: string) {
-  saves.value += 1; feedbackGood.value = false; feedback.value = lane == 'center' ? '位置太正，门将稳稳抱住了' : '门将判断对方向，把球扑住了'
+  { saves.value += 1; training.playFeedback('wrong') } feedbackGood.value = false; feedback.value = lane == 'center' ? '位置太正，门将稳稳抱住了' : '门将判断对方向，把球扑住了'
   keeperPose.value = 'ready'; primeBall()
   nextTick(() => { ballDuration.value = 430; ballLeft.value = targetLeft(lane); ballTop.value = '43%'; ballTransform.value = 'scale(0.63) rotate(300deg)' })
-  clearEffectTimer(); effectTimer = setTimeout(() => { keeperPose.value = lane == 'center' ? 'reach-center' : lane == 'left' ? 'reach-left' : 'reach-right' }, 100)
-  clearCatchTimer(); catchTimer = setTimeout(() => { ballVisible.value = false; keeperPose.value = lane == 'center' ? 'hold' : lane == 'left' ? 'dive-left' : 'dive-right' }, 410)
+  clearEffectTimer(); effectTimer = trainingClock.setTimeout(() => { keeperPose.value = lane == 'center' ? 'reach-center' : lane == 'left' ? 'reach-left' : 'reach-right' }, 100)
+  clearCatchTimer(); catchTimer = trainingClock.setTimeout(() => { ballVisible.value = false; keeperPose.value = lane == 'center' ? 'hold' : lane == 'left' ? 'dive-left' : 'dive-right' }, 410)
 }
 function animateWeak(lane: string) {
-  saves.value += 1; feedbackGood.value = false; feedback.value = '力量小了，球速太慢，门将主动接住了'; primeBall()
+  { saves.value += 1; training.playFeedback('wrong') } feedbackGood.value = false; feedback.value = '力量小了，球速太慢，门将主动接住了'; primeBall()
   nextTick(() => { ballDuration.value = 1120; ballLeft.value = targetLeft(lane); ballTop.value = '53%'; ballTransform.value = 'scale(0.72) rotate(220deg)' })
-  clearEffectTimer(); effectTimer = setTimeout(() => { keeperPose.value = 'ready'; keeperLane.value = lane }, 80)
-  clearActionTimer(); actionTimer = setTimeout(() => { keeperPose.value = lane == 'center' ? 'collect-center' : lane == 'left' ? 'collect-left' : 'collect-right' }, 650)
-  clearCatchTimer(); catchTimer = setTimeout(() => { keeperLane.value = lane; keeperPose.value = 'hold'; ballVisible.value = false }, 1080)
+  clearEffectTimer(); effectTimer = trainingClock.setTimeout(() => { keeperPose.value = 'ready'; keeperLane.value = lane }, 80)
+  clearActionTimer(); actionTimer = trainingClock.setTimeout(() => { keeperPose.value = lane == 'center' ? 'collect-center' : lane == 'left' ? 'collect-left' : 'collect-right' }, 650)
+  clearCatchTimer(); catchTimer = trainingClock.setTimeout(() => { keeperLane.value = lane; keeperPose.value = 'hold'; ballVisible.value = false }, 1080)
 }
 function animateFly(lane: string) {
-  misses.value += 1; feedbackGood.value = false; feedback.value = '力量太大，足球越过横梁飞出去了'; primeBall()
-  nextTick(() => { ballDuration.value = 420; ballLeft.value = flyApproachLeft(lane); ballTop.value = '30%'; ballTransform.value = 'scale(0.68) rotate(140deg)' })
-  clearEffectTimer(); effectTimer = setTimeout(() => { ballDuration.value = 270; ballLeft.value = flyCrossbarLeft(lane); ballTop.value = '7%'; ballOpacity.value = 1.0; ballTransform.value = 'scale(0.5) rotate(240deg)' }, 430)
-  clearCatchTimer(); catchTimer = setTimeout(() => { ballDuration.value = 360; ballLeft.value = flyExitLeft(lane); ballTop.value = '-25%'; ballOpacity.value = 0.0; ballTransform.value = 'scale(0.34) rotate(380deg)' }, 710)
+  { misses.value += 1; training.playFeedback('wrong') } feedbackGood.value = false; feedback.value = '力量太大，足球越过横梁飞出去了'; primeBall()
+  // 横梁位于背景约 22% 高度：先接近，再越过，最后在远处缩小消失。
+  nextTick(() => { ballDuration.value = 360; ballLeft.value = flyApproachLeft(lane); ballTop.value = '26%'; ballTransform.value = 'scale(0.65) rotate(140deg)' })
+  clearEffectTimer(); effectTimer = trainingClock.setTimeout(() => { ballDuration.value = 240; ballLeft.value = flyCrossbarLeft(lane); ballTop.value = '10%'; ballOpacity.value = 1.0; ballTransform.value = 'scale(0.4) rotate(240deg)' }, 370)
+  clearCatchTimer(); catchTimer = trainingClock.setTimeout(() => { ballDuration.value = 280; ballLeft.value = flyExitLeft(lane); ballTop.value = '0%'; ballOpacity.value = 0.0; ballTransform.value = 'scale(0.2) rotate(340deg)' }, 620)
 }
 function finish() {
   clearKeeperTimer(); clearPowerTimer(); clearEffectTimer(); clearActionTimer(); clearCatchTimer(); clearNextTimer()
   const accuracy = Math.round((goals.value / totalRounds.value) * 100), sum = reactions.value.reduce((a: number, b: number): number => a + b, 0)
-  const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length), duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length), duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
   uni.redirectTo({ url: '/pages/result/result?gameId=penalty-kick&dimensionId=focused&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&completed=' + goals.value.toString() + '&total=' + totalRounds.value.toString() })
 }
 function nextRound() {
   roundIndex.value += 1
   if (roundIndex.value >= totalRounds.value) { finish(); return }
   clearEffectTimer(); clearActionTimer(); clearCatchTimer(); ballVisible.value = false; goalFlash.value = false; keeperPose.value = 'ready'; power.value = 0; aimLane.value = 'center'
-  feedbackGood.value = true; feedback.value = '按住下方射门键开始蓄力'; accepting.value = true; readyAt = Date.now(); startKeeper()
+  feedbackGood.value = true; feedback.value = ''; accepting.value = true; readyAt = trainingClock.now(); startKeeper(); startPower()
 }
 function shoot(lane: string, shotPower: number) {
-  if (!accepting.value) return
-  accepting.value = false; clearKeeperTimer(); reactions.value.push(Date.now() - readyAt)
-  if (shotPower < POWER_MIN) animateWeak(lane)
-  else if (shotPower > POWER_MAX) animateFly(lane)
+  if (!accepting.value || trainingPaused.value) return
+  accepting.value = false; clearKeeperTimer(); clearPowerTimer(); reactions.value.push(trainingClock.now() - readyAt)
+  if (shotPower < powerMin.value) animateWeak(lane)
+  else if (shotPower > powerMax.value) animateFly(lane)
   else if (lane == keeperLane.value) animateDirectSave(lane)
   else animateGoal(lane)
-  clearNextTimer(); nextTimer = setTimeout(() => nextRound(), 1850)
+  clearNextTimer(); nextTimer = trainingClock.setTimeout(() => nextRound(), 1850)
 }
-function chargeEnd(_event: UniTouchEvent) { if (!charging.value || !accepting.value) return; charging.value = false; clearPowerTimer(); shoot(aimLane.value, power.value) }
-onLoad((_options: OnLoadOptions) => { configure(); gameStartedAt = Date.now(); readyAt = gameStartedAt; startKeeper() })
+function chooseLane(lane: string) {
+  if (trainingPaused.value || !accepting.value) return
+  aimLane.value = lane
+  shoot(lane, power.value)
+}
+watch((): string => ballLeft.value + '|' + ballTop.value + '|' + ballOpacity.value + '|' + ballTransform.value + '|' + ballDuration.value, () => {
+  const duration = ballDuration.value
+  ballX.move(parseFloat(ballLeft.value), duration); ballY.move(parseFloat(ballTop.value), duration); ballAlpha.move(ballOpacity.value, duration)
+  const scale = parseFloat(ballTransform.value.split('scale(')[1].split(')')[0])
+  const rotation = parseFloat(ballTransform.value.split('rotate(')[1].split('deg')[0])
+  ballScale.move(scale, duration); ballRotation.move(rotation, duration)
+})
+watch((): string => keeperPose.value + '|' + keeperLane.value, () => {
+  const pose = keeperPose.value, lane = keeperLane.value
+  const duration = parseFloat(keeperTransition.value)
+  let x = lane == 'left' ? 10 : lane == 'right' ? 67 : 38
+  if (pose.endsWith('-left')) x = pose.startsWith('reach') ? 22 : pose.startsWith('dive') ? 3 : 10
+  if (pose.endsWith('-right')) x = pose.startsWith('reach') ? 55 : pose.startsWith('dive') ? 57 : 67
+  if (pose.endsWith('-center')) x = 38
+  keeperX.move(x, duration); keeperY.move(pose.startsWith('dive') ? 31 : 29, duration)
+  keeperTilt.move(pose == 'collect-left' ? -7 : pose == 'collect-right' ? 7 : pose == 'reach-left' ? -14 : pose == 'reach-right' ? 14 : 0, duration)
+  keeperShiftX.move(pose == 'reach-left' ? -16 : pose == 'reach-right' ? 16 : 0, duration)
+  keeperShiftY.move(pose.startsWith('collect') ? 5 : pose == 'reach-center' ? -6 : 0, duration)
+  keeperScale.move(pose.startsWith('collect') ? 0.98 : pose.startsWith('reach') ? 1.05 : 1, duration)
+})
+// TrainingClock freezes both the keeper and power marker across pause/background.
+onLoad((_options: OnLoadOptions) => { configure(); gameStartedAt = trainingClock.now(); readyAt = gameStartedAt; startKeeper(); startPower() })
 onUnload(() => { clearKeeperTimer(); clearPowerTimer(); clearEffectTimer(); clearActionTimer(); clearCatchTimer(); clearNextTimer() })
+// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => true)
 </script>
 
 <style>
+.shot-row { margin-top: 12px; flex-direction: row; justify-content: space-between; }
+.lane-button { width: 31%; height: 52px; line-height: 52px; padding: 0; border-width: 0; border-radius: 18px; background-color: #5b8def; color: #ffffff; font-size: 16px; font-weight: 700; }
 .page { flex: 1; padding: 12px 14px 12px; background-color: #f7f8fc; }.header { flex-direction: row; justify-content: space-between; align-items: center; }.dimension { color: #4775c2; font-size: 11px; font-weight: 700; }.title { margin-top: 2px; color: #1f2a44; font-size: 20px; font-weight: 700; }.counter { width: 58px; height: 34px; border-radius: 17px; background-color: #e8effc; align-items: center; justify-content: center; }.counter-value { color: #4775c2; font-size: 12px; font-weight: 700; }.progress { margin-top: 10px; height: 6px; border-radius: 3px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 6px; border-radius: 3px; background-color: #5b8def; }
 .tip { margin-top: 8px; padding: 9px 12px; border-radius: 14px; background-color: #edf3fd; }.tip-title { color: #405b88; font-size: 12px; font-weight: 700; }.tip-copy { margin-top: 2px; color: #7688a5; font-size: 9px; }
-.field { position: relative; margin-top: 8px; height: 31vh; min-height: 230px; max-height: 270px; border-radius: 20px; background-color: #306e36; overflow: hidden; }.stadium-background { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }.stadium-shade { position: absolute; left: 0; bottom: 0; width: 100%; height: 38%; background-color: rgba(13,54,25,0.08); }.net-flash { position: absolute; left: 7%; top: 19%; width: 86%; height: 35%; border-radius: 12px; background-color: rgba(255,231,120,0.28); z-index: 4; }
+.field { position: relative; margin-top: 8px; height: 250px; min-height: 230px; max-height: 270px; border-radius: 20px; background-color: #306e36; overflow: hidden; }.stadium-background { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }.stadium-shade { position: absolute; left: 0; bottom: 0; width: 100%; height: 38%; background-color: rgba(13,54,25,0.08); }.net-flash { position: absolute; left: 7%; top: 19%; width: 86%; height: 35%; border-radius: 12px; background-color: rgba(255,231,120,0.28); z-index: 4; }
 .keeper { position: absolute; top: 29%; z-index: 7; transition-property: left, top, transform; transition-duration: 500ms; transition-timing-function: ease-out; }.keeper-standing { width: 78px; height: 86px; }.keeper-left { left: 10%; }.keeper-center { left: 38%; }.keeper-right { left: 67%; }.keeper-collect-left { transform: rotate(-7deg) translateY(5px) scale(0.98); }.keeper-collect-center { transform: translateY(5px) scale(0.98); }.keeper-collect-right { transform: rotate(7deg) translateY(5px) scale(0.98); }.keeper-reach-left { left: 22%; transform: rotate(-14deg) translateX(-16px) scale(1.05); }.keeper-reach-center { left: 38%; transform: translateY(-6px) scale(1.08); }.keeper-reach-right { left: 55%; transform: rotate(14deg) translateX(16px) scale(1.05); }.keeper-diving { top: 31%; width: 132px; height: 88px; }.keeper-dive-screen-left { left: 3%; }.keeper-dive-screen-right { left: 57%; }
 .ball { position: absolute; width: 34px; height: 34px; z-index: 8; transition-property: left, top, opacity, transform; transition-timing-function: ease-out; }
 .feedback-wrap { height: 28px; align-items: center; justify-content: center; }.feedback { font-size: 11px; font-weight: 700; }.good { color: #338e72; }.again { color: #c65b66; }

@@ -1,0 +1,25 @@
+import { FocusGradientView } from 'uts.focusgradient.android'
+
+export class NativeGradient {
+  private element: UniNativeViewElement
+  private view: FocusGradientView | null = null
+
+  constructor(element: UniNativeViewElement) {
+    this.element = element
+    this.bindView()
+  }
+
+  private bindView() {
+    const activity = this.element.getAndroidActivity()
+    if (activity == null) return
+    const gradientView = new FocusGradientView(activity)
+    gradientView.setClickable(false)
+    gradientView.setFocusable(false)
+    this.view = gradientView
+    this.element.bindAndroidView(gradientView)
+  }
+
+  destroy() {
+    this.view = null
+  }
+}

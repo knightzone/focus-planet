@@ -1,0 +1,204 @@
+import { skyPlanetSources } from './sky-planets.uts'
+export const CHANGE_LOW_GROUPS = [
+  [
+    "/static/images/runtime/illustrations/shadow-match/easy-animals/rabbit.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-animals/squirrel.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-animals/owl.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-animals/turtle.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-animals/elephant.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/easy-fruits/apple.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-fruits/banana.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-fruits/pineapple.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-fruits/strawberry.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-fruits/grapes.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/easy-vehicles/car.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-vehicles/sailboat.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-vehicles/train.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-vehicles/airplane.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-vehicles/rocket.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/easy-garden/mushroom.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-garden/flower.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-garden/tree.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-garden/cactus.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-garden/snail.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/easy-foods/cupcake.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-foods/ice-cream.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-foods/donut.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-foods/pizza.webp",
+    "/static/images/runtime/illustrations/shadow-match/easy-foods/birthday-cake.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/medium-forest-animals/rabbit.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-forest-animals/fox.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-forest-animals/bear.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-forest-animals/deer.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-forest-animals/squirrel.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-forest-animals/hedgehog.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/medium-musical-instruments/guitar.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-musical-instruments/drum.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-musical-instruments/trumpet.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-musical-instruments/violin.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-musical-instruments/piano.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-musical-instruments/maracas.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/medium-playground-toys/duck.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-playground-toys/spinning-top.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-playground-toys/kite.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-playground-toys/scooter.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-playground-toys/rocking-horse.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-playground-toys/blocks.webp"
+  ]
+] as string[][]
+export const CHANGE_MID_GROUPS = [
+  [
+    "/static/images/runtime/illustrations/shadow-match/medium-farm-animals/cow.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-farm-animals/pig.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-farm-animals/sheep.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-farm-animals/horse.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-farm-animals/chicken.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-farm-animals/duck.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-flowers/flower-1.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-flowers/flower-2.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-flowers/flower-3.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-flowers/flower-4.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-flowers/flower-5.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-flowers/flower-6.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/medium-puppies/puppy-1.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-puppies/puppy-2.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-puppies/puppy-3.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-puppies/puppy-4.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-puppies/puppy-5.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-puppies/puppy-6.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/medium-cottages/cottage-1.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-cottages/cottage-2.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-cottages/cottage-3.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-cottages/cottage-4.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-cottages/cottage-5.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-cottages/cottage-6.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/medium-trees/tree-1.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-trees/tree-2.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-trees/tree-3.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-trees/tree-4.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-trees/tree-5.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-trees/tree-6.webp"
+  ]
+] as string[][]
+export const CHANGE_HIGH_GROUPS = [
+  [
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-cars/car-1.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-cars/car-2.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-cars/car-3.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-cars/car-4.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-cars/car-5.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-cars/car-6.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-cars-extra/car-7.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-cars-extra/car-8.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/hard-similar-cats/cat-1.webp",
+    "/static/images/runtime/illustrations/shadow-match/hard-similar-cats/cat-2.webp",
+    "/static/images/runtime/illustrations/shadow-match/hard-similar-cats/cat-3.webp",
+    "/static/images/runtime/illustrations/shadow-match/hard-similar-cats/cat-4.webp",
+    "/static/images/runtime/illustrations/shadow-match/hard-similar-cats/cat-5.webp",
+    "/static/images/runtime/illustrations/shadow-match/hard-similar-cats/cat-6.webp",
+    "/static/images/runtime/illustrations/shadow-match/hard-similar-cats/cat-7.webp",
+    "/static/images/runtime/illustrations/shadow-match/hard-similar-cats/cat-8.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-birds/bird-1.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-birds/bird-2.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-birds/bird-3.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-birds/bird-4.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-birds/bird-5.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-birds/bird-6.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-birds/bird-7.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-birds/bird-8.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-sailboats/sailboat-1.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-sailboats/sailboat-2.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-sailboats/sailboat-3.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-sailboats/sailboat-4.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-sailboats/sailboat-5.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-sailboats/sailboat-6.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-sailboats/sailboat-7.webp",
+    "/static/images/runtime/illustrations/shadow-match/medium-similar-sailboats/sailboat-8.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/high-similar-rockets/rocket-1.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-rockets/rocket-2.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-rockets/rocket-3.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-rockets/rocket-4.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-rockets/rocket-5.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-rockets/rocket-6.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-rockets/rocket-7.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-rockets/rocket-8.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/high-similar-airplanes/airplane-1.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-airplanes/airplane-2.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-airplanes/airplane-3.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-airplanes/airplane-4.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-airplanes/airplane-5.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-airplanes/airplane-6.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-airplanes/airplane-7.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-airplanes/airplane-8.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/high-similar-penguins/penguin-1.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-penguins/penguin-2.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-penguins/penguin-3.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-penguins/penguin-4.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-penguins/penguin-5.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-penguins/penguin-6.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-penguins/penguin-7.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-penguins/penguin-8.webp"
+  ],
+  [
+    "/static/images/runtime/illustrations/shadow-match/high-similar-teddy-bears/bear-1.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-teddy-bears/bear-2.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-teddy-bears/bear-3.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-teddy-bears/bear-4.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-teddy-bears/bear-5.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-teddy-bears/bear-6.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-teddy-bears/bear-7.webp",
+    "/static/images/runtime/illustrations/shadow-match/high-similar-teddy-bears/bear-8.webp"
+  ]
+] as string[][]
+
+export function spotChangePool(level: number, round: number, seed: number): string[] {
+  // Every three rounds includes one planet round; other rounds rotate illustration sets.
+  if ((round + seed) % 3 == 2) {
+    if (level <= 6) return [0, 9, 10, 12, 14, 15].map((i: number): string => skyPlanetSources[i])
+    return skyPlanetSources.slice()
+  }
+  const groups = level <= 3 ? CHANGE_LOW_GROUPS : level <= 6 ? CHANGE_LOW_GROUPS.concat(CHANGE_MID_GROUPS) : CHANGE_LOW_GROUPS.concat(CHANGE_MID_GROUPS).concat(CHANGE_HIGH_GROUPS)
+  return groups[(round + seed) % groups.length].slice()
+}
+export function spotChangeBoard(pool: string[], cells: number): string[] {
+  const deck = pool.slice()
+  for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const item = deck[i]; deck[i] = deck[j]; deck[j] = item }
+  const board: string[] = []
+  for (let i = 0; i < cells; i++) board.push(deck[i % deck.length])
+  for (let i = board.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const item = board[i]; board[i] = board[j]; board[j] = item }
+  return board
+}

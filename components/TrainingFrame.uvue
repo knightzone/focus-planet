@@ -1,0 +1,44 @@
+<template>
+  <view class="training-frame">
+    <view class="training-status" :style="{ height: topInset + 'px' }"></view>
+    <view class="training-toolbar">
+      <button class="training-back" :disabled="busy" @click="emit('back')">‹</button>
+      <text class="training-nav-title">{{ title }}</text>
+      <button class="training-pause" :disabled="busy" @click="emit('pause')">Ⅱ 暂停</button>
+    </view>
+    <view class="training-game"><slot></slot>
+    <view v-if="paused" class="training-cover" @touchmove.stop="ignore" @click.stop="ignore">
+      <view class="training-card">
+        <image class="training-star" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image>
+        <text class="training-title">休息一下</text>
+        <button class="training-action training-primary" :disabled="busy" @click.stop="emit('resume')">继续训练</button>
+        <button class="training-action training-secondary" :disabled="busy" @click.stop="emit('restart')">重新训练</button>
+        <button class="training-action training-exit" :disabled="busy" @click.stop="emit('exit')">退出训练</button>
+      </view>
+    </view>
+    </view>
+  </view>
+</template>
+<script setup lang="uts">
+defineProps<{ paused: boolean, busy: boolean, title: string }>()
+const topInset = Math.max(0, uni.getWindowInfo().statusBarHeight)
+const emit = defineEmits(['pause', 'resume', 'restart', 'exit', 'back'])
+function ignore() {}
+</script>
+<style>
+.training-frame { flex: 1; position: relative; background-color: #f0f6ff; }
+.training-status { flex-shrink: 0; }
+.training-toolbar { height: 44px; flex-shrink: 0; flex-direction: row; align-items: center; padding: 0 12px; }
+.training-back { margin: 0; width: 72px; height: 44px; line-height: 40px; padding: 0 8px; text-align: left; border-width: 0; background-color: transparent; color: #263951; font-size: 36px; }
+.training-nav-title { flex: 1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #263951; font-size: 18px; font-weight: 700; }
+.training-pause { margin: 0; width: 72px; height: 40px; line-height: 40px; padding: 0; border-width: 0; border-radius: 20px; background-color: #ffffff; color: #4f71ab; font-size: 14px; font-weight: 700; }
+.training-game { flex: 1; position: relative; }
+.training-cover { position: absolute; top: 0; bottom: 0; left: 0; right: 0; z-index: 1000; background-color: #edf4ff; align-items: center; justify-content: center; }
+.training-card { width: 84%; max-width: 360px; padding: 26px 22px 18px; border-radius: 32px; background-color: #ffffff; align-items: center; }
+.training-star { width: 96px; height: 96px; }
+.training-title { margin-top: 10px; margin-bottom: 12px; font-size: 23px; font-weight: 700; color: #30466c; }
+.training-action { width: 100%; margin: 12px 0 0; height: 50px; line-height: 50px; padding: 0; border-width: 0; border-radius: 25px; font-size: 17px; font-weight: 700; }
+.training-primary { background-color: #648deb; color: #ffffff; }
+.training-secondary { background-color: #eaf1ff; color: #5479c0; }
+.training-exit { background-color: #ffffff; color: #8291aa; }
+</style>

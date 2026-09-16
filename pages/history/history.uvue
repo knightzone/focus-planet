@@ -1,25 +1,27 @@
 <template>
-  <scroll-view class="page" scroll-y="true">
+  <scroll-view class="page" direction="vertical">
     <view class="summary">
       <view class="summary-item"><text class="summary-value">{{ records.length }}</text><text class="summary-label">累计训练</text></view>
       <view class="summary-divider"></view>
-      <view class="summary-item"><text class="summary-value">{{ averageScore }}</text><text class="summary-label">平均表现</text></view>
+      <view class="summary-item"><text class="summary-value">{{ averageScore }}</text><text class="summary-label">平均得分</text></view>
       <view class="summary-divider"></view>
       <view class="summary-item"><text class="summary-value">{{ totalMinutes }}</text><text class="summary-label">累计分钟</text></view>
     </view>
+    <text class="star-explanation">第六颗是过关星 · 达到100分点亮</text>
     <view v-if="records.length == 0" class="empty">
-      <image class="empty-mascot" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.png" mode="aspectFit"></image>
-      <text class="empty-title">暂无训练记录</text><text class="empty-copy">完成训练后，记录会自动保存在这里。</text>
+      <image class="empty-mascot" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.webp" mode="aspectFit"></image>
+      <text class="empty-title">暂无训练记录</text>
     </view>
     <view v-else class="history-list">
       <view v-for="record in records" :key="record.id" class="record-row">
-        <view class="record-icon"><text class="record-icon-symbol">✦</text></view>
+        <view class="record-icon"><image class="record-icon-image" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image></view>
         <view class="record-copy">
           <text class="record-name">{{ gameName(record.gameId) }}</text>
           <text class="record-date">{{ recordDate(record.completedAt) }}</text>
-          <text class="record-meta">难度 {{ record.difficultyLevel == null ? '-' : record.difficultyLevel }}/10 · 正确率 {{ record.accuracy }}% · 反应 {{ record.averageReaction }}ms</text>
+          <text class="record-meta">正确率 {{ record.accuracy }}%</text>
+          <ScoreStars :score="record.score" :report="true" :size="17"></ScoreStars>
         </view>
-        <text class="record-score">{{ record.score }}</text>
+        <text class="record-score">{{ record.score }}分</text>
       </view>
     </view>
     <view class="bottom-space"></view>
@@ -27,22 +29,28 @@
 </template>
 
 <script setup lang="uts">
+import ScoreStars from '../../components/ScoreStars.uvue'
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getRecords, formatRecordDate, TrainingRecord } from '../../utils/storage.uts'
 import { getGameName } from '../../utils/catalog.uts'
+import { getAuthSession } from '../../utils/auth.uts'
 
 const records = ref([] as TrainingRecord[])
 const averageScore = computed((): number => {
-  if (records.value.length == 0) return 0
-  const total = records.value.reduce((sum: number, item: TrainingRecord): number => sum + item.score, 0)
-  return Math.round(total / records.value.length)
+  const current = records.value
+  if (current.length == 0) return 0
+  const total = current.reduce((sum: number, item: TrainingRecord): number => sum + item.score, 0)
+  return Math.round(total / current.length)
 })
 const totalMinutes = computed((): number => {
   const seconds = records.value.reduce((sum: number, item: TrainingRecord): number => sum + (item.durationSeconds == null ? 0 : item.durationSeconds), 0)
   return Math.round(seconds / 60)
 })
-onShow(() => { records.value = getRecords() })
+onShow(() => {
+  if (getAuthSession() == null) { uni.redirectTo({ url: '/pages/login/login' }); return }
+  records.value = getRecords()
+})
 function recordDate(timestamp: number): string { return formatRecordDate(timestamp) }
 function gameName(gameId: string): string { return getGameName(gameId) }
 </script>
@@ -59,13 +67,15 @@ function gameName(gameId: string): string { return getGameName(gameId) }
 .empty-title { color: #39445c; font-size: 15px; font-weight: 700; }
 .empty-copy { margin-top: 7px; color: #8992a4; font-size: 12px; }
 .history-list { margin: 14px 16px; padding: 5px 18px; border-radius: 21px; background-color: #ffffff; }
-.record-row { min-height: 82px; border-bottom: 1px solid #edf0f5; flex-direction: row; align-items: center; }
+.record-row { min-height: 106px; border-bottom: 1px solid #edf0f5; flex-direction: row; align-items: center; }
 .record-icon { width: 40px; height: 40px; border-radius: 13px; background-color: #fff4d7; align-items: center; justify-content: center; }
+.record-icon-image { width: 38px; height: 38px; border-radius: 12px; }
 .record-icon-symbol { color: #e5a923; font-size: 21px; }
 .record-copy { margin-left: 11px; flex: 1; }
 .record-name { color: #344059; font-size: 14px; font-weight: 600; }
 .record-date { margin-top: 4px; color: #778198; font-size: 11px; }
 .record-meta { margin-top: 3px; color: #9aa1b0; font-size: 10px; }
+.star-explanation { margin: 12px 18px 0; color: #8b98ad; font-size: 11px; }
 .record-score { color: #5b8def; font-size: 21px; font-weight: 700; }
 .bottom-space { height: 25px; }
 </style>

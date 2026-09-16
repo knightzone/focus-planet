@@ -1,0 +1,15 @@
+export type FaceFrameResult = {
+  supported: boolean,
+  detected: boolean,
+  faceCount: number,
+  faceScale: number,
+  centerX: number,
+  centerY: number,
+  yaw: number,
+  roll: number,
+  pitch: number,
+  confidence: number,
+  errorMessage: string
+}
+
+export type DetectFaceFrame = (rgba: ArrayBuffer, width: number, height: number) => FaceFrameResult

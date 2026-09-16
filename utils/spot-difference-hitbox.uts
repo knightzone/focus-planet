@@ -1,0 +1,20 @@
+import { DifferenceCandidate } from './spot-difference-types.uts'
+export type DifferenceHitbox = { id: string, left: string, top: string, width: string, height: string }
+export function differenceHitboxes(items: DifferenceCandidate[], width: number, height: number): DifferenceHitbox[] {
+  return items.map((item: DifferenceCandidate): DifferenceHitbox => {
+    const x = item.x * width / 100, y = item.y * height / 100, w = item.w * width / 100, h = item.h * height / 100
+    const padX = Math.max(8, (32 - w) / 2), padY = Math.max(8, (32 - h) / 2)
+    let left = Math.max(0, x - padX), top = Math.max(0, y - padY)
+    let right = Math.min(width, x + w + padX), bottom = Math.min(height, y + h + padY)
+    // Stop at the midpoint of the gap to adjacent targets; exact original areas remain intact.
+    items.forEach((other: DifferenceCandidate) => {
+      if (other.id == item.id) return
+      const ox = other.x * width / 100, oy = other.y * height / 100, ow = other.w * width / 100, oh = other.h * height / 100
+      if (x + w <= ox) right = Math.min(right, (x + w + ox) / 2)
+      if (ox + ow <= x) left = Math.max(left, (ox + ow + x) / 2)
+      if (y + h <= oy) bottom = Math.min(bottom, (y + h + oy) / 2)
+      if (oy + oh <= y) top = Math.max(top, (oy + oh + y) / 2)
+    })
+    return { id: item.id, left: left.toString() + 'px', top: top.toString() + 'px', width: (right - left).toString() + 'px', height: (bottom - top).toString() + 'px' }
+  })
+}

@@ -1,15 +1,16 @@
 <template>
-  <scroll-view class="page" scroll-y="true">
+  <scroll-view class="page" direction="vertical">
     <view class="summary-card">
-      <view class="summary-content"><text class="summary-label">累计训练</text><text class="summary-number">{{ records.length }} 次</text><text class="summary-copy">现阶段报告仅基于已完成的训练生成，不用于能力诊断。</text></view>
-      <image class="report-mascot" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.png" mode="aspectFit"></image>
+      <view class="summary-content"><text class="summary-label">累计训练</text><text class="summary-number">{{ totalSessions }} 次</text></view>
+      <image class="report-mascot" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image>
     </view>
 
-    <text class="section-title">五维成长概览</text>
+    <text v-if="pendingCount > 0" class="section-link">{{ pendingCount }} 条成绩待同步</text>
+    <text class="section-title">五维成长概览 · 0–200分</text>
     <view class="dimension-list">
       <view v-for="item in dimensions" :key="item.id" class="dimension-row">
         <view class="dimension-info">
-          <view class="dot" :style="{ backgroundColor: item.color }"></view>
+          <image class="dimension-icon" :src="item.thumbnail" mode="aspectFit"></image>
           <text class="name">{{ item.name }}</text>
         </view>
         <view class="bar-track">
@@ -19,14 +20,21 @@
       </view>
     </view>
 
+    <text v-if="dailyRows.length > 0" class="section-title">近两天</text>
+    <view v-if="dailyRows.length > 0" class="history-card">
+      <view v-for="day in dailyRows" :key="day.date" class="history-row">
+        <text class="history-name">{{ day.date }}</text>
+        <text class="history-meta">{{ day.completed }} / {{ day.total }} 项 · {{ day.minutes }} 分钟</text>
+      </view>
+    </view>
     <view class="section-header">
       <text class="section-title section-title-inline">最近训练</text>
       <view class="tap-link" @click="openHistory"><text class="section-link tap-content">查看全部</text></view>
     </view>
+    <text class="star-explanation">第六颗是过关星 · 达到100分点亮</text>
     <view v-if="records.length == 0" class="empty-card">
-      <image class="empty-mascot" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image>
+      <image class="empty-mascot" src="/static/images/runtime/game-objects/bunny-blue-card-v1.webp" mode="aspectFit"></image>
       <text class="empty-title">还没有训练记录</text>
-      <text class="empty-copy">完成一次“星星捕手”后，这里会展示成长数据。</text>
       <button class="tap-target small-button" @click="startTraining">去训练</button>
     </view>
     <view v-else class="history-card">
@@ -34,33 +42,82 @@
         <view>
           <text class="history-name">{{ gameName(record.gameId) }}</text>
           <text class="history-date">{{ recordDate(record.completedAt) }}</text>
-          <text class="history-meta">难度 {{ record.difficultyLevel == null ? '-' : record.difficultyLevel }}/10 · 正确率 {{ record.accuracy }}% · {{ record.averageReaction }}ms</text>
+          <text class="history-meta">正确率 {{ record.accuracy }}%</text>
+          <ScoreStars :score="record.score" :report="true" :size="17"></ScoreStars>
         </view>
-        <text class="history-score">{{ record.score }}</text>
+        <text class="history-score">{{ record.score }}分</text>
       </view>
     </view>
 
-    <view class="parent-note">
-      <text class="note-title">给家长的提示</text>
-      <text class="note-copy">关注长期趋势和孩子的参与感，不建议用单次分数比较孩子。</text>
-    </view>
     <view class="bottom-space"></view>
   </scroll-view>
 </template>
 
 <script setup lang="uts">
+import ScoreStars from '../../components/ScoreStars.uvue'
 import { ref, computed } from 'vue'
-import { onShow } from '@dcloudio/uni-app'
+import { onShow, onUnload } from '@dcloudio/uni-app'
 import { DIMENSIONS, getGameName } from '../../utils/catalog.uts'
 import { getRecords, formatRecordDate, TrainingRecord } from '../../utils/storage.uts'
+import { cachedReport, refreshReports, flushResults, pendingResultCount } from '../../utils/offline-sync.uts'
+import { getAuthSession, requireLogin } from '../../utils/auth.uts'
 
 const dimensions = DIMENSIONS
 const records = ref([] as TrainingRecord[])
+const remoteDimensionScores = ref({} as UTSJSONObject)
+const totalSessions = ref(0)
+const pendingCount = ref(0)
+type DailyRow = { date: string, completed: number, total: number, minutes: number }
+const dailyRows = ref([] as DailyRow[])
 const visibleRecords = computed((): TrainingRecord[] => records.value.slice(0, 5))
 
-onShow(() => { records.value = getRecords() })
+function displayCachedReports() {
+  remoteDimensionScores.value = {}
+  dailyRows.value = []
+  pendingCount.value = pendingResultCount()
+  totalSessions.value = records.value.length
+  const data = cachedReport('overview')
+  if (data != null) {
+    const allTime = data['allTime']
+    if (allTime != null) {
+      const stats = JSON.parse<UTSJSONObject>(JSON.stringify(allTime))!
+      if (stats['completedItems'] != null) totalSessions.value = stats['completedItems'] as number
+    }
+    const raw = data['dimensions']
+    if (raw != null) {
+      const values = JSON.parse<UTSJSONObject[]>(JSON.stringify(raw))!
+      for (let i = 0; i < values.length; i++) {
+        const score = values[i]['currentScore']
+        if (score != null) remoteDimensionScores.value[values[i]['dimensionId'] as string] = Math.round(score as number)
+      }
+    }
+  }
+  const daily = cachedReport('daily')
+  if (daily != null && daily['days'] != null) {
+    const days = JSON.parse<UTSJSONObject[]>(JSON.stringify(daily['days']))!
+    for (let i = 0; i < days.length; i++) {
+      const summary = days[i]['summary'] == null ? {} : JSON.parse<UTSJSONObject>(JSON.stringify(days[i]['summary']))!
+      dailyRows.value.push({ date: days[i]['planDate'] as string, completed: days[i]['completedCount'] as number, total: days[i]['totalCount'] as number, minutes: summary['totalDurationSeconds'] == null ? 0 : Math.round((summary['totalDurationSeconds'] as number) / 60) })
+    }
+  }
+}
+uni.$on('focus-reports-updated', displayCachedReports)
+uni.$on('focus-results-synced', displayCachedReports)
+onUnload(() => {
+  uni.$off('focus-reports-updated', displayCachedReports)
+  uni.$off('focus-results-synced', displayCachedReports)
+})
+onShow(() => {
+  if (getAuthSession() == null) { uni.redirectTo({ url: '/pages/login/login' }); return }
+  records.value = getRecords()
+  displayCachedReports()
+  flushResults()
+  refreshReports()
+})
 
 function dimensionScore(id: string): number {
+  const remote = remoteDimensionScores.value[id]
+  if (remote != null) return remote as number
   const matches = records.value.filter((item: TrainingRecord): boolean => item.dimensionId == id)
   if (matches.length == 0) return 0
   const total = matches.reduce((sum: number, item: TrainingRecord): number => sum + item.score, 0)
@@ -68,11 +125,11 @@ function dimensionScore(id: string): number {
 }
 
 function dimensionWidth(id: string): string {
-  return dimensionScore(id).toString() + '%'
+  return Math.max(0, Math.min(100, dimensionScore(id) / 2)).toString() + '%'
 }
 
-function startTraining() { uni.navigateTo({ url: '/pages/game/star-catcher' }) }
-function openHistory() { uni.navigateTo({ url: '/pages/history/history' }) }
+function startTraining() { if (requireLogin()) uni.navigateTo({ url: '/pages/game/star-catcher' }) }
+function openHistory() { if (requireLogin()) uni.navigateTo({ url: '/pages/history/history' }) }
 function recordDate(timestamp: number): string { return formatRecordDate(timestamp) }
 function gameName(gameId: string): string { return getGameName(gameId) }
 </script>
@@ -92,7 +149,7 @@ function gameName(gameId: string): string { return getGameName(gameId) }
 .dimension-list { margin: 0 18px; padding: 10px 18px; border-radius: 21px; background-color: #ffffff; }
 .dimension-row { min-height: 62px; border-bottom: 1px solid #edf0f5; flex-direction: row; align-items: center; }
 .dimension-info { width: 86px; flex-direction: row; align-items: center; }
-.dot { width: 9px; height: 9px; border-radius: 5px; }
+.dimension-icon { width: 32px; height: 32px; border-radius: 10px; }
 .name { margin-left: 8px; color: #455069; font-size: 12px; }
 .bar-track { flex: 1; height: 8px; border-radius: 4px; background-color: #edf0f5; overflow: hidden; }
 .bar-fill { height: 8px; border-radius: 4px; }
@@ -103,10 +160,11 @@ function gameName(gameId: string): string { return getGameName(gameId) }
 .empty-title { color: #36415a; font-size: 15px; font-weight: 700; }
 .empty-copy { margin-top: 7px; color: #858ea2; font-size: 12px; text-align: center; }
 .small-button { margin-top: 15px; width: 120px; height: 48px; line-height: 48px; border-radius: 13px; background-color: #eaf0ff; color: #4f77c5; font-size: 13px; }
-.history-row { min-height: 62px; border-bottom: 1px solid #edf0f5; flex-direction: row; align-items: center; justify-content: space-between; }
+.history-row { min-height: 92px; border-bottom: 1px solid #edf0f5; flex-direction: row; align-items: center; justify-content: space-between; }
 .history-name { color: #36415a; font-size: 14px; font-weight: 600; }
 .history-date { margin-top: 3px; color: #778198; font-size: 10px; }
 .history-meta { margin-top: 4px; color: #8a93a6; font-size: 11px; }
+.star-explanation { margin: 0 18px 10px; color: #8b98ad; font-size: 11px; }
 .history-score { color: #5b8def; font-size: 20px; font-weight: 700; }
 .parent-note { margin: 18px; padding: 17px; border-radius: 17px; background-color: #fff8e8; }
 .note-title { color: #936b19; font-size: 13px; font-weight: 700; }

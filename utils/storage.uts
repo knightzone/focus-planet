@@ -1,7 +1,16 @@
+import { LOCAL_TEST_MODE, localTestKey } from './local-test.uts'
+import { calculateAge } from './profile-options.uts'
+
 export type ChildProfile = {
   nickname: string,
   age: number,
-  createdAt: number
+  birthYear: number,
+  birthMonth: number,
+  gender: string,
+  avatarId: string,
+  nicknameCustomized: boolean,
+  createdAt: number,
+  serverId?: string
 }
 
 export type TrainingRecord = {
@@ -9,6 +18,7 @@ export type TrainingRecord = {
   gameId: string,
   dimensionId: string,
   score: number,
+  scoreAlgorithmVersion?: string,
   difficultyLevel?: number,
   accuracy: number,
   averageReaction: number,
@@ -22,12 +32,20 @@ export type TrainingRecord = {
   completedAt: number
 }
 
-const PROFILE_KEY = 'focus_planet_profile'
+const PROFILE_KEY = localTestKey('focus_planet_profile')
 const RECORDS_KEY = 'focus_planet_records'
+function accountRecordsKey(): string {
+  if (LOCAL_TEST_MODE) return RECORDS_KEY + '_local_test'
+  const raw = uni.getStorageSync('focus_planet_auth_session')
+  if (raw == null || raw == '') return RECORDS_KEY + '_guest'
+  const session = JSON.parse<UTSJSONObject>(JSON.stringify(raw))!
+  return RECORDS_KEY + '_' + (session['userId'] as string)
+}
 const SCHEMA_KEY = 'focus_planet_schema_version'
 const CURRENT_SCHEMA_VERSION = 2
 
 function ensureSchema() {
+  if (LOCAL_TEST_MODE) return
   const versionValue = uni.getStorageSync(SCHEMA_KEY)
   const version = versionValue == null || versionValue == '' ? 1 : versionValue as number
   if (version < 2) {
@@ -48,7 +66,10 @@ function ensureSchema() {
 export function getProfile(): ChildProfile | null {
   const value = uni.getStorageSync(PROFILE_KEY)
   if (value == null || value == '') return null
-  return JSON.parse<ChildProfile>(JSON.stringify(value))
+  const profile = JSON.parse<ChildProfile>(JSON.stringify(value))
+  if (profile == null) return null
+  profile.age = calculateAge(profile.birthYear, profile.birthMonth)
+  return profile
 }
 
 export function saveProfile(profile: ChildProfile) {
@@ -57,7 +78,7 @@ export function saveProfile(profile: ChildProfile) {
 
 export function getRecords(): TrainingRecord[] {
   ensureSchema()
-  const value = uni.getStorageSync(RECORDS_KEY)
+  const value = uni.getStorageSync(accountRecordsKey())
   if (value == null || value == '') return [] as TrainingRecord[]
   const records = JSON.parse<TrainingRecord[]>(JSON.stringify(value))
   return records == null ? [] as TrainingRecord[] : records
@@ -66,12 +87,12 @@ export function getRecords(): TrainingRecord[] {
 export function addRecord(record: TrainingRecord) {
   const records = getRecords()
   records.unshift(record)
-  uni.setStorageSync(RECORDS_KEY, records)
+  uni.setStorageSync(accountRecordsKey(), records)
 }
 
 export function clearTrainingRecords() {
-  uni.removeStorageSync(RECORDS_KEY)
-  uni.removeStorageSync('focus_planet_difficulty_states')
+  uni.removeStorageSync(accountRecordsKey())
+  uni.removeStorageSync(localTestKey('focus_planet_difficulty_states'))
 }
 
 export function getLocalDayKey(timestamp: number): string {

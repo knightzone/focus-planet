@@ -1,0 +1,16 @@
+export const STAR_THRESHOLDS: number[] = [20, 40, 60, 80, 90]
+export const CELEBRATION_SCORE = 120
+export const THEME_STAR = '/static/images/runtime/brand/focus-star-solo-v1.webp'
+export const THEME_PLANET = '/static/images/runtime/sky-planets/lavender-ring.webp'
+export function resultStarCount(score: number): number {
+  if (!Number.isFinite(score)) return 0
+  return STAR_THRESHOLDS.filter((threshold: number): boolean => score >= threshold).length
+}
+export function hasPassStar(score: number): boolean { return Number.isFinite(score) && score >= 100 }
+export function reportStarCount(score: number): number { return resultStarCount(score) + (hasPassStar(score) ? 1 : 0) }
+export function hasStarCelebration(score: number): boolean { return Number.isFinite(score) && score >= CELEBRATION_SCORE }
+export function orbitStar(index: number, elapsedMs: number) {
+  const angle = (index / 5 * 2 * Math.PI) + (elapsedMs % 8000) / 8000 * 2 * Math.PI - Math.PI / 2
+  const depth = Math.sin(angle)
+  return { x: 122 + Math.cos(angle) * 109, y: 97 + depth * 68, scale: 0.82 + (depth + 1) * 0.12, z: depth > 0 ? 3 : 1 }
+}

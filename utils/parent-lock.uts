@@ -1,0 +1,15 @@
+let parentUnlockedUntil = 0
+
+const PARENT_SESSION_MILLISECONDS = 5 * 60 * 1000
+
+export function isParentAreaUnlocked(): boolean {
+  return parentUnlockedUntil > Date.now()
+}
+
+export function unlockParentArea() {
+  parentUnlockedUntil = Date.now() + PARENT_SESSION_MILLISECONDS
+}
+
+export function lockParentArea() {
+  parentUnlockedUntil = 0
+}

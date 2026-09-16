@@ -1,0 +1,43 @@
+import { UIView, UIColor } from 'UIKit'
+import { CAGradientLayer } from 'QuartzCore'
+import { CGPoint, CGRect } from 'CoreGraphics'
+
+export class NativeGradient {
+  private element: UniNativeViewElement
+  private host: UIView | null = null
+  private gradient: CAGradientLayer | null = null
+
+  constructor(element: UniNativeViewElement) {
+    this.element = element
+    super.init()
+    this.bindView()
+  }
+
+  private bindView() {
+    const hostView = new UIView()
+    hostView.isUserInteractionEnabled = false
+
+    const gradientLayer = new CAGradientLayer()
+    gradientLayer.frame = new CGRect(x = 0.0, y = 0.0, width = 52.0, height = 170.0)
+    gradientLayer.colors = [
+      UIColor(red = 0.30980392, green = 0.49803922, blue = 0.89019608, alpha = 1.0).cgColor,
+      UIColor(red = 0.30980392, green = 0.49803922, blue = 0.89019608, alpha = 0.72).cgColor,
+      UIColor(red = 0.30980392, green = 0.49803922, blue = 0.89019608, alpha = 0.0).cgColor
+    ]
+    gradientLayer.locations = [0.0, 0.34, 1.0]
+    gradientLayer.startPoint = new CGPoint(x = 0.0, y = 0.5)
+    gradientLayer.endPoint = new CGPoint(x = 1.0, y = 0.5)
+    hostView.layer.addSublayer(gradientLayer)
+
+    this.host = hostView
+    this.gradient = gradientLayer
+    this.element.bindIOSView(hostView)
+  }
+
+  destroy() {
+    this.gradient?.removeFromSuperlayer()
+    this.gradient = null
+    this.host = null
+    UTSiOS.destroyInstance(this)
+  }
+}

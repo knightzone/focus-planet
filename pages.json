@@ -7,9 +7,28 @@
       }
     },
     {
+      "path": "pages/update/update",
+      "style": {
+        "navigationStyle": "custom",
+        "disableSwipeBack": true
+      }
+    },
+    {
+      "path": "pages/companion/companion",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/mine/mine",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/profile/profile",
       "style": {
-        "navigationBarTitleText": "创建档案"
+        "navigationStyle": "custom"
       }
     },
     {
@@ -21,138 +40,172 @@
     {
       "path": "pages/game/star-catcher",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "星星捕手"
       }
     },
     {
+      "path": "pages/game/sound-credits",
+      "style": { "navigationBarTitleText": "音效来源" }
+    },
+    {
       "path": "pages/game/sound-location",
       "style": {
-        "navigationBarTitleText": "声音在哪里"
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "声音从哪来"
       }
     },
     {
       "path": "pages/game/sky-watcher",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "星空守望员"
       }
     },
     {
       "path": "pages/game/breathing-planet",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "呼吸小星球"
       }
     },
     {
       "path": "pages/game/magic-rule",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "魔法规则"
       }
     },
     {
       "path": "pages/game/color-command",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "颜色指令"
       }
     },
     {
       "path": "pages/game/sound-filter",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "声音过滤器"
       }
     },
     {
       "path": "pages/game/dual-track",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "双轨任务"
       }
     },
     {
       "path": "pages/game/listen-find",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "听声找图"
       }
     },
     {
       "path": "pages/game/shape-match",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "影子配对"
       }
     },
     {
       "path": "pages/game/forest-search",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "森林寻宝"
       }
     },
     {
       "path": "pages/game/red-green",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "红绿指令"
       }
     },
     {
       "path": "pages/game/sorting-station",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "分类车站"
       }
     },
     {
       "path": "pages/game/number-track",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "奇偶轨道"
       }
     },
     {
       "path": "pages/game/grid-challenge",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "网格训练"
+      }
+    },
+    {
+      "path": "pages/game/car-patrol",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "小车巡逻"
       }
     },
     {
       "path": "pages/game/motion-challenge",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "轨迹训练"
       }
     },
     {
       "path": "pages/game/spot-difference",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "找茬乐园"
       }
     },
     {
       "path": "pages/game/number-tap",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "数字连点"
       }
     },
     {
       "path": "pages/game/audio-sequence",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "听音节奏"
       }
     },
     {
       "path": "pages/game/penalty-kick",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "点球小将"
       }
     },
     {
       "path": "pages/game/water-sort",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "倒水小实验"
       }
     },
     {
       "path": "pages/game/pattern-find",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "规律小侦探"
       }
     },
     {
       "path": "pages/game/bird-cloud",
       "style": {
+        "navigationStyle": "custom",
         "navigationBarTitleText": "小鸟穿云"
       }
     },
@@ -179,6 +232,24 @@
       "style": {
         "navigationBarTitleText": "档案与设置"
       }
+    },
+    {
+      "path": "pages/parent-lock/parent-lock",
+      "style": {
+        "navigationBarTitleText": "家长验证"
+      }
+    },
+    {
+      "path": "pages/login/login",
+      "style": {
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/account/account",
+      "style": {
+        "navigationStyle": "custom"
+      }
     }
   ],
   "globalStyle": {
@@ -186,5 +257,35 @@
     "navigationBarTitleText": "专注星伴",
     "navigationBarBackgroundColor": "#F5F8FC",
     "backgroundColor": "#F5F8FC"
+  },
+  "tabBar": {
+    "color": "#8A93A6",
+    "selectedColor": "#5B8DEF",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "height": "62px",
+    "fontSize": "11px",
+    "iconWidth": "36px",
+    "spacing": "1px",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "星训练",
+        "iconPath": "static/images/runtime/tabbar/star-training-inactive-v2.png",
+        "selectedIconPath": "static/images/runtime/tabbar/star-training-selected-v2.png"
+      },
+      {
+        "pagePath": "pages/companion/companion",
+        "text": "星陪伴",
+        "iconPath": "static/images/runtime/tabbar/star-companion-inactive-v2.png",
+        "selectedIconPath": "static/images/runtime/tabbar/star-companion-selected-v2.png"
+      },
+      {
+        "pagePath": "pages/mine/mine",
+        "text": "星小屋",
+        "iconPath": "static/images/runtime/tabbar/star-home-inactive-v2.png",
+        "selectedIconPath": "static/images/runtime/tabbar/star-home-selected-v2.png"
+      }
+    ]
   }
 }

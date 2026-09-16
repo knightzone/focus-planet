@@ -1,21 +1,35 @@
 <template>
+<TrainingFrame title="影子配对" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="sm-page">
+    <image class="sm-background" src="/static/images/runtime/backgrounds/shadow-match-desk-v1.webp" mode="aspectFill"></image>
+    <view class="sm-content">
     <view class="sm-header">
-      <view><text class="sm-eyebrow">视觉辨别训练 · 难度 {{ level }}/10</text><text class="sm-title">把图案送回影子</text></view>
-      <view class="sm-counter"><text class="sm-counter-text">{{ displayRound }}/{{ rounds }}</text></view>
+      <view><text class="sm-eyebrow">影子配对</text><text class="sm-title">找到一样的影子</text></view>
+      <view v-if="started" class="sm-counter"><text class="sm-counter-text">{{ displayRound }}/{{ rounds }}</text></view>
     </view>
-    <view class="sm-progress"><view class="sm-progress-fill" :style="{ width: progressWidth }"></view></view>
+    <view v-if="started" class="sm-progress"><view class="sm-progress-fill" :style="{ width: progressWidth }"></view></view>
 
     <view v-if="!started" class="sm-intro">
-      <YoungChildCue kind="match"></YoungChildCue>
-      <text class="sm-intro-title">拖动上面的卡通图案</text>
-      <text class="sm-intro-copy">把图案放到形状相同的灰色影子上。也可以先点图案，再点影子。</text>
-      <view class="sm-chips"><text class="sm-chip">{{ sourceCount }}张图案</text><text class="sm-chip">{{ shadowCount }}个影子</text><text class="sm-chip">{{ rounds }}轮</text></view>
-      <button class="sm-start" @click="begin">开始配对</button>
+      <text class="sm-demo-title">先试一下</text>
+      <view class="sm-demo-row">
+        <view class="sm-demo-object" :class="demoSelected ? 'sm-demo-selected' : ''" @click="selectDemo">
+          <image class="sm-demo-picture" src="/static/images/runtime/illustrations/shadow-match/easy-fruits/apple.webp" mode="aspectFit"></image>
+        </view>
+        <text class="sm-demo-arrow">→</text>
+        <view class="sm-demo-target" :class="demoMatched ? 'sm-demo-done' : ''" @click="matchDemo(true)">
+          <image class="sm-demo-picture" :src="demoMatched ? '/static/images/runtime/illustrations/shadow-match/easy-fruits/apple.webp' : '/static/images/runtime/illustrations/shadow-match/easy-fruits/apple-shadow.webp'" mode="aspectFit"></image>
+          <text v-if="demoMatched" class="sm-demo-check">✓</text>
+        </view>
+        <view class="sm-demo-target" @click="matchDemo(false)">
+          <image class="sm-demo-picture" src="/static/images/runtime/illustrations/shadow-match/easy-fruits/banana-shadow.webp" mode="aspectFit"></image>
+        </view>
+      </view>
+      <text class="sm-demo-hint">{{ demoHint }}</text>
+      <text v-if="demoMatched" class="sm-demo-replay" @click="resetDemo">再试一次</text>
+      <button class="sm-start" @click="begin">开始</button>
     </view>
 
     <view v-else class="sm-board">
-      <view class="sm-board-head"><text class="sm-board-title">上方：卡通图案</text><text class="sm-board-hint">拖到下方影子</text></view>
       <view class="sm-area" :style="{ height: areaHeight.toString() + 'px' }">
         <view v-for="slot in slots" :key="'s-'+slot.id" class="sm-slot" :class="slot.filled ? 'sm-slot-done' : ''"
           :style="{ left: slot.x.toString() + 'px', top: slot.y.toString() + 'px' }" @click="tapSlot(slot.id)">
@@ -30,24 +44,33 @@
           <image class="sm-image" :src="item.image" mode="aspectFit"></image>
         </view>
         <view class="sm-divider" :style="{ top: dividerY.toString() + 'px' }"></view>
-        <text class="sm-shadow-label" :style="{ top: (dividerY + 10).toString() + 'px' }">下方：灰色影子</text>
       </view>
     </view>
 
-    <view class="sm-feedback"><text v-if="feedback != ''" :class="feedbackGood ? 'sm-good' : 'sm-again'">{{ feedback }}</text></view>
-    <view class="sm-stats">
+    <view v-if="started" class="sm-feedback"><text v-if="feedback != ''" :class="feedbackGood ? 'sm-good' : 'sm-again'">{{ feedback }}</text></view>
+    <view v-if="started" class="sm-stats">
       <view class="sm-stat"><text class="sm-stat-value">{{ correct }}</text><text class="sm-stat-label">已配对</text></view>
       <view class="sm-stat"><text class="sm-stat-value">{{ errors }}</text><text class="sm-stat-label">误放</text></view>
       <view class="sm-stat"><text class="sm-stat-value">{{ timeLabel }}</text><text class="sm-stat-label">每轮用时</text></view>
     </view>
+    </view>
   </view>
+</TrainingFrame>
 </template>
 
 <script setup lang="uts">
+import { timedRoundScore, scoreQuery, searchTargetMs } from '../../utils/game-scoring.uts'
+const roundScores: number[] = []
+let scoreRoundErrors = 0
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
 import { ref, computed, nextTick } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
-import YoungChildCue from '../../components/YoungChildCue.uvue'
 import { getGameDifficulty } from '../../utils/difficulty.uts'
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+
 
 type MatchObject = { id: string, label: string, image: string, shadow: string }
 type DragItem = { id: string, label: string, image: string, x: number, y: number, homeX: number, homeY: number, matched: boolean }
@@ -56,7 +79,7 @@ type Recipe = { sources: number, shadows: number, rounds: number, group: string 
 
 function illustration(groupId: string, id: string, label: string): MatchObject {
   const root = '/static/images/runtime/illustrations/shadow-match/' + groupId + '/'
-  return { id: 'illustration-' + groupId + '-' + id, label: label, image: root + id + '.png', shadow: root + id + '-shadow.png' }
+  return { id: 'illustration-' + groupId + '-' + id, label: label, image: root + id + '.webp', shadow: root + id + '-shadow.webp' }
 }
 const LOW_GROUPS = [
   [illustration('easy-animals','rabbit','微笑兔子'),illustration('easy-animals','squirrel','快乐松鼠'),illustration('easy-animals','owl','圆眼猫头鹰'),illustration('easy-animals','turtle','微笑乌龟'),illustration('easy-animals','elephant','快乐小象')],
@@ -94,6 +117,15 @@ const RECIPES = [
 ] as Recipe[]
 
 const started=ref(false), level=ref(1), rounds=ref(3), sourceCount=ref(3), shadowCount=ref(3), group=ref('low')
+const demoSelected=ref(false), demoMatched=ref(false), demoHint=ref('点图案，再点影子')
+function resetDemo(){ if (trainingPaused.value) return;demoSelected.value=false;demoMatched.value=false;demoHint.value='点图案，再点影子'}
+function selectDemo(){ if (trainingPaused.value) return;if(demoMatched.value)resetDemo();demoSelected.value=true;demoHint.value='哪个是苹果的影子？'}
+function matchDemo(correct:boolean){ if (trainingPaused.value) return;
+  if(demoMatched.value)return
+  if(!demoSelected.value){demoHint.value='先点一下苹果';return}
+  if(!correct){demoHint.value='再看看轮廓';return}
+  demoMatched.value=true;demoSelected.value=false;demoHint.value='配对成功！'
+}
 const round=ref(0), items=ref([] as DragItem[]), slots=ref([] as ShadowSlot[]), selectedId=ref('')
 const feedback=ref(''), feedbackGood=ref(true), correct=ref(0), errors=ref(0), times=ref([] as number[])
 const areaWidth=ref(340), matchedThisRound=ref(0), activeDragId=ref('')
@@ -147,29 +179,29 @@ function gridX(index:number,total:number,columns:number):number{
   const row=Math.floor(index/columns), start=row*columns, count=Math.min(columns,total-start), gap=columns==4?8:16
   return Math.round((areaWidth.value-(count*62+Math.max(0,count-1)*gap))/2)+(index-start)*(62+gap)
 }
-function clearTimer(){if(timer>0)clearTimeout(timer);timer=0}
+function clearTimer(){if(timer>0)trainingClock.clearTimeout(timer);timer=0}
 function finish(){
   clearTimer();const attempts=correct.value+errors.value,accuracy=attempts==0?0:Math.round(correct.value/attempts*100)
   const sum=times.value.reduce((s:number,v:number):number=>s+v,0),average=times.value.length==0?0:Math.round(sum/times.value.length)
-  const duration=Math.max(1,Math.round((Date.now()-gameStartedAt)/1000)),required=shadowCount.value*rounds.value
-  uni.redirectTo({url:'/pages/result/result?gameId=shape-match&dimensionId=focused&score='+accuracy.toString()+'&accuracy='+accuracy.toString()+'&reaction='+average.toString()+'&duration='+duration.toString()+'&completed='+correct.value.toString()+'&total='+required.toString()})
+  const duration=Math.max(1,Math.round((trainingClock.now()-gameStartedAt)/1000)),required=shadowCount.value*rounds.value
+  uni.redirectTo({url:'/pages/result/result?gameId=shape-match&dimensionId=focused&score='+accuracy.toString()+'&accuracy='+accuracy.toString()+'&reaction='+average.toString()+'&duration='+duration.toString()+'&completed='+correct.value.toString()+'&total='+required.toString() + scoreQuery(roundScores) })
 }
 function prepare(){
   if(round.value>=rounds.value){finish();return}
-  selectedId.value='';feedback.value='';matchedThisRound.value=0
+  selectedId.value='';feedback.value='';matchedThisRound.value=0;scoreRoundErrors=errors.value
   const source=shuffle(pool()).slice(0,sourceCount.value), targets=shuffle(source).slice(0,shadowCount.value)
   const shadowOrder=shuffle(targets), sourceOrder=shuffle(source), nextSlots=[] as ShadowSlot[], nextItems=[] as DragItem[]
   for(let i=0;i<shadowOrder.length;i++){const v=shadowOrder[i];nextSlots.push({id:v.id,label:v.label,image:v.image,shadow:v.shadow,x:gridX(i,shadowOrder.length,4),y:shadowY.value+Math.floor(i/4)*76,filled:false})}
   for(let i=0;i<sourceOrder.length;i++){const v=sourceOrder[i],columns=sourceColumns.value,x=gridX(i,sourceOrder.length,columns),y=18+Math.floor(i/columns)*70;nextItems.push({id:v.id,label:v.label,image:v.image,x:x,y:y,homeX:x,homeY:y,matched:false})}
-  slots.value=nextSlots;items.value=nextItems;appearedAt=Date.now()
+  slots.value=nextSlots;items.value=nextItems;appearedAt=trainingClock.now()
 }
-function begin(){started.value=true;gameStartedAt=Date.now();prepare()}
+function begin(){ if (trainingPaused.value) return;started.value=true;gameStartedAt=trainingClock.now();prepare()}
 function dragBy(id:string):DragItem|null{const v=items.value.find((x:DragItem):boolean=>x.id==id);return v==null?null:v}
 function slotBy(id:string):ShadowSlot|null{const v=slots.value.find((x:ShadowSlot):boolean=>x.id==id);return v==null?null:v}
-function dragStart(id:string){
+function dragStart(id:string){ if (trainingPaused.value) return;
   activeDragId.value=id;touchAnchored=false;dragDistance=0.0
 }
-function dragMove(event:UniTouchEvent){
+function dragMove(event:UniTouchEvent){ if (trainingPaused.value) return;
   const item=dragBy(activeDragId.value);if(item==null||item.matched)return
   if(event.touches.length==0)return
   const touch=event.touches[0]
@@ -191,24 +223,26 @@ function nearest(item:DragItem):ShadowSlot|null{
 function match(sourceId:string,slotId:string){
   const item=dragBy(sourceId),slot=slotBy(slotId);if(item==null||slot==null||item.matched||slot.filled)return
   selectedId.value=''
-  if(sourceId!=slotId){errors.value++;feedbackGood.value=false;feedback.value='这个影子不太像，再观察一下轮廓';reset(item);return}
-  item.matched=true;slot.filled=true;item.x=slot.x;item.y=slot.y;correct.value++;matchedThisRound.value++
-  feedbackGood.value=true;feedback.value='找对啦！'+item.label+'回到影子里了';items.value=items.value.slice();slots.value=slots.value.slice()
-  if(matchedThisRound.value>=shadowCount.value){times.value.push(Date.now()-appearedAt);clearTimer();timer=setTimeout(()=>{round.value++;prepare()},650)}
+  if(sourceId!=slotId){{ errors.value++; training.playFeedback('wrong') }feedbackGood.value=false;feedback.value='再看看轮廓';reset(item);return}
+  item.matched=true;slot.filled=true;item.x=slot.x;item.y=slot.y;{ correct.value++; training.playFeedback('correct') }matchedThisRound.value++
+  feedbackGood.value=true;feedback.value='找对啦！';items.value=items.value.slice();slots.value=slots.value.slice()
+  if(matchedThisRound.value>=shadowCount.value){roundScores.push(timedRoundScore(true,trainingClock.now()-appearedAt,shadowCount.value*5000,errors.value-scoreRoundErrors));times.value.push(trainingClock.now()-appearedAt);clearTimer();timer=trainingClock.setTimeout(()=>{round.value++;prepare()},650)}
 }
-function dragEnd(id:string){
+function dragEnd(id:string){ if (trainingPaused.value) return;
   activeDragId.value='';touchAnchored=false;if(dragDistance>6)ignoreTapId=id
   const item=dragBy(id);if(item==null||item.matched)return
   const slot=nearest(item);if(slot==null)reset(item);else match(id,slot.id)
 }
-function tapItem(id:string){
+function tapItem(id:string){ if (trainingPaused.value) return;
   if(ignoreTapId==id){ignoreTapId='';return}
   const item=dragBy(id);if(item==null||item.matched)return
-  selectedId.value=selectedId.value==id?'':id;feedbackGood.value=true;feedback.value=selectedId.value==''?'':'已选中'+item.label+'，再点一个影子'
+  selectedId.value=selectedId.value==id?'':id;feedbackGood.value=true;feedback.value=selectedId.value==''?'':'再点对应的影子'
 }
-function tapSlot(id:string){if(selectedId.value!='')match(selectedId.value,id)}
+function tapSlot(id:string){ if (trainingPaused.value) return;if(selectedId.value!='')match(selectedId.value,id)}
 onLoad((_options:OnLoadOptions)=>configure())
 onUnload(()=>clearTimer())
+// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>
@@ -216,4 +250,27 @@ onUnload(()=>clearTimer())
 .sm-intro{margin-top:18px;padding:24px 18px;border-radius:24px;background-color:#fff;align-items:center}.sm-intro-title{margin-top:10px;color:#344059;font-size:17px;font-weight:700}.sm-intro-copy{margin-top:8px;color:#818a9f;font-size:12px;line-height:19px;text-align:center}.sm-chips{margin-top:15px;flex-direction:row}.sm-chip{margin:3px;padding:6px 10px;border-radius:12px;background-color:#f0f4ff;color:#5873ac;font-size:11px;font-weight:700}.sm-start{margin-top:18px;width:150px;height:48px;line-height:48px;border-radius:15px;background-color:#5b8def;color:#fff;font-size:14px;font-weight:700}
 .sm-board{margin-top:14px;padding:12px 8px 8px;border-radius:24px;background-color:#fff}.sm-board-head{padding:0 5px 8px;flex-direction:row;justify-content:space-between}.sm-board-title{color:#344059;font-size:12px;font-weight:700}.sm-board-hint{color:#8c96aa;font-size:10px}.sm-area{position:relative;width:100%;border-radius:18px;background-color:#f7f9fe;overflow:hidden}.sm-item,.sm-slot{position:absolute;width:62px;height:62px;border-radius:17px;align-items:center;justify-content:center}.sm-item{z-index:6;background-color:#fff;border-width:2px;border-color:#e5eaff;box-shadow:0 5px 12px rgba(66,84,130,.14)}.sm-item-selected{border-color:#6b91ef;background-color:#edf3ff}.sm-slot{z-index:2;background-color:#edf0f5;border-width:2px;border-style:dashed;border-color:#cbd1dc}.sm-slot-done{background-color:#effaf4;border-style:solid;border-color:#7bcba4}.sm-image{width:54px;height:54px}.sm-check{position:absolute;right:-4px;top:-4px;width:20px;height:20px;border-radius:10px;background-color:#42b883;align-items:center;justify-content:center}.sm-check-text{color:#fff;font-size:12px;font-weight:700}.sm-divider{position:absolute;left:12px;right:12px;height:1px;background-color:#dfe4ee}.sm-shadow-label{position:absolute;left:16px;color:#8791a6;font-size:10px;font-weight:700}
 .sm-feedback{height:34px;align-items:center;justify-content:center}.sm-good{color:#338e72;font-size:12px;font-weight:700}.sm-again{color:#c65b66;font-size:12px;font-weight:700}.sm-stats{flex-direction:row}.sm-stat{flex:1;align-items:center}.sm-stat-value{color:#25314a;font-size:17px;font-weight:700}.sm-stat-label{margin-top:3px;color:#8a93a7;font-size:10px}
+.sm-page{position:relative;padding:0;background-color:#f4e1bf}
+.sm-background{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+.sm-content{position:relative;flex:1;padding:18px 16px 22px}
+.sm-intro{margin-top:28px;padding:24px 12px;background-color:rgba(255,255,255,.94)}
+.sm-board{background-color:transparent}
+.sm-area{background-color:rgba(255,255,255,.88)}
+.sm-item{border-color:#e8dcc9;box-shadow:0 4px 8px rgba(106,78,42,.14)}
+.sm-item-selected{border-color:#6b91ef;background-color:#edf3ff}
+.sm-slot{background-color:#f8f2e8;border-color:#c3b49c}
+.sm-slot-done{background-color:#effaf4;border-color:#7bcba4}
+.sm-divider{background-color:#d4bd98}
+.sm-demo-title{color:#526780;font-size:15px;font-weight:600}
+.sm-demo-row{margin-top:24px;flex-direction:row;align-items:center;justify-content:center}
+.sm-demo-object{width:70px;height:76px;border-radius:18px;border:2px solid #e0eafa;background-color:#ffffff;align-items:center;justify-content:center}
+.sm-demo-selected{border-color:#5b8def;background-color:#edf4ff}
+.sm-demo-picture{width:56px;height:60px}
+.sm-demo-arrow{margin:0 8px;color:#93a9c3;font-size:24px}
+.sm-demo-target{position:relative;margin-left:4px;width:64px;height:76px;border-radius:18px;border:2px dashed #ccd8e7;background-color:#edf2f8;align-items:center;justify-content:center}
+.sm-demo-done{border-color:#67bf9b;border-style:solid;background-color:#edf9f3}
+.sm-demo-check{position:absolute;right:2px;top:0;color:#309d73;font-size:18px;font-weight:700}
+.sm-demo-hint{margin-top:20px;color:#61758b;font-size:14px}
+.sm-demo-replay{padding:12px 20px;color:#5b8def;font-size:13px}
+.sm-stats{padding:12px 8px;border-radius:18px;background-color:rgba(255,255,255,.8)}
 </style>

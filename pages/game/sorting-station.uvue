@@ -1,56 +1,301 @@
 <template>
-  <view class="page">
-    <view class="game-header"><view><text class="round-label">转换注意训练</text><text class="game-title">分类车站</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
-    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-    <view class="rule-card"><text class="rule-kicker">当前分类规则</text><text class="rule-title">{{ ruleTitle }}</text><text v-if="justSwitched" class="switch-badge">规则换站了</text></view>
-    <view class="station">
-      <view v-if="!started" class="instruction"><YoungChildCue kind="match"></YoungChildCue><text class="instruction-title">看规则，把乘客送上正确轨道</text><text class="instruction-copy">卡通物体会按类别、颜色和显示大小分类。每一轮都先看上方提示。</text><button class="tap-target primary" @click="begin">▶ 列车出发</button></view>
-      <view v-else class="challenge"><image class="item-image" :src="objectPath(currentItem.assetId)" mode="aspectFit" :style="{ width: currentSize, height: currentSize }"></image><text class="item-hint">{{ itemHint }}</text><text class="feedback" :class="feedback == '分类正确' ? 'good' : 'again'">{{ feedback }}</text></view>
+  <TrainingFrame title="分类车站" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+    <view class="page">
+      <image class="scene" src="/static/images/runtime/backgrounds/sorting-depot-v1.webp" mode="aspectFill"></image>
+      <view class="content">
+        <view class="header">
+          <view><text class="eyebrow">转换注意训练</text><text class="title">分类车站</text></view>
+          <view class="counter"><text class="counter-text">{{ displayRound }}/{{ totalRounds }}</text></view>
+        </view>
+        <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+
+        <view v-if="!started" class="instruction">
+          <text class="demo-title">先试一下</text>
+          <text class="demo-rule">点一点货物，再把它送进正确的车站</text>
+          <view class="demo-stations">
+            <view class="demo-station left" :class="demoWrongSide == 'left' ? 'demo-station-wrong' : ''" @click="tapDemoStation('left')"><text class="demo-station-name">{{ demoLeftLabel }}</text><text class="demo-station-count">{{ demoLeftCount }}/2</text></view>
+            <view class="demo-station right" :class="demoWrongSide == 'right' ? 'demo-station-wrong' : ''" @click="tapDemoStation('right')"><text class="demo-station-name">{{ demoRightLabel }}</text><text class="demo-station-count">{{ demoRightCount }}/2</text></view>
+          </view>
+          <view class="demo-cargo-row">
+            <view v-for="item in demoItems" :key="item.id" class="demo-cargo" :class="item.placed ? 'demo-cargo-placed' : selectedDemoId == item.id ? 'demo-cargo-selected' : ''" @click="tapDemoItem(item.id)">
+              <image v-if="!item.placed" class="demo-cargo-image tap-content" :src="item.image" mode="aspectFit"></image>
+              <text v-else class="demo-cargo-check">✓</text>
+            </view>
+          </view>
+          <text class="demo-hint">{{ demoHint }}</text>
+          <text v-if="demoDone" class="demo-replay" @click="resetDemo">再试一次</text>
+          <button class="primary" @click="begin">开始</button>
+        </view>
+
+        <template v-else>
+          <view class="mission-card">
+            <view class="mission-side"><view class="mission-badge left"><image class="mission-icon" :src="leftIcon" mode="aspectFit"></image></view><text class="mission-name">{{ leftLabel }}</text><text class="mission-dir">进左站</text></view>
+            <view class="mission-side"><view class="mission-badge right"><image class="mission-icon" :src="rightIcon" mode="aspectFit"></image></view><text class="mission-name">{{ rightLabel }}</text><text class="mission-dir">进右站</text></view>
+          </view>
+          <view class="play-area" :style="{ height: areaHeight.toString() + 'px' }">
+            <view class="station-zone left" :class="[stationFlash == 'left' ? 'station-wrong' : '', activeDragId != '' || selectedId != '' ? 'station-ready' : '']" @click="tapStation('left')">
+              <text class="station-name">{{ leftLabel }}</text>
+              <text class="station-count">{{ leftCount }}/{{ perStation }}</text>
+            </view>
+            <view class="station-zone right" :class="[stationFlash == 'right' ? 'station-wrong' : '', activeDragId != '' || selectedId != '' ? 'station-ready' : '']" @click="tapStation('right')">
+              <text class="station-name">{{ rightLabel }}</text>
+              <text class="station-count">{{ rightCount }}/{{ perStation }}</text>
+            </view>
+            <view class="yard-line"></view>
+            <view v-for="item in items" :key="item.id" v-show="!item.placed" class="cargo" :class="selectedId == item.id ? 'cargo-selected' : ''" :style="{ left: item.x.toString() + 'px', top: item.y.toString() + 'px' }" @touchstart="dragStart(item.id)" @touchmove="dragMove" @touchend="dragEnd(item.id)" @touchcancel="dragEnd(item.id)" @click="tapItem(item.id)">
+              <image class="cargo-image tap-content" :src="item.image" mode="aspectFit"></image>
+            </view>
+          </view>
+        </template>
+
+        <view class="feedback"><text v-if="feedback != ''" :class="feedbackGood ? 'good' : 'again'">{{ feedback }}</text></view>
+        <view class="stats">
+          <view class="stat"><text class="value">{{ correct }}</text><text class="label">装对</text></view>
+          <view class="stat"><text class="value">{{ errors }}</text><text class="label">装错</text></view>
+          <view class="stat"><text class="value">{{ timeLabel }}</text><text class="label">每轮用时</text></view>
+        </view>
+      </view>
     </view>
-    <view v-if="started" class="tracks"><button class="tap-target track left" :disabled="!accepting" @click="answer('left')"><text class="track-name tap-content">{{ leftLabel }}</text><text class="track-arrow tap-content">←</text></button><button class="tap-target track right" :disabled="!accepting" @click="answer('right')"><text class="track-name tap-content">{{ rightLabel }}</text><text class="track-arrow tap-content">→</text></button></view>
-    <view class="footer-stats"><view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view><view class="footer-stat"><text class="footer-value">{{ errors }}</text><text class="footer-label">错误</text></view><view class="footer-stat"><text class="footer-value">{{ switchErrors }}</text><text class="footer-label">切换错误</text></view></view>
-  </view>
+  </TrainingFrame>
 </template>
 
 <script setup lang="uts">
+import { timedRoundScore, scoreQuery } from '../../utils/game-scoring.uts'
+const roundScores: number[] = []
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
 import { ref, computed } from 'vue'
-import YoungChildCue from '../../components/YoungChildCue.uvue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { getGameTuningAge } from '../../utils/difficulty.uts'
-import { getGameObjectPath } from '../../utils/game-assets.uts'
-type SortItem = { assetId: string, kind: string, color: string, size: string }
-const ITEMS: SortItem[] = [
-  { assetId: 'bunny', kind: 'animal', color: 'blue', size: 'small' },
-  { assetId: 'kitten', kind: 'animal', color: 'yellow', size: 'large' },
-  { assetId: 'car', kind: 'vehicle', color: 'yellow', size: 'small' },
-  { assetId: 'boat', kind: 'vehicle', color: 'blue', size: 'large' }
-]
-const started = ref(false), accepting = ref(false), includeSize = ref(false), rule = ref('kind'), justSwitched = ref(false)
-const totalRounds = ref(14), blockSize = ref(4), roundIndex = ref(0), currentItem = ref(ITEMS[0])
-const correct = ref(0), errors = ref(0), switchErrors = ref(0), feedback = ref(''), reactions = ref([] as number[])
-let appearedAt = 0, gameStartedAt = 0, nextTimer = 0
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+
+
+type StationCategory = { label: string, paths: string[] }
+type CargoItem = { id: string, image: string, side: string, x: number, y: number, homeX: number, homeY: number, placed: boolean }
+
+const ILL = '/static/images/runtime/illustrations/shadow-match/'
+const ANIMALS: StationCategory = { label: '小动物', paths: [ILL + 'easy-animals/rabbit.webp', ILL + 'easy-animals/squirrel.webp', ILL + 'easy-animals/owl.webp', ILL + 'easy-animals/turtle.webp', ILL + 'easy-animals/elephant.webp'] }
+const FRUITS: StationCategory = { label: '水果', paths: [ILL + 'easy-fruits/apple.webp', ILL + 'easy-fruits/banana.webp', ILL + 'easy-fruits/pineapple.webp', ILL + 'easy-fruits/strawberry.webp', ILL + 'easy-fruits/grapes.webp'] }
+const VEHICLES: StationCategory = { label: '交通工具', paths: [ILL + 'easy-vehicles/car.webp', ILL + 'easy-vehicles/sailboat.webp', ILL + 'easy-vehicles/train.webp', ILL + 'easy-vehicles/airplane.webp', ILL + 'easy-vehicles/rocket.webp'] }
+const GARDEN: StationCategory = { label: '植物', paths: [ILL + 'easy-garden/mushroom.webp', ILL + 'easy-garden/flower.webp', ILL + 'easy-garden/tree.webp', ILL + 'easy-garden/cactus.webp', ILL + 'easy-garden/snail.webp'] }
+const FOODS: StationCategory = { label: '点心', paths: [ILL + 'easy-foods/cupcake.webp', ILL + 'easy-foods/ice-cream.webp', ILL + 'easy-foods/donut.webp', ILL + 'easy-foods/pizza.webp', ILL + 'easy-foods/birthday-cake.webp'] }
+const FOREST: StationCategory = { label: '森林动物', paths: [ILL + 'medium-forest-animals/rabbit.webp', ILL + 'medium-forest-animals/fox.webp', ILL + 'medium-forest-animals/bear.webp', ILL + 'medium-forest-animals/deer.webp', ILL + 'medium-forest-animals/squirrel.webp', ILL + 'medium-forest-animals/hedgehog.webp'] }
+const INSTRUMENTS: StationCategory = { label: '乐器', paths: [ILL + 'medium-musical-instruments/guitar.webp', ILL + 'medium-musical-instruments/drum.webp', ILL + 'medium-musical-instruments/trumpet.webp', ILL + 'medium-musical-instruments/violin.webp', ILL + 'medium-musical-instruments/piano.webp', ILL + 'medium-musical-instruments/maracas.webp'] }
+const TOYS: StationCategory = { label: '玩具', paths: [ILL + 'medium-playground-toys/duck.webp', ILL + 'medium-playground-toys/spinning-top.webp', ILL + 'medium-playground-toys/kite.webp', ILL + 'medium-playground-toys/scooter.webp', ILL + 'medium-playground-toys/rocking-horse.webp', ILL + 'medium-playground-toys/blocks.webp'] }
+const FARM: StationCategory = { label: '农场动物', paths: [ILL + 'medium-farm-animals/cow.webp', ILL + 'medium-farm-animals/pig.webp', ILL + 'medium-farm-animals/sheep.webp', ILL + 'medium-farm-animals/horse.webp', ILL + 'medium-farm-animals/chicken.webp', ILL + 'medium-farm-animals/duck.webp'] }
+const FLOWERS: StationCategory = { label: '花朵', paths: [ILL + 'medium-similar-flowers/flower-1.webp', ILL + 'medium-similar-flowers/flower-2.webp', ILL + 'medium-similar-flowers/flower-3.webp', ILL + 'medium-similar-flowers/flower-4.webp', ILL + 'medium-similar-flowers/flower-5.webp', ILL + 'medium-similar-flowers/flower-6.webp'] }
+const PUPPIES: StationCategory = { label: '小狗', paths: [ILL + 'medium-puppies/puppy-1.webp', ILL + 'medium-puppies/puppy-2.webp', ILL + 'medium-puppies/puppy-3.webp', ILL + 'medium-puppies/puppy-4.webp', ILL + 'medium-puppies/puppy-5.webp', ILL + 'medium-puppies/puppy-6.webp'] }
+const COTTAGES: StationCategory = { label: '小房子', paths: [ILL + 'medium-cottages/cottage-1.webp', ILL + 'medium-cottages/cottage-2.webp', ILL + 'medium-cottages/cottage-3.webp', ILL + 'medium-cottages/cottage-4.webp', ILL + 'medium-cottages/cottage-5.webp', ILL + 'medium-cottages/cottage-6.webp'] }
+const TREES: StationCategory = { label: '树木', paths: [ILL + 'medium-trees/tree-1.webp', ILL + 'medium-trees/tree-2.webp', ILL + 'medium-trees/tree-3.webp', ILL + 'medium-trees/tree-4.webp', ILL + 'medium-trees/tree-5.webp', ILL + 'medium-trees/tree-6.webp'] }
+
+const EASY_PAIRS = [[ANIMALS, FRUITS], [VEHICLES, FOODS], [GARDEN, INSTRUMENTS], [TOYS, ANIMALS], [FOODS, VEHICLES], [FOREST, TOYS]] as StationCategory[][]
+const MID_PAIRS = [[FARM, FLOWERS], [COTTAGES, TREES], [FOREST, FARM], [INSTRUMENTS, TOYS], [PUPPIES, COTTAGES], [FLOWERS, FARM]] as StationCategory[][]
+const HARD_PAIRS = [[FLOWERS, TREES], [PUPPIES, FOREST], [COTTAGES, FLOWERS], [TREES, COTTAGES], [FARM, FOREST], [PUPPIES, FARM]] as StationCategory[][]
+
+const CARGO = 62
+const STATION_H = 118
+const started = ref(false), level = ref(1)
+const totalRounds = ref(3), itemCount = ref(6), perStation = ref(3)
+const roundIndex = ref(0), items = ref([] as CargoItem[])
+const leftCategory = ref(ANIMALS), rightCategory = ref(FRUITS)
+const selectedId = ref(''), activeDragId = ref(''), stationFlash = ref('')
+const feedback = ref(''), feedbackGood = ref(true)
+const correct = ref(0), errors = ref(0), times = ref([] as number[])
+const areaWidth = ref(340), areaHeight = ref(300)
+let appearedAt = 0, gameStartedAt = 0, nextTimer = 0, flashTimer = 0, scoreRoundErrors = 0
+const assetSeed = Math.floor(Math.random() * 120)
+let touchAnchored = false, lastTouchX = 0.0, lastTouchY = 0.0, dragDistance = 0.0, ignoreTapId = '', lastPairIndex = -1
+
 const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
 const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
-const ruleTitle = computed((): string => rule.value == 'kind' ? '动物去左边 · 车辆去右边' : rule.value == 'color' ? '蓝色去左边 · 黄色去右边' : '小号去左边 · 大号去右边')
-const leftLabel = computed((): string => rule.value == 'kind' ? '动物' : rule.value == 'color' ? '蓝色' : '小号')
-const rightLabel = computed((): string => rule.value == 'kind' ? '车辆' : rule.value == 'color' ? '黄色' : '大号')
-const currentSize = computed((): string => currentItem.value.size == 'large' ? '126px' : '88px')
-const itemHint = computed((): string => (currentItem.value.kind == 'animal' ? '动物乘客' : '车辆乘客') + ' · ' + (currentItem.value.color == 'blue' ? '蓝色' : '黄色') + ' · ' + (currentItem.value.size == 'large' ? '大号' : '小号'))
-function objectPath(id: string): string { return getGameObjectPath(id) }
-function configure() { const age = getGameTuningAge('sorting-station'); if (age <= 6) { totalRounds.value = 10; blockSize.value = 5 } else if (age <= 9) { totalRounds.value = 14; blockSize.value = 4 } else if (age <= 12) { totalRounds.value = 18; blockSize.value = 3; includeSize.value = true } else { totalRounds.value = 22; blockSize.value = 3; includeSize.value = true } }
-function nextRule() { if (!includeSize.value) rule.value = rule.value == 'kind' ? 'color' : 'kind'; else rule.value = rule.value == 'kind' ? 'color' : rule.value == 'color' ? 'size' : 'kind' }
-function clearTimer() { if (nextTimer > 0) clearTimeout(nextTimer) }
-function finish() { clearTimer(); const accuracy = Math.round((correct.value / totalRounds.value) * 100); const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=sorting-station&dimensionId=alternating&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&switchErrors=' + switchErrors.value.toString() }) }
-function prepare() { if (roundIndex.value >= totalRounds.value) { finish(); return }; justSwitched.value = roundIndex.value > 0 && roundIndex.value % blockSize.value == 0; if (justSwitched.value) nextRule(); currentItem.value = ITEMS[Math.floor(Math.random() * ITEMS.length)]; feedback.value = ''; accepting.value = true; appearedAt = Date.now() }
-function begin() { started.value = true; gameStartedAt = Date.now(); prepare() }
-function expected(): string { if (rule.value == 'kind') return currentItem.value.kind == 'animal' ? 'left' : 'right'; if (rule.value == 'color') return currentItem.value.color == 'blue' ? 'left' : 'right'; return currentItem.value.size == 'small' ? 'left' : 'right' }
-function answer(side: string) { if (!accepting.value) return; accepting.value = false; reactions.value.push(Date.now() - appearedAt); if (side == expected()) { correct.value += 1; feedback.value = '分类正确' } else { errors.value += 1; if (justSwitched.value) switchErrors.value += 1; feedback.value = '再看当前规则' }; nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 560) }
-onLoad((_options: OnLoadOptions) => configure()); onUnload(() => clearTimer())
+const leftLabel = computed((): string => leftCategory.value.label)
+const rightLabel = computed((): string => rightCategory.value.label)
+const leftIcon = computed((): string => leftCategory.value.paths[0])
+const rightIcon = computed((): string => rightCategory.value.paths[0])
+const leftCount = computed((): number => items.value.filter((item: CargoItem): boolean => item.placed && item.side == 'left').length)
+const roundTargetMs = computed((): number => itemCount.value * (1200 - (level.value - 1) * 60))
+const rightCount = computed((): number => items.value.filter((item: CargoItem): boolean => item.placed && item.side == 'right').length)
+const timeLabel = computed((): string => {
+  if (times.value.length == 0) return '--'
+  const total = times.value.reduce((sum: number, value: number): number => sum + value, 0)
+  return (Math.round(total / times.value.length) / 1000).toFixed(1) + 's'
+})
+
+// 试玩演示：4 件货物，点选后点车站装车；不计时、不计分。
+const demoItems = ref([] as CargoItem[])
+const selectedDemoId = ref(''), demoWrongSide = ref('')
+const demoLeftLabel = computed((): string => ANIMALS.label)
+const demoRightLabel = computed((): string => FRUITS.label)
+const demoLeftCount = computed((): number => demoItems.value.filter((item: CargoItem): boolean => item.placed && item.side == 'left').length)
+const demoRightCount = computed((): number => demoItems.value.filter((item: CargoItem): boolean => item.placed && item.side == 'right').length)
+const demoDone = computed((): boolean => demoItems.value.length > 0 && demoItems.value.every((item: CargoItem): boolean => item.placed))
+const demoHint = computed((): string => {
+  if (demoDone.value) return '全装对啦！'
+  if (selectedDemoId.value != '') return '再点对应的车站'
+  if (demoWrongSide.value != '') return '这个车站不对，再看看'
+  return '把苹果送进水果站，把小兔送进动物站'
+})
+function setupDemo() {
+  demoItems.value = [
+    { id: 'd1', image: ANIMALS.paths[0], side: 'left', x: 0, y: 0, homeX: 0, homeY: 0, placed: false },
+    { id: 'd2', image: FRUITS.paths[0], side: 'right', x: 0, y: 0, homeX: 0, homeY: 0, placed: false },
+    { id: 'd3', image: FRUITS.paths[1], side: 'right', x: 0, y: 0, homeX: 0, homeY: 0, placed: false },
+    { id: 'd4', image: ANIMALS.paths[2], side: 'left', x: 0, y: 0, homeX: 0, homeY: 0, placed: false }
+  ]
+  selectedDemoId.value = ''; demoWrongSide.value = ''
+}
+function tapDemoItem(id: string) { if (trainingPaused.value || demoDone.value) return
+  const item = demoItems.value.find((v: CargoItem): boolean => v.id == id)
+  if (item == null || item.placed) return
+  selectedDemoId.value = selectedDemoId.value == id ? '' : id; demoWrongSide.value = '' }
+function tapDemoStation(side: string) { if (trainingPaused.value || demoDone.value) return
+  if (selectedDemoId.value == '') { demoWrongSide.value = ''; return }
+  const item = demoItems.value.find((v: CargoItem): boolean => v.id == selectedDemoId.value)
+  if (item == null) return
+  if (item.side != side) { demoWrongSide.value = side; selectedDemoId.value = ''; return }
+  item.placed = true; selectedDemoId.value = ''; demoWrongSide.value = ''; demoItems.value = demoItems.value.slice() }
+function resetDemo() { if (trainingPaused.value) return; setupDemo() }
+
+function configure() {
+  level.value = getGameDifficulty('sorting-station')
+  totalRounds.value = level.value <= 3 ? 3 : level.value <= 7 ? 4 : 5
+  itemCount.value = Math.min(12, 6 + Math.floor((level.value - 1) * 6 / 9))
+  perStation.value = Math.floor(itemCount.value / 2)
+  areaWidth.value = Math.max(300, uni.getWindowInfo().windowWidth - 36)
+  areaHeight.value = STATION_H + 30 + Math.ceil(itemCount.value / cargoColumns()) * 74 + 12
+}
+function cargoColumns(): number { return itemCount.value > 8 ? 4 : 3 }
+function pairSet(): StationCategory[][] { return level.value <= 3 ? EASY_PAIRS : level.value <= 7 ? MID_PAIRS : HARD_PAIRS }
+function pickPair(): StationCategory[] {
+  const pairs = pairSet()
+  let index = (roundIndex.value + assetSeed) % pairs.length
+  if (pairs.length > 1 && index == lastPairIndex) index = (index + 1) % pairs.length
+  lastPairIndex = index
+  const pair = pairs[index]
+  return Math.random() < 0.5 ? pair : [pair[1], pair[0]]
+}
+function shuffled(values: string[]): string[] {
+  const result = values.slice()
+  for (let i = result.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const v = result[i]; result[i] = result[j]; result[j] = v }
+  return result
+}
+function gridX(index: number, total: number, columns: number): number {
+  const row = Math.floor(index / columns), start = row * columns, count = Math.min(columns, total - start), gap = 12
+  return Math.round((areaWidth.value - (count * CARGO + Math.max(0, count - 1) * gap)) / 2) + (index - start) * (CARGO + gap)
+}
+function clearTimer() { if (nextTimer > 0) trainingClock.clearTimeout(nextTimer); nextTimer = 0 }
+function finish() {
+  clearTimer()
+  const attempts = correct.value + errors.value, accuracy = attempts == 0 ? 0 : Math.round((correct.value / attempts) * 100)
+  const sum = times.value.reduce((total: number, value: number): number => total + value, 0)
+  const average = times.value.length == 0 ? 0 : Math.round(sum / times.value.length)
+  const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
+  uni.redirectTo({ url: '/pages/result/result?gameId=sorting-station&dimensionId=alternating&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&completed=' + correct.value.toString() + '&total=' + attempts.toString() + scoreQuery(roundScores) })
+}
+function prepare() {
+  if (roundIndex.value >= totalRounds.value) { finish(); return }
+  const pair = pickPair()
+  leftCategory.value = pair[0]; rightCategory.value = pair[1]
+  selectedId.value = ''; activeDragId.value = ''; stationFlash.value = ''; feedback.value = ''; scoreRoundErrors = errors.value
+  const leftPool = shuffled(pair[0].paths), rightPool = shuffled(pair[1].paths)
+  const nextItems = [] as CargoItem[], columns = cargoColumns()
+  for (let i = 0; i < perStation.value; i++) {
+    nextItems.push({ id: 'L' + i.toString(), image: leftPool[i % leftPool.length], side: 'left', x: 0, y: 0, homeX: 0, homeY: 0, placed: false })
+    nextItems.push({ id: 'R' + i.toString(), image: rightPool[i % rightPool.length], side: 'right', x: 0, y: 0, homeX: 0, homeY: 0, placed: false })
+  }
+  const order = shuffled(nextItems.map((item: CargoItem): string => item.id))
+  const placed = [] as CargoItem[]
+  for (let i = 0; i < order.length; i++) {
+    const found = nextItems.find((item: CargoItem): boolean => item.id == order[i])
+    if (found == null) continue
+    const x = gridX(i, order.length, columns), y = STATION_H + 28 + Math.floor(i / columns) * 74
+    found.x = x; found.y = y; found.homeX = x; found.homeY = y; placed.push(found)
+  }
+  items.value = placed; appearedAt = trainingClock.now()
+}
+function begin() { if (trainingPaused.value) return; started.value = true; gameStartedAt = trainingClock.now(); prepare() }
+function cargoBy(id: string): CargoItem | null { const item = items.value.find((v: CargoItem): boolean => v.id == id); return item == null ? null : item }
+function flashStation(side: string) { stationFlash.value = side; if (flashTimer > 0) trainingClock.clearTimeout(flashTimer); flashTimer = trainingClock.setTimeout(() => { stationFlash.value = '' }, 500) }
+function resetCargo(item: CargoItem) {
+  item.x += 0.1; item.y += 0.1
+  nextTick(() => { item.x = item.homeX; item.y = item.homeY; items.value = items.value.slice() })
+}
+function dropOn(item: CargoItem, side: string) {
+  selectedId.value = ''
+  if (item.placed) return
+  if (item.side != side) {
+    { errors.value += 1; training.playFeedback('wrong') }
+    feedbackGood.value = false; feedback.value = '放错车站啦'; flashStation(side); resetCargo(item); return
+  }
+  item.placed = true; { correct.value += 1; training.playFeedback('correct') }
+  feedbackGood.value = true; feedback.value = '装对啦'; items.value = items.value.slice()
+  const done = items.value.every((v: CargoItem): boolean => v.placed)
+  if (done) {
+    times.value.push(trainingClock.now() - appearedAt)
+    roundScores.push(timedRoundScore(true, trainingClock.now() - appearedAt, roundTargetMs.value, errors.value - scoreRoundErrors))
+    clearTimer(); nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepare() }, 560)
+  }
+}
+function dragStart(id: string) { if (trainingPaused.value) return;
+  activeDragId.value = id; touchAnchored = false; dragDistance = 0.0 }
+function dragMove(event: UniTouchEvent) { if (trainingPaused.value) return;
+  const item = cargoBy(activeDragId.value); if (item == null || item.placed) return
+  if (event.touches.length == 0) return
+  const touch = event.touches[0]
+  if (!touchAnchored) { lastTouchX = touch.clientX; lastTouchY = touch.clientY; touchAnchored = true; return }
+  const dx = touch.clientX - lastTouchX, dy = touch.clientY - lastTouchY
+  lastTouchX = touch.clientX; lastTouchY = touch.clientY; dragDistance += Math.abs(dx) + Math.abs(dy)
+  item.x = Math.max(0, Math.min(areaWidth.value - CARGO, item.x + dx))
+  item.y = Math.max(0, Math.min(areaHeight.value - CARGO, item.y + dy))
+}
+function dragEnd(id: string) { if (trainingPaused.value) return;
+  activeDragId.value = ''; touchAnchored = false; if (dragDistance > 6) ignoreTapId = id
+  const item = cargoBy(id); if (item == null || item.placed) return
+  if (item.y <= STATION_H + 4) dropOn(item, item.x + CARGO / 2 < areaWidth.value / 2 ? 'left' : 'right')
+  else resetCargo(item)
+}
+function tapItem(id: string) { if (trainingPaused.value) return;
+  if (ignoreTapId == id) { ignoreTapId = ''; return }
+  const item = cargoBy(id); if (item == null || item.placed) return
+  selectedId.value = selectedId.value == id ? '' : id
+  if (selectedId.value != '') { feedbackGood.value = true; feedback.value = '再点对应的车站' } }
+function tapStation(side: string) { if (trainingPaused.value) return;
+  if (activeDragId.value != '') return
+  const item = cargoBy(selectedId.value)
+  if (item == null) return
+  dropOn(item, side) }
+function expected(): string {
+  const item = items.value.find((v: CargoItem): boolean => !v.placed)
+  return item == null ? 'left' : item.side
+}
+function answer(side: string) { if (trainingPaused.value) return;
+  const item = items.value.find((v: CargoItem): boolean => !v.placed)
+  if (item == null) return
+  dropOn(item, side) }
+onLoad((_options: OnLoadOptions) => { configure(); setupDemo() }); onUnload(() => clearTimer())
+// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>
-.page { flex: 1; padding: 20px; }.game-header { flex-direction: row; justify-content: space-between; align-items: center; }.round-label { color: #8062bf; font-size: 12px; font-weight: 700; }.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #eee9fa; align-items: center; justify-content: center; }.counter-value { color: #785bb7; font-size: 13px; font-weight: 700; }
-.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; background-color: #9b7ede; }.rule-card { margin-top: 14px; padding: 15px; border-radius: 18px; background-color: #f0eafa; position: relative; }.rule-kicker { color: #8a7aa9; font-size: 10px; }.rule-title { margin-top: 4px; color: #514269; font-size: 15px; font-weight: 700; }.switch-badge { position: absolute; right: 12px; top: 16px; padding: 5px 9px; border-radius: 10px; background-color: #fff2cc; color: #a4730d; font-size: 9px; font-weight: 700; }
-.station { margin-top: 14px; height: 290px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; }.instruction, .challenge { width: 100%; align-items: center; }.train-image { width: 92px; height: 92px; border-radius: 19px; }.instruction-title { margin-top: 12px; color: #344059; font-size: 17px; font-weight: 700; }.instruction-copy { margin-top: 8px; width: 80%; color: #818a9f; font-size: 11px; line-height: 18px; text-align: center; }.primary { margin-top: 15px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #9b7ede; color: #ffffff; font-size: 14px; font-weight: 700; }.item-image { border-radius: 22px; }.item-hint { margin-top: 8px; color: #788298; font-size: 11px; }.feedback { margin-top: 13px; font-size: 11px; font-weight: 700; }.good { color: #338e72; }.again { color: #c65b66; }
-.tracks { margin-top: 12px; flex-direction: row; }.track { flex: 1; height: 66px; border-radius: 17px; flex-direction: row; align-items: center; justify-content: center; }.left { margin-right: 6px; background-color: #eaf0ff; }.right { margin-left: 6px; background-color: #fff4d7; }.track-name { color: #46536d; font-size: 14px; font-weight: 700; }.track-arrow { margin-left: 9px; color: #7f8ba3; font-size: 20px; }.footer-stats { margin-top: 13px; flex-direction: row; }.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+.page { flex: 1; background-color: #f6ecd9; }
+.scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.content { position: relative; flex: 1; padding: 18px 18px 20px; }
+.header { flex-direction: row; justify-content: space-between; align-items: center; }.eyebrow { color: #a97b2f; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #4a3416; font-size: 21px; font-weight: 700; }
+.counter { min-width: 64px; height: 38px; padding: 0 12px; border-radius: 19px; background-color: rgba(255,255,255,0.94); align-items: center; justify-content: center; }.counter-text { color: #b0722a; font-size: 13px; font-weight: 700; }
+.progress { margin-top: 16px; height: 8px; border-radius: 4px; background-color: rgba(255,255,255,0.7); overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; background-color: #eda62c; }
+.instruction { margin-top: 16px; padding: 22px 18px 20px; border-radius: 25px; background-color: rgba(255,255,255,0.95); align-items: center; }.demo-title { color: #344059; font-size: 18px; font-weight: 700; }.demo-rule { margin-top: 6px; color: #998353; font-size: 11px; font-weight: 700; }
+.demo-stations { margin-top: 16px; width: 100%; flex-direction: row; }.demo-station { flex: 1; height: 64px; margin: 0 4px; border-radius: 16px; align-items: center; justify-content: center; }.demo-station.left { background-color: #eaf0ff; }.demo-station.right { background-color: #fff0d2; }.demo-station-wrong { background-color: #fdeef0; border-width: 2px; border-color: #f17c8d; }.demo-station-name { color: #46536d; font-size: 14px; font-weight: 700; }.demo-station-count { margin-top: 3px; color: #8a94a8; font-size: 10px; }
+.demo-cargo-row { margin-top: 14px; width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: center; }.demo-cargo { margin: 5px; width: 62px; height: 62px; border-radius: 15px; background-color: #ffffff; border-width: 2px; border-color: #eadfc8; align-items: center; justify-content: center; }.demo-cargo-image { width: 50px; height: 50px; border-radius: 10px; }.demo-cargo-selected { border-color: #eda62c; background-color: #fff7e8; }.demo-cargo-placed { background-color: #ddf3e7; border-color: #55c9a5; }.demo-cargo-check { color: #2b9270; font-size: 22px; font-weight: 800; }
+.demo-hint { margin-top: 12px; color: #8a967e; font-size: 12px; }.demo-replay { margin-top: 6px; padding: 8px 16px; color: #c08a12; font-size: 12px; font-weight: 700; }
+.primary { margin-top: 12px; width: 150px; height: 48px; line-height: 48px; border-radius: 15px; background-color: #eda62c; color: #ffffff; font-size: 14px; font-weight: 700; }
+.mission-card { margin-top: 14px; padding: 13px 16px; border-radius: 20px; background-color: rgba(255,255,255,0.94); flex-direction: row; }.mission-side { flex: 1; flex-direction: row; align-items: center; }.mission-badge { width: 40px; height: 40px; border-radius: 12px; align-items: center; justify-content: center; }.mission-badge.left { background-color: #eaf0ff; }.mission-badge.right { background-color: #fff0d2; }.mission-icon { width: 34px; height: 34px; border-radius: 9px; }.mission-name { margin-left: 8px; color: #46536d; font-size: 14px; font-weight: 700; }.mission-dir { margin-left: 6px; color: #a9b0bf; font-size: 10px; }
+.play-area { margin-top: 14px; width: 100%; position: relative; border-radius: 24px; background-color: rgba(255,255,255,0.55); overflow: hidden; }
+.station-zone { position: absolute; top: 8px; height: 110px; border-radius: 20px; align-items: center; justify-content: center; }.station-zone.left { left: 8px; right: 50%; margin-right: 5px; background-color: rgba(234,240,255,0.96); }.station-zone.right { left: 50%; right: 8px; margin-left: 5px; background-color: rgba(255,240,210,0.96); }.station-ready { border-width: 2px; border-color: #eda62c; }.station-wrong { background-color: #fdeef0; border-width: 2px; border-color: #f17c8d; }.station-name { color: #46536d; font-size: 16px; font-weight: 700; }.station-count { margin-top: 4px; color: #8a94a8; font-size: 11px; }
+.yard-line { position: absolute; left: 14px; right: 14px; top: 126px; height: 2px; background-color: rgba(180,150,100,0.35); }
+.cargo { position: absolute; width: 62px; height: 62px; border-radius: 15px; background-color: #ffffff; border-width: 2px; border-color: #eadfc8; align-items: center; justify-content: center; overflow: hidden; z-index: 3; }.cargo-image { width: 50px; height: 50px; border-radius: 10px; }.cargo-selected { border-color: #eda62c; background-color: #fff7e8; }
+.feedback { height: 34px; align-items: center; justify-content: center; }.good { color: #338e72; font-size: 12px; font-weight: 700; }.again { color: #c65b66; font-size: 12px; font-weight: 700; }
+.stats { margin-top: 2px; padding: 12px 8px; border-radius: 18px; background-color: rgba(255,255,255,0.94); flex-direction: row; }.stat { flex: 1; align-items: center; }.value { color: #25314a; font-size: 17px; font-weight: 700; }.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
 </style>

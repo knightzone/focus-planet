@@ -1,0 +1,23 @@
+import { DetectFaceFrame, FaceFrameResult } from '../interface.uts'
+
+export function openUpdateLink(url: string, completed: (success: boolean) => void) {
+  FocusFaceDetectorNative.openUpdateLink(url, completed)
+}
+
+export const detectFaceFrame: DetectFaceFrame = function (rgba: ArrayBuffer, width: number, height: number): FaceFrameResult {
+  const value = JSON.parse<FaceFrameResult>(FocusFaceDetectorNative.detectRgba(rgba.toData(), width.toInt(), height.toInt()))
+  if (value != null) return value
+  return {
+    supported: false,
+    detected: false,
+    faceCount: 0,
+    faceScale: 0,
+    centerX: 0.5,
+    centerY: 0.5,
+    yaw: 0,
+    roll: 0,
+    pitch: 0,
+    confidence: 0,
+    errorMessage: 'iOS 检测结果解析失败'
+  }
+}

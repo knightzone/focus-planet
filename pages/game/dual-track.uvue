@@ -1,4 +1,5 @@
 <template>
+<TrainingFrame title="双轨任务" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="page">
     <view class="game-header">
       <view><text class="round-label">分配注意训练</text><text class="game-title">同时守住两条轨道</text></view>
@@ -6,8 +7,7 @@
     </view>
     <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
     <view class="rule-card">
-      <text class="rule-title">看到金色星星，就点击它所在的轨道</text>
-      <text class="rule-tip">蓝色圆点是干扰，不要点击。两边可能同时出现金色星星。</text>
+      <text class="rule-title">点击金色星星所在轨道</text>
     </view>
 
     <view class="tracks">
@@ -31,9 +31,7 @@
 
     <view v-if="!started" class="instruction">
       <YoungChildCue kind="watch"></YoungChildCue>
-      <text class="instruction-title">准备同时观察左右两边</text>
-      <text class="instruction-copy">低龄模式会先从单侧目标开始，随着年龄增加，两边同时出现目标的机会会提高。</text>
-      <button class="tap-target primary" @click="begin">▶ 开始训练</button>
+      <button class="tap-target primary" @click="begin">开始</button>
     </view>
 
     <view class="footer-stats" :class="started ? 'footer-playing' : 'footer-ready'">
@@ -42,13 +40,22 @@
       <view class="footer-stat"><text class="footer-value">{{ falseAlarms }}</text><text class="footer-label">误点</text></view>
     </view>
   </view>
+</TrainingFrame>
 </template>
 
 <script setup lang="uts">
+import { scoreQuery } from '../../utils/game-scoring.uts'
+const roundScores: number[] = []
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
 import { ref, computed } from 'vue'
 import YoungChildCue from '../../components/YoungChildCue.uvue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import { getGameTuningAge } from '../../utils/difficulty.uts'
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+
 
 const started = ref(false)
 const visible = ref(false)
@@ -84,8 +91,8 @@ function configureDifficulty() {
 }
 
 function clearTimers() {
-  if (tickTimer > 0) clearTimeout(tickTimer)
-  if (gapTimer > 0) clearTimeout(gapTimer)
+  if (tickTimer > 0) trainingClock.clearTimeout(tickTimer)
+  if (gapTimer > 0) trainingClock.clearTimeout(gapTimer)
 }
 
 function finishGame() {
@@ -97,12 +104,11 @@ function finishGame() {
   const accuracy = Math.round((targetAccuracy * 0.65 + responseAccuracy * 0.35) * 100)
   const reactionTotal = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
   const average = reactions.value.length == 0 ? 0 : Math.round(reactionTotal / reactions.value.length)
-  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
   uni.redirectTo({
     url: '/pages/result/result?gameId=dual-track&dimensionId=divided&score=' + accuracy.toString() +
       '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() +
-      '&omissions=' + omissions.value.toString() + '&falseAlarms=' + falseAlarms.value.toString()
-  })
+      '&omissions=' + omissions.value.toString() + '&falseAlarms=' + falseAlarms.value.toString() + scoreQuery(roundScores) })
 }
 
 function prepareTick() {
@@ -121,23 +127,24 @@ function prepareTick() {
   }
   leftResponded.value = false; rightResponded.value = false
   visible.value = true
-  appearedAt = Date.now()
-  tickTimer = setTimeout(() => {
-    if (leftTarget.value && !leftResponded.value) omissions.value += 1
-    if (rightTarget.value && !rightResponded.value) omissions.value += 1
+  appearedAt = trainingClock.now()
+  tickTimer = trainingClock.setTimeout(() => {
+    roundScores.push((leftTarget.value == leftResponded.value ? 50 : 0) + (rightTarget.value == rightResponded.value ? 50 : 0))
+    if (leftTarget.value && !leftResponded.value) { omissions.value += 1; training.playFeedback('missed') }
+    if (rightTarget.value && !rightResponded.value) { omissions.value += 1; training.playFeedback('missed') }
     visible.value = false
     tickIndex.value += 1
-    gapTimer = setTimeout(() => prepareTick(), 260)
+    gapTimer = trainingClock.setTimeout(() => prepareTick(), 260)
   }, tickDuration.value)
 }
 
-function begin() {
+function begin() { if (trainingPaused.value) return;
   started.value = true
-  gameStartedAt = Date.now()
+  gameStartedAt = trainingClock.now()
   prepareTick()
 }
 
-function tapSide(side: string) {
+function tapSide(side: string) { if (trainingPaused.value) return;
   if (!started.value || !visible.value) return
   const isLeft = side == 'left'
   if ((isLeft && leftResponded.value) || (!isLeft && rightResponded.value)) return
@@ -145,13 +152,15 @@ function tapSide(side: string) {
   else rightResponded.value = true
   const isTarget = isLeft ? leftTarget.value : rightTarget.value
   if (isTarget) {
-    hits.value += 1
-    reactions.value.push(Date.now() - appearedAt)
-  } else falseAlarms.value += 1
+    { hits.value += 1; training.playFeedback('correct') }
+    reactions.value.push(trainingClock.now() - appearedAt)
+  } else { falseAlarms.value += 1; training.playFeedback('wrong') }
 }
 
 onLoad((_options: OnLoadOptions) => configureDifficulty())
 onUnload(() => clearTimers())
+// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>

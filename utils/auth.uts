@@ -1,0 +1,211 @@
+import { LOCAL_TEST_MODE } from './local-test.uts'
+import { sendLoginCode, loginByPhone, loginByAppleToken, skipApplePhoneBinding, sendAppleBindCode, bindAppleToPhone, getAccountSummary, saveServerProfile, clearServerState } from './server-api.uts'
+import { saveTokens, clearTokens, getAccessToken } from './api-client.uts'
+import { saveProfile, ChildProfile } from './storage.uts'
+import { calculateAge } from './profile-options.uts'
+import { enforceUpdate } from './app-update.uts'
+
+export type AuthSession = {
+  userId: string,
+  provider: string,
+  displayName: string,
+  accessToken: string,
+  refreshToken: string
+}
+
+export type AuthAttemptResult = {
+  success: boolean,
+  message: string
+}
+
+const AUTH_SESSION_KEY = 'focus_planet_auth_session'
+const APPLE_BIND_TOKEN_KEY = 'focus_planet_apple_bind_token'
+const APPLE_BIND_NAME_KEY = 'focus_planet_apple_bind_name'
+
+export const REQUIRE_LOGIN_FOR_TRAINING = true
+
+export function getAuthSession(): AuthSession | null {
+  if (LOCAL_TEST_MODE) return { userId: 'local-test', provider: 'local-test', displayName: '本地测试', accessToken: '', refreshToken: '' }
+  if (getAccessToken() == '') return null
+  const value = uni.getStorageSync(AUTH_SESSION_KEY)
+  if (value == null || value == '') return null
+  return JSON.parse<AuthSession>(JSON.stringify(value))
+}
+
+export function saveAuthSession(session: AuthSession) {
+  uni.setStorageSync(AUTH_SESSION_KEY, session)
+  uni.$emit('focus-auth-ready')
+}
+
+export function clearAuthSession() {
+  if (LOCAL_TEST_MODE) return
+  uni.removeStorageSync(AUTH_SESSION_KEY)
+  clearTokens()
+  clearServerState()
+}
+
+export function canStartTraining(): boolean {
+  if (!REQUIRE_LOGIN_FOR_TRAINING) return true
+  return getAuthSession() != null
+}
+
+export function requireLogin(): boolean {
+  if (enforceUpdate()) return false
+  if (getAuthSession() != null) return true
+  uni.navigateTo({ url: '/pages/login/login' })
+  return false
+}
+
+export function requestPhoneCode(phone: string, completed: (result: AuthAttemptResult, debugCode: string) => void) {
+  sendLoginCode(phone, (data: UTSJSONObject) => {
+    const debugValue = data['debugCode']
+    completed({ success: true, message: debugValue == null ? '验证码已发送' : '本地验证码：' + (debugValue as string) }, debugValue == null ? '' : debugValue as string)
+  }, (message: string, _code: string) => completed({ success: false, message: message }, ''))
+}
+
+function savePendingAppleBinding(token: string, displayName: string) {
+  uni.setStorageSync(APPLE_BIND_TOKEN_KEY, token)
+  uni.setStorageSync(APPLE_BIND_NAME_KEY, displayName)
+}
+
+function clearPendingAppleBinding() {
+  uni.removeStorageSync(APPLE_BIND_TOKEN_KEY)
+  uni.removeStorageSync(APPLE_BIND_NAME_KEY)
+}
+
+function getPendingAppleBindToken(): string {
+  const value = uni.getStorageSync(APPLE_BIND_TOKEN_KEY)
+  return value == null || value == '' ? '' : value as string
+}
+
+function finishLogin(data: UTSJSONObject, provider: string, displayName: string, completed: (result: AuthAttemptResult, needsProfile: boolean) => void) {
+  const accessToken = data['accessToken'] as string
+  const refreshToken = data['refreshToken'] as string
+  const userId = data['userId'] as string
+  saveTokens(accessToken, refreshToken)
+  saveAuthSession({ userId: userId, provider: provider, displayName: displayName, accessToken: accessToken, refreshToken: refreshToken })
+  getAccountSummary((remote: UTSJSONObject) => {
+    if (remote['infoCompleted'] == true) {
+      saveServerProfile(remote)
+      const birthYear = remote['birthYear'] as number
+      const birthMonth = remote['birthMonth'] == null ? 1 : remote['birthMonth'] as number
+      const restored: ChildProfile = {
+        nickname: remote['nickname'] as string,
+        age: calculateAge(birthYear, birthMonth),
+        birthYear: birthYear,
+        birthMonth: birthMonth,
+        gender: remote['gender'] as string,
+        avatarId: remote['avatarId'] as string,
+        nicknameCustomized: true,
+        createdAt: Date.now(),
+        serverId: remote['userId'] as string
+      }
+      saveProfile(restored)
+      completed({ success: true, message: '登录成功' }, false)
+      return
+    }
+    completed({ success: true, message: '登录成功' }, true)
+  }, (message: string, _code: string) => completed({ success: true, message: '资料读取失败：' + message }, true))
+}
+
+export function loginWithPhone(phone: string, code: string, completed: (result: AuthAttemptResult, needsProfile: boolean) => void) {
+  loginByPhone(phone, code, (data: UTSJSONObject) => finishLogin(data, 'phone', phone, completed), (message: string, _code: string) => completed({ success: false, message: message }, false))
+}
+
+export function loginWithApple(completed: (result: AuthAttemptResult, needsProfile: boolean, suggestPhoneBinding: boolean) => void) {
+  // #ifdef APP-IOS
+  uni.login({
+    provider: 'apple',
+    timeout: 60000,
+    success: (result) => {
+      const appleInfo = result.appleInfo
+      if (appleInfo == null || appleInfo.identityToken == null || appleInfo.identityToken == '') {
+        completed({ success: false, message: '未获取到 Apple 登录凭证' }, false, false)
+        return
+      }
+      const displayName = appleInfo.fullName == null || appleInfo.fullName == '' ? 'Apple 用户' : appleInfo.fullName!
+      loginByAppleToken(appleInfo.identityToken!, (data: UTSJSONObject) => {
+        const needBind = data['needBind'] as boolean
+        if (!needBind) {
+          finishLogin(data, 'apple', displayName, (result: AuthAttemptResult, needsProfile: boolean) => completed(result, needsProfile, false))
+          return
+        }
+        const bindToken = data['appleBindToken'] as string
+        savePendingAppleBinding(bindToken, displayName)
+        completed({ success: true, message: 'Apple 验证成功' }, false, true)
+      }, (message: string, _code: string) => completed({ success: false, message: message }, false, false))
+    },
+    fail: (error) => {
+      if (error.errCode == 1310509) completed({ success: false, message: '已取消登录' }, false, false)
+      else completed({ success: false, message: error.errMsg }, false, false)
+    }
+  })
+  // #endif
+  // #ifndef APP-IOS
+  completed({ success: false, message: '请在 iPhone 上使用 Apple 登录' }, false, false)
+  // #endif
+}
+
+export function requestAppleBindingCode(phone: string, completed: (result: AuthAttemptResult, debugCode: string) => void) {
+  if (getPendingAppleBindToken() == '') { completed({ success: false, message: 'Apple 验证已失效，请重试' }, ''); return }
+  sendAppleBindCode(phone, (data: UTSJSONObject) => {
+    const debugValue = data['debugCode']
+    completed({ success: true, message: debugValue == null ? '验证码已发送' : '本地验证码：' + (debugValue as string) }, debugValue == null ? '' : debugValue as string)
+  }, (message: string, _code: string) => completed({ success: false, message: message }, ''))
+}
+
+export function completeApplePhoneBinding(phone: string, code: string, completed: (result: AuthAttemptResult, needsProfile: boolean) => void) {
+  const token = getPendingAppleBindToken()
+  if (token == '') { completed({ success: false, message: 'Apple 验证已失效，请重试' }, false); return }
+  const nameValue = uni.getStorageSync(APPLE_BIND_NAME_KEY)
+  const displayName = nameValue == null || nameValue == '' ? 'Apple 用户' : nameValue as string
+  bindAppleToPhone(token, phone, code, (data: UTSJSONObject) => {
+    clearPendingAppleBinding()
+    finishLogin(data, 'apple', displayName, completed)
+  }, (message: string, _code: string) => completed({ success: false, message: message }, false))
+}
+
+export function skipPendingApplePhoneBinding(completed: (result: AuthAttemptResult, needsProfile: boolean) => void) {
+  const token = getPendingAppleBindToken()
+  if (token == '') { completed({ success: false, message: 'Apple 验证已失效，请重试' }, false); return }
+  const nameValue = uni.getStorageSync(APPLE_BIND_NAME_KEY)
+  const displayName = nameValue == null || nameValue == '' ? 'Apple 用户' : nameValue as string
+  skipApplePhoneBinding(token, (data: UTSJSONObject) => {
+    clearPendingAppleBinding()
+    finishLogin(data, 'apple', displayName, completed)
+  }, (message: string, _code: string) => completed({ success: false, message: message }, false))
+}
+
+export function authorizeAppleAccountLink(completed: (result: AuthAttemptResult, needsPhoneVerification: boolean) => void) {
+  // #ifdef APP-IOS
+  uni.login({
+    provider: 'apple',
+    timeout: 60000,
+    success: (result) => {
+      const appleInfo = result.appleInfo
+      if (appleInfo == null || appleInfo.identityToken == null || appleInfo.identityToken == '') { completed({ success: false, message: '未获取到 Apple 登录凭证' }, false); return }
+      const displayName = appleInfo.fullName == null || appleInfo.fullName == '' ? 'Apple 用户' : appleInfo.fullName!
+      loginByAppleToken(appleInfo.identityToken!, (data: UTSJSONObject) => {
+        const needBind = data['needBind'] as boolean
+        if (!needBind) {
+          const session = getAuthSession()
+          const userId = data['userId'] as string
+          if (session != null && session.userId == userId) completed({ success: true, message: 'Apple ID 已绑定' }, false)
+          else completed({ success: false, message: '该 Apple ID 已属于其他账号' }, false)
+          return
+        }
+        savePendingAppleBinding(data['appleBindToken'] as string, displayName)
+        completed({ success: true, message: '请验证当前手机号' }, true)
+      }, (message: string, _code: string) => completed({ success: false, message: message }, false))
+    },
+    fail: (error) => completed({ success: false, message: error.errCode == 1310509 ? '已取消绑定' : error.errMsg }, false)
+  })
+  // #endif
+  // #ifndef APP-IOS
+  completed({ success: false, message: '请在 iPhone 上绑定 Apple ID' }, false)
+  // #endif
+}
+
+export function loginWithWechat(): AuthAttemptResult {
+  return { success: false, message: '微信登录接口待接入' }
+}

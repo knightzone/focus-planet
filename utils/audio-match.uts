@@ -1,0 +1,29 @@
+export type MatchSound = { id: string, instrument: number, pitch: number, rhythm: number }
+export type AudioMatchConfig = { options: number, rounds: number, targetPlays: number, similarity: number }
+export function getAudioMatchConfig(level: number): AudioMatchConfig {
+  const i = Math.max(0, Math.min(9, Math.round(level) - 1))
+  return { options: [2,2,3,3,3,4,4,4,5,5][i], rounds: 8, targetPlays: 2, similarity: i }
+}
+export function matchSounds(): MatchSound[] {
+  const sounds: MatchSound[] = []
+  for (let instrument = 0; instrument < 6; instrument++) for (let p = 0; p < 6; p++) for (let r = 0; r < 6; r++) sounds.push({ id: 'i' + instrument + '-p' + p + '-r' + r, instrument, pitch: p, rhythm: r })
+  return sounds
+}
+export function matchSoundPath(id: string): string { return '/static/audio/audio-match/' + id + '.mp3' }
+export function soundDifference(a: MatchSound, b: MatchSound): number {
+  // 同节奏时音区至少相差3半音；同音区时必有明显音长/音数/节奏变化。
+  const rhythmDistance = a.rhythm == b.rhythm ? 0 : (a.rhythm >= 2 && a.rhythm <= 4 && b.rhythm >= 2 && b.rhythm <= 4) ? 2 : 5
+  return (a.instrument == b.instrument ? 0 : 8) + Math.abs(a.pitch - b.pitch) * 3 + rhythmDistance
+}
+export function audioMatchChoices(target: MatchSound, level: number): MatchSound[] {
+  const config = getAudioMatchConfig(level)
+  const candidates = matchSounds().filter((sound: MatchSound): boolean => sound.id != target.id)
+  // 每档逐渐靠近目标；先打乱相同距离的候选，避免固定干扰顺序。
+  for (let i = candidates.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const temp = candidates[i]; candidates[i] = candidates[j]; candidates[j] = temp }
+  candidates.sort((a: MatchSound, b: MatchSound): number => soundDifference(a, target) - soundDifference(b, target))
+  const count = config.options - 1
+  const start = Math.round((9 - config.similarity) / 9 * (candidates.length - count))
+  const options = candidates.slice(start, start + count); options.push(target)
+  for (let i = options.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const temp = options[i]; options[i] = options[j]; options[j] = temp }
+  return options
+}

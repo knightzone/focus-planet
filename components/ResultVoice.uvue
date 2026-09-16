@@ -1,0 +1,21 @@
+<template>
+  <view class="voice-copy"><text class="voice-line">{{ entry.line }}</text></view>
+</template>
+<script setup lang="uts">
+import { onMounted, onUnmounted } from 'vue'
+import { onHide } from '@dcloudio/uni-app'
+import { TrainingClock } from '../utils/training-clock.uts'
+import { RESULT_DIALOGUES } from '../utils/result-dialogue.uts'
+import { createTrainingFeedback } from '../utils/training-feedback.uts'
+const clock = new TrainingClock(), sound = createTrainingFeedback(clock)
+const props = defineProps<{ dialogue: number }>()
+const entry = RESULT_DIALOGUES[props.dialogue]
+let startTimer = 0
+function stopVoice() { clock.clearTimeout(startTimer); startTimer = 0; sound.stop() }
+onMounted(() => { startTimer = clock.setTimeout(() => sound.play(entry.clip), 350) })
+onHide(() => stopVoice())
+onUnmounted(() => { stopVoice(); clock.dispose() })
+</script>
+<style>
+.voice-copy { margin-top: 12px; align-items: center; }.voice-line { color: #7f8fa9; font-size: 12px; line-height: 20px; text-align: center; }
+</style>

@@ -1,0 +1,223 @@
+<template>
+  <scroll-view class="page" direction="vertical" show-scrollbar="false">
+    <view class="topbar">
+      <view class="back-button" @click="goBack"><text class="back-icon">‹</text></view>
+      <text class="top-title">{{ onboarding ? '绑定家长手机' : '账号与联系' }}</text>
+      <view class="top-spacer"></view>
+    </view>
+
+    <view class="content">
+      <view v-if="onboarding" class="welcome-card">
+        <image class="welcome-image" src="/static/images/runtime/brand/duo-star-v1.webp" mode="aspectFit"></image>
+        <view class="welcome-copy">
+          <text class="welcome-title">多一份找回保障</text>
+          <text class="welcome-note">可选，不影响使用</text>
+        </view>
+      </view>
+
+      <view v-if="showPhoneForm" class="phone-card">
+        <view class="phone-field">
+          <text class="country-code">+86</text><view class="field-divider"></view>
+          <input class="phone-input" v-model="phone" type="number" maxlength="11" placeholder="手机号" placeholder-style="color:#8b97aa" />
+        </view>
+        <view class="code-row">
+          <input class="code-input" v-model="code" type="number" maxlength="6" placeholder="6 位验证码" placeholder-style="color:#8b97aa" />
+          <view class="code-button" :class="secondsLeft > 0 || sending ? 'button-disabled' : ''" @click="sendCode"><text class="code-button-label" :class="secondsLeft > 0 || sending ? 'code-label-disabled' : ''">{{ codeButtonText }}</text></view>
+        </view>
+        <view class="primary-button" :class="canBind && !binding ? '' : 'primary-disabled'" @click="bindPhone"><text class="primary-button-label">{{ binding ? '绑定中…' : '完成绑定' }}</text></view>
+        <button v-if="!onboarding" class="cancel-button" @click="cancelPhoneForm">取消</button>
+      </view>
+
+      <view v-if="onboarding" class="skip-button" @click="skipBinding"><text class="skip-label">稍后再说</text></view>
+
+      <view v-if="!onboarding" class="section-card">
+        <view class="bind-row" @click="openPhoneBinding">
+          <view class="bind-icon phone-icon"><text class="bind-symbol">☎</text></view>
+          <text class="bind-name">家长手机号</text>
+          <text class="bind-state" :class="phoneBound ? 'bound' : ''">{{ phoneBound ? '已绑定' : '未绑定' }}</text>
+          <text v-if="!phoneBound" class="arrow">›</text>
+        </view>
+        <!-- #ifdef APP-IOS -->
+        <view class="bind-row" @click="startAppleBinding">
+          <view class="bind-icon apple-icon"><text class="apple-symbol"></text></view>
+          <text class="bind-name">Apple ID</text>
+          <text class="bind-state" :class="appleBound ? 'bound' : ''">{{ appleBound ? '已绑定' : '未绑定' }}</text>
+          <text v-if="!appleBound" class="arrow">›</text>
+        </view>
+        <!-- #endif -->
+        <view class="bind-row bind-row-last">
+          <view class="bind-icon wechat-icon"><text class="bind-symbol">微</text></view>
+          <text class="bind-name">微信</text>
+          <text class="bind-state">即将开放</text>
+        </view>
+      </view>
+
+      <view v-if="!onboarding" class="contact-card">
+        <view class="contact-orbit"><image class="contact-image" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image></view>
+        <view class="contact-copy"><text class="contact-title">联系我们</text><text class="contact-value">微信 jimmy_kangkang</text></view>
+      </view>
+    </view>
+  </scroll-view>
+</template>
+
+<script setup lang="uts">
+import { ref, computed } from 'vue'
+import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
+import { getAuthSession, requestAppleBindingCode, completeApplePhoneBinding, skipPendingApplePhoneBinding, authorizeAppleAccountLink, AuthAttemptResult } from '../../utils/auth.uts'
+import { getAccountSummary } from '../../utils/server-api.uts'
+import { isParentAreaUnlocked } from '../../utils/parent-lock.uts'
+
+const onboarding = ref(false)
+const needsProfile = ref(false)
+const showPhoneForm = ref(false)
+const phone = ref('')
+const code = ref('')
+const phoneBound = ref(false)
+const appleBound = ref(false)
+const sending = ref(false)
+const binding = ref(false)
+const secondsLeft = ref(0)
+let countdownTimer = 0
+
+const canBind = computed((): boolean => phone.value.trim().length == 11 && code.value.trim().length == 6)
+const codeButtonText = computed((): string => sending.value ? '发送中…' : secondsLeft.value > 0 ? secondsLeft.value.toString() + 's' : '获取验证码')
+
+onLoad((options: UTSJSONObject) => {
+  onboarding.value = options['onboarding'] == '1'
+  needsProfile.value = options['needsProfile'] == '1'
+  showPhoneForm.value = onboarding.value
+})
+
+onShow(() => {
+  if (onboarding.value) return
+  const session = getAuthSession()
+  if (session == null) { uni.redirectTo({ url: '/pages/login/login' }); return }
+  if (session.provider == 'phone' && session.displayName.length == 11) phone.value = session.displayName
+  loadBindings()
+})
+
+onUnload(() => { if (countdownTimer != 0) clearTimeout(countdownTimer) })
+
+function loadBindings() {
+  getAccountSummary((data: UTSJSONObject) => {
+    const raw = data['providers']
+    const providers = raw == null ? [] as string[] : JSON.parse<string[]>(JSON.stringify(raw))!
+    phoneBound.value = providers.indexOf('phone') >= 0
+    appleBound.value = providers.indexOf('apple') >= 0
+  }, (_message: string, _code: string) => {})
+}
+
+function goBack() { uni.navigateBack({ delta: 1, fail: () => uni.switchTab({ url: '/pages/mine/mine' }) }) }
+
+function finishFlow(result: AuthAttemptResult, profileRequired: boolean) {
+  binding.value = false
+  uni.showToast({ title: result.message, icon: result.success ? 'success' : 'none' })
+  if (!result.success) return
+  setTimeout(() => {
+    if (profileRequired || needsProfile.value) uni.redirectTo({ url: '/pages/profile/profile' })
+    else if (onboarding.value) uni.navigateBack()
+    else { showPhoneForm.value = false; loadBindings() }
+  }, 350)
+}
+
+function runCountdown() {
+  secondsLeft.value = 60
+  const tick = () => { secondsLeft.value -= 1; if (secondsLeft.value > 0) countdownTimer = setTimeout(tick, 1000); else countdownTimer = 0 }
+  countdownTimer = setTimeout(tick, 1000)
+}
+
+function sendCode() {
+  if (sending.value || secondsLeft.value > 0) return
+  if (phone.value.trim().length != 11) { uni.showToast({ title: '请输入手机号', icon: 'none' }); return }
+  sending.value = true
+  requestAppleBindingCode(phone.value.trim(), (result: AuthAttemptResult, debugCode: string) => {
+    sending.value = false
+    if (debugCode != '') code.value = debugCode
+    if (result.success) runCountdown()
+    uni.showToast({ title: result.message, icon: result.success ? 'success' : 'none', duration: 2500 })
+  })
+}
+
+function bindPhone() {
+  if (!canBind.value || binding.value) return
+  binding.value = true
+  completeApplePhoneBinding(phone.value.trim(), code.value.trim(), finishFlow)
+}
+
+function skipBinding() {
+  if (binding.value) return
+  binding.value = true
+  skipPendingApplePhoneBinding(finishFlow)
+}
+
+function openPhoneBinding() {
+  if (phoneBound.value) return
+  if (!isParentAreaUnlocked()) { uni.navigateTo({ url: '/pages/parent-lock/parent-lock?action=settings' }); return }
+  uni.showModal({ title: '暂未开放', content: '首次使用 Apple 登录时可绑定手机号。登录后补绑接口将在后端开放后接入。', showCancel: false })
+}
+
+function startAppleBinding() {
+  if (appleBound.value) return
+  if (!isParentAreaUnlocked()) { uni.navigateTo({ url: '/pages/parent-lock/parent-lock?action=settings' }); return }
+  const session = getAuthSession()
+  if (session == null || !phoneBound.value) { uni.showToast({ title: '请先绑定手机号', icon: 'none' }); return }
+  authorizeAppleAccountLink((result: AuthAttemptResult, needsPhoneVerification: boolean) => {
+    uni.showToast({ title: result.message, icon: result.success ? 'success' : 'none' })
+    if (result.success && needsPhoneVerification) showPhoneForm.value = true
+    else if (result.success) loadBindings()
+  })
+}
+
+function cancelPhoneForm() { showPhoneForm.value = false; code.value = '' }
+</script>
+
+<style>
+.page { height: 100%; background-color: #eef5ff; }
+.topbar { height: 88px; padding: 44px 20px 0; flex-direction: row; align-items: center; justify-content: space-between; }
+.back-button { width: 42px; height: 42px; border-radius: 21px; background-color: #ffffff; align-items: center; justify-content: center; }
+.back-icon { margin-top: -3px; color: #2c3850; font-size: 36px; font-weight: 300; }
+.top-title { color: #1f2a44; font-size: 18px; font-weight: 700; }
+.top-spacer { width: 42px; }
+.content { padding: 14px 20px 36px; }
+.welcome-card { min-height: 108px; padding: 16px; border-radius: 24px; background-color: #fff5d9; flex-direction: row; align-items: center; }
+.welcome-image { width: 72px; height: 72px; border-radius: 23px; }
+.welcome-copy { margin-left: 14px; flex: 1; }
+.welcome-title { color: #27344f; font-size: 18px; font-weight: 700; }
+.welcome-note { margin-top: 6px; color: #748199; font-size: 11px; }
+.phone-card { margin-top: 14px; padding: 16px; border-radius: 24px; background-color: #ffffff; }
+.phone-field { height: 54px; padding: 0 14px; border: 0px solid transparent; border-radius: 16px; background-color: #eaf1ff; flex-direction: row; align-items: center; }
+.country-code { color: #344059; font-size: 14px; font-weight: 700; }
+.field-divider { margin: 0 12px; width: 1px; height: 20px; background-color: #d7dfed; }
+.phone-input { flex: 1; height: 54px; color: #26324a; font-size: 15px; }
+.code-row { margin-top: 10px; flex-direction: row; }
+.code-input { flex: 1; height: 52px; padding: 0 14px; border: 0px solid transparent; border-radius: 16px; background-color: #f2efff; color: #26324a; font-size: 15px; }
+.code-button { margin-left: 10px; width: 112px; height: 52px; border-radius: 16px; background-color: #e4edff; align-items: center; justify-content: center; }
+.code-button-label { color: #3f6fc8; font-size: 12px; font-weight: 700; }
+.button-disabled { background-color: #edf0f5; }
+.code-label-disabled { color: #929daf; }
+.primary-button { margin-top: 16px; height: 52px; border-radius: 17px; background-color: #5b8def; align-items: center; justify-content: center; }
+.primary-button-label { color: #ffffff; font-size: 15px; font-weight: 700; }
+.primary-disabled { background-color: #c2d2f1; }
+.cancel-button { margin-top: 10px; height: 44px; line-height: 44px; border: 0px solid transparent; background-color: transparent; color: #7c879b; font-size: 13px; }
+.skip-button { margin-top: 10px; width: 100%; height: 48px; border-radius: 16px; align-items: center; justify-content: center; }
+.skip-label { color: #71809a; font-size: 13px; font-weight: 600; }
+.section-card { border-radius: 22px; background-color: #ffffff; padding: 0 17px; }
+.bind-row { min-height: 72px; border-bottom: 1px solid #edf0f5; flex-direction: row; align-items: center; }
+.bind-row-last { border-bottom-width: 0; }
+.bind-icon { width: 40px; height: 40px; border-radius: 14px; align-items: center; justify-content: center; }
+.phone-icon { background-color: #e8f7f1; }
+.apple-icon { background-color: #edf0f5; }
+.wechat-icon { background-color: #e8f8ee; }
+.bind-symbol { color: #52647f; font-size: 15px; font-weight: 700; }
+.apple-symbol { color: #202734; font-size: 20px; }
+.bind-name { margin-left: 13px; flex: 1; color: #344059; font-size: 15px; font-weight: 700; }
+.bind-state { color: #9aa3b3; font-size: 11px; }
+.bound { color: #43a27f; }
+.arrow { margin-left: 8px; color: #a0a8b7; font-size: 24px; }
+.contact-card { margin-top: 16px; padding: 16px; border-radius: 22px; background-color: #fff4dc; flex-direction: row; align-items: center; }
+.contact-orbit { width: 54px; height: 54px; border-radius: 18px; background-color: #ffffff; align-items: center; justify-content: center; }
+.contact-image { width: 50px; height: 50px; border-radius: 17px; }
+.contact-copy { margin-left: 13px; }
+.contact-title { color: #344059; font-size: 15px; font-weight: 700; }
+.contact-value { margin-top: 5px; color: #8a7447; font-size: 12px; }
+</style>

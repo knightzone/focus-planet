@@ -1,4 +1,4 @@
-import { TrainingGame, GAMES, getGameName } from './catalog.uts'
+import { TrainingGame, GAMES, getGameName, getGameThumbnail } from './catalog.uts'
 import { TrainingRecord, getLocalDayKey } from './storage.uts'
 import { getGameDifficulty } from './difficulty.uts'
 
@@ -7,19 +7,23 @@ export type DailyPlanItem = {
   gameId: string,
   name: string,
   dimensionId: string,
+  thumbnail: string,
   difficultyLevel: number,
-  completed: boolean
+  completed: boolean,
+  serverGameId?: string,
+  planId?: string,
+  itemId?: string,
+  playToken?: string,
+  planRevision?: number
 }
 
-const WARMUPS = ['star-catcher', 'shape-match', 'number-tap', 'penalty-kick', 'color-command']
-const MAIN_GAMES = ['forest-search', 'spot-change', 'spot-difference', 'sorting-station', 'water-sort', 'pattern-find', 'memory-search', 'sky-watcher', 'audio-sequence']
-const COOLDOWNS = ['breathing-planet', 'light-tracking', 'red-green', 'bird-cloud']
+const PLAN_DIMENSIONS = ['focused', 'sustained', 'selective', 'alternating', 'divided']
+const PLAN_ROLES = ['集中', '持续', '选择', '转换', '分配']
 
-function findAvailable(pool: string[], start: number, used: string[]): TrainingGame {
-  for (let offset = 0; offset < pool.length; offset++) {
-    const id = pool[(start + offset) % pool.length]
-    const game = GAMES.find((item: TrainingGame): boolean => item.id == id)
-    if (game != null && game.status == 'ready' && used.indexOf(id) < 0) return game
+function findDimensionGame(dimensionId: string, start: number): TrainingGame {
+  const pool = GAMES.filter((item: TrainingGame): boolean => item.dimensionId == dimensionId && item.status == 'ready')
+  if (pool.length > 0) {
+    return pool[start % pool.length]
   }
   return GAMES[0]
 }
@@ -28,24 +32,21 @@ export function buildDailyPlan(_age: number, records: TrainingRecord[], timestam
   const dayKey = getLocalDayKey(timestamp)
   const date = new Date(timestamp)
   const seed = date.getFullYear() * 400 + (date.getMonth() + 1) * 32 + date.getDate()
-  const used = [] as string[]
-  const selected = [
-    findAvailable(WARMUPS, seed % WARMUPS.length, used),
-    findAvailable(MAIN_GAMES, seed % MAIN_GAMES.length, used),
-    findAvailable(COOLDOWNS, seed % COOLDOWNS.length, used)
-  ] as TrainingGame[]
-  const roles = ['热身', '主训练', '轻松结束']
+  const selected = [] as TrainingGame[]
+  for (let i = 0; i < PLAN_DIMENSIONS.length; i++) {
+    selected.push(findDimensionGame(PLAN_DIMENSIONS[i], seed + i * 3))
+  }
   const todayGameIds = records
     .filter((record: TrainingRecord): boolean => getLocalDayKey(record.completedAt) == dayKey)
     .map((record: TrainingRecord): string => record.gameId)
   const result = [] as DailyPlanItem[]
   for (let i = 0; i < selected.length; i++) {
-    used.push(selected[i].id)
     result.push({
-      role: roles[i],
+      role: PLAN_ROLES[i],
       gameId: selected[i].id,
       name: getGameName(selected[i].id),
       dimensionId: selected[i].dimensionId,
+      thumbnail: getGameThumbnail(selected[i].id),
       difficultyLevel: getGameDifficulty(selected[i].id),
       completed: todayGameIds.indexOf(selected[i].id) >= 0
     })
@@ -56,4 +57,58 @@ export function buildDailyPlan(_age: number, records: TrainingRecord[], timestam
 export function nextPendingPlanItem(plan: DailyPlanItem[]): DailyPlanItem | null {
   const item = plan.find((entry: DailyPlanItem): boolean => !entry.completed)
   return item == null ? null : item
+}
+
+function clientGameId(serverGameId: string): string {
+  const aliases: UTSJSONObject = {
+    'shadow-match': 'shape-match', 'light-tracker': 'light-tracking', 'star-watch': 'sky-watcher',
+    'change-detection': 'spot-change', 'forest-treasure': 'forest-search', 'character-detective': 'symbol-detective',
+    'red-green-command': 'red-green', 'odd-even-track': 'number-track', 'dual-track-task': 'dual-track',
+    'dual-task-driver': 'little-driver', 'sound-picture-match': 'listen-find'
+  }
+  const value = aliases[serverGameId]
+  return value == null ? serverGameId : value as string
+}
+
+function roleName(role: string): string {
+  if (role == 'warmup') return '热身'
+  if (role == 'core') return '核心'
+  if (role == 'reinforce') return '巩固'
+  if (role == 'challenge') return '挑战'
+  return '轻松结束'
+}
+
+export function buildServerPlan(plan: UTSJSONObject): DailyPlanItem[] {
+  const planId = plan['planId'] as string
+  const revision = plan['revision'] as number
+  const rawItems = plan['items']
+  if (rawItems == null) return [] as DailyPlanItem[]
+  const items = JSON.parse<UTSJSONObject[]>(JSON.stringify(rawItems))!
+  const result = [] as DailyPlanItem[]
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]
+    const serverId = item['gameId'] as string
+    const gameId = clientGameId(serverId)
+    result.push({
+      role: roleName(item['role'] as string),
+      gameId: gameId,
+      serverGameId: serverId,
+      name: getGameName(gameId),
+      dimensionId: item['dimensionId'] as string,
+      thumbnail: getGameThumbnail(gameId),
+      difficultyLevel: item['difficultyLevel'] as number,
+      completed: item['status'] as string == 'COMPLETED',
+      planId: planId,
+      itemId: item['itemId'] as string,
+      playToken: item['playToken'] as string,
+      planRevision: revision
+    })
+  }
+  if (result.length >= 5) return result.slice(0, 5)
+  const fallback = buildDailyPlan(8, [] as TrainingRecord[], Date.now())
+  for (let i = 0; i < fallback.length && result.length < 5; i++) {
+    const exists = result.find((entry: DailyPlanItem): boolean => entry.dimensionId == fallback[i].dimensionId)
+    if (exists == null) result.push(fallback[i])
+  }
+  return result
 }

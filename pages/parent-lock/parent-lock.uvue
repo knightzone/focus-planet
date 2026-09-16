@@ -1,0 +1,132 @@
+<template>
+  <view class="page">
+    <view class="mascot-wrap">
+      <image class="mascot" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image>
+    </view>
+
+    <text class="title">家长验证</text>
+    <text class="subtitle">按住跃跃，向右滑过三颗星</text>
+
+    <view class="gesture-card">
+      <view class="gesture-track" @touchstart="gestureStart" @touchmove="gestureMove" @touchend="gestureEnd" @touchcancel="gestureCancel">
+        <view class="track-line"></view>
+        <view class="gesture-step step-one" :class="gestureStage >= 1 ? 'gesture-step-active' : ''"><image class="step-star-image" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image></view>
+        <view class="gesture-step step-two" :class="gestureStage >= 2 ? 'gesture-step-active' : ''"><image class="step-star-image" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image></view>
+        <view class="gesture-step step-three" :class="gestureStage >= 3 ? 'gesture-step-active' : ''"><image class="step-star-image" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image></view>
+        <view class="gesture-thumb" :class="touching ? 'gesture-thumb-active' : ''">
+          <image class="thumb-image" src="/static/images/runtime/game-objects/bunny-blue-card-v1.webp" mode="aspectFill"></image>
+        </view>
+      </view>
+    </view>
+
+    <button class="cancel-button" @click="cancel">返回</button>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+import { unlockParentArea } from '../../utils/parent-lock.uts'
+import { clearAuthSession } from '../../utils/auth.uts'
+
+const gestureStage = ref(0)
+const touching = ref(false)
+const lockAction = ref('settings')
+let startX = 0
+let lastX = 0
+
+function resetGesture() {
+  touching.value = false
+  gestureStage.value = 0
+  startX = 0
+  lastX = 0
+}
+
+function completeGesture() {
+  unlockParentArea()
+  touching.value = false
+  uni.showToast({ title: '已进入家长模式', icon: 'success' })
+  setTimeout(() => {
+    if (lockAction.value == 'logout') {
+      clearAuthSession()
+      uni.switchTab({ url: '/pages/mine/mine' })
+      return
+    }
+    if (lockAction.value == 'settings') {
+      uni.navigateBack()
+      return
+    }
+    uni.navigateBack()
+  }, 350)
+}
+
+function gestureStart(event: UniTouchEvent) {
+  if (event.touches.length == 0) return
+  startX = event.touches[0].clientX
+  lastX = startX
+  gestureStage.value = 0
+  touching.value = true
+}
+
+function gestureMove(event: UniTouchEvent) {
+  if (!touching.value || event.touches.length == 0) return
+  const currentX = event.touches[0].clientX
+  if (currentX < lastX - 24) {
+    resetGesture()
+    return
+  }
+  lastX = currentX
+  const distance = currentX - startX
+  if (distance >= 170) gestureStage.value = 3
+  else if (distance >= 105) gestureStage.value = 2
+  else if (distance >= 45) gestureStage.value = 1
+}
+
+function gestureEnd(_event: UniTouchEvent) {
+  if (!touching.value) return
+  if (gestureStage.value >= 3) {
+    completeGesture()
+    return
+  }
+  resetGesture()
+  uni.showToast({ title: '请滑到最后一颗星', icon: 'none' })
+}
+
+function gestureCancel(_event: UniTouchEvent) {
+  resetGesture()
+}
+
+function cancel() {
+  uni.navigateBack()
+}
+
+onLoad((options: UTSJSONObject) => {
+  const value = options['action']
+  if (value != null) lockAction.value = value as string
+})
+</script>
+
+<style>
+.page { padding: 58px 24px 34px; align-items: center; }
+.mascot-wrap { width: 142px; height: 142px; border-radius: 71px; background-color: #eaf0ff; align-items: center; justify-content: center; position: relative; }
+.mascot { width: 132px; height: 142px; border-radius: 66px; }
+.step-star-image { width: 34px; height: 34px; border-radius: 17px; }
+.lock-badge { position: absolute; right: 4px; bottom: 8px; width: 42px; height: 42px; border-radius: 21px; background-color: #ffc857; border: 3px solid #ffffff; align-items: center; justify-content: center; }
+.lock-symbol { color: #75520d; font-size: 22px; font-weight: 700; }
+.title { margin-top: 25px; color: #1f2a44; font-size: 25px; font-weight: 700; }
+.subtitle { margin-top: 8px; color: #78839a; font-size: 13px; }
+.gesture-card { margin-top: 34px; width: 100%; padding: 28px 18px 20px; border-radius: 25px; background-color: #ffffff; align-items: center; }
+.gesture-track { width: 294px; height: 78px; position: relative; justify-content: center; }
+.track-line { position: absolute; left: 28px; right: 18px; top: 36px; height: 7px; border-radius: 4px; background-color: #e6ecf7; }
+.gesture-step { position: absolute; top: 23px; width: 34px; height: 34px; border-radius: 17px; background-color: #e6ecf7; align-items: center; justify-content: center; }
+.gesture-step-active { background-color: #ffc857; }
+.step-one { left: 92px; }
+.step-two { left: 168px; }
+.step-three { right: 4px; }
+.step-star { color: #ffffff; font-size: 16px; }
+.gesture-thumb { position: absolute; left: 0; top: 10px; width: 58px; height: 58px; border-radius: 29px; background-color: #dfe8ff; border: 3px solid #ffffff; overflow: hidden; }
+.gesture-thumb-active { background-color: #bfd0fa; }
+.thumb-image { width: 64px; height: 64px; }
+.gesture-hint { margin-top: 10px; color: #8b95a8; font-size: 11px; }
+.cancel-button { margin-top: 22px; width: 132px; height: 46px; line-height: 46px; border-radius: 23px; background-color: #e9edf5; color: #69758d; font-size: 14px; }
+</style>

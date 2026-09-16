@@ -1,0 +1,23 @@
+{
+  "id": "focus-face-detector",
+  "displayName": "专注星伴端侧面部检测",
+  "version": "0.1.0",
+  "description": "Android 与 iOS 端侧面部存在、距离和头部姿态检测，不保存图像。",
+  "keywords": ["uts", "face", "vision", "focus"],
+  "engines": {
+    "HBuilderX": "^4.61"
+  },
+  "dcloudext": {
+    "type": "uts",
+    "sale": {
+      "regular": {
+        "price": "0.00"
+      }
+    },
+    "declaration": {
+      "ads": "无",
+      "data": "只在设备端分析调用方传入的内存相机帧，不上传、不持久化图片或视频。",
+      "permissions": "相机权限由使用本插件的页面明确申请。"
+    }
+  }
+}

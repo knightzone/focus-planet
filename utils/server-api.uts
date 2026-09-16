@@ -1,0 +1,154 @@
+import { LOCAL_TEST_MODE } from './local-test.uts'
+import { apiRequest, ApiSuccess, ApiFailure, getDeviceId, getPlatformName } from './api-client.uts'
+
+const CHALLENGE_KEY = 'focus_planet_sms_challenge'
+const SERVER_PROFILE_KEY = 'focus_planet_server_profile'
+const SERVER_PLAN_KEY = 'focus_planet_server_plan'
+function accountPlanKey(): string {
+  const raw = uni.getStorageSync('focus_planet_auth_session')
+  if (raw == null || raw == '') return SERVER_PLAN_KEY + '_guest'
+  const session = JSON.parse<UTSJSONObject>(JSON.stringify(raw))!
+  return SERVER_PLAN_KEY + '_' + (session['userId'] as string)
+}
+
+export function sendLoginCode(phone: string, success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/auth/sms/send', 'POST', { countryCode: '86', phone: phone, purpose: 'login' }, false, (data: UTSJSONObject) => {
+    uni.setStorageSync(CHALLENGE_KEY, data['challengeId'] as string)
+    success(data)
+  }, failure)
+}
+
+export function loginByPhone(phone: string, verifyCode: string, success: ApiSuccess, failure: ApiFailure) {
+  const challenge = uni.getStorageSync(CHALLENGE_KEY)
+  if (challenge == null || challenge == '') { failure('请先获取验证码', 'CHALLENGE_REQUIRED'); return }
+  apiRequest('/auth/sms/login', 'POST', { challengeId: challenge as string, countryCode: '86', phone: phone, verifyCode: verifyCode }, false, success, failure)
+}
+
+export function loginByAppleToken(identityToken: string, success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/auth/apple', 'POST', { identityToken: identityToken }, false, success, failure)
+}
+
+export function skipApplePhoneBinding(appleBindToken: string, success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/auth/apple/skip-bind', 'POST', { appleBindToken: appleBindToken }, false, success, failure)
+}
+
+export function getAccountSummary(success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/me', 'POST', {}, true, success, failure)
+}
+
+export function sendAppleBindCode(phone: string, success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/auth/sms/send', 'POST', { countryCode: '86', phone: phone, purpose: 'apple_bind' }, false, (data: UTSJSONObject) => {
+    uni.setStorageSync(CHALLENGE_KEY, data['challengeId'] as string)
+    success(data)
+  }, failure)
+}
+
+export function bindAppleToPhone(appleBindToken: string, phone: string, verifyCode: string, success: ApiSuccess, failure: ApiFailure) {
+  const challenge = uni.getStorageSync(CHALLENGE_KEY)
+  if (challenge == null || challenge == '') { failure('请先获取验证码', 'CHALLENGE_REQUIRED'); return }
+  apiRequest('/auth/apple/bind-phone', 'POST', { appleBindToken: appleBindToken, challengeId: challenge as string, countryCode: '86', phone: phone, verifyCode: verifyCode }, false, success, failure)
+}
+
+function validateProfile(nickname: string, birthYear: number, birthMonth: number, gender: string, avatarId: string, failure: ApiFailure): boolean {
+  if (nickname.trim().length < 1 || nickname.length > 48) { failure('昵称需为 1–48 个字符', 'INVALID_PROFILE'); return false }
+  if (!Number.isInteger(birthYear)) { failure('出生年份需为整数', 'INVALID_PROFILE'); return false }
+  if (!Number.isInteger(birthMonth) || birthMonth < 1 || birthMonth > 12) { failure('出生月份需为 1–12 月', 'INVALID_PROFILE'); return false }
+  if (gender != 'male' && gender != 'female' && gender != 'unspecified') { failure('请重新选择性别', 'INVALID_PROFILE'); return false }
+  if (avatarId != 'blue-bunny' && avatarId != 'yellow-kitten' && avatarId != 'focus-star') { failure('请重新选择头像', 'INVALID_PROFILE'); return false }
+  return true
+}
+
+export function createRemoteProfile(nickname: string, birthYear: number, birthMonth: number, gender: string, avatarId: string, success: ApiSuccess, failure: ApiFailure) {
+  if (!validateProfile(nickname, birthYear, birthMonth, gender, avatarId, failure)) return
+  apiRequest('/me/update', 'POST', {
+    nickname: nickname,
+    birthYear: birthYear,
+    birthMonth: birthMonth,
+    gender: gender,
+    avatarId: avatarId,
+    timezone: 'Asia/Shanghai',
+    guardianConsentVersion: 'privacy-v1',
+    guardianConsented: true
+  }, true, success, failure)
+}
+
+export function updateRemoteProfile(nickname: string, birthYear: number, birthMonth: number, gender: string, avatarId: string, success: ApiSuccess, failure: ApiFailure) {
+  if (!validateProfile(nickname, birthYear, birthMonth, gender, avatarId, failure)) return
+  apiRequest('/me/update', 'POST', {
+    nickname: nickname,
+    birthYear: birthYear,
+    birthMonth: birthMonth,
+    gender: gender,
+    avatarId: avatarId,
+    timezone: 'Asia/Shanghai'
+  }, true, success, failure)
+}
+
+export function saveServerProfile(profile: UTSJSONObject) { uni.setStorageSync(SERVER_PROFILE_KEY, profile) }
+export function getServerProfile(): UTSJSONObject | null {
+  if (LOCAL_TEST_MODE) return null
+  const value = uni.getStorageSync(SERVER_PROFILE_KEY)
+  return value == null || value == '' ? null : JSON.parse<UTSJSONObject>(JSON.stringify(value))
+}
+export function clearServerState() {
+  uni.removeStorageSync(CHALLENGE_KEY)
+  uni.removeStorageSync(SERVER_PROFILE_KEY)
+  uni.removeStorageSync(SERVER_PLAN_KEY)
+}
+
+export function resolveTrainingPlan(success: ApiSuccess, failure: ApiFailure) {
+  const cacheKey = accountPlanKey()
+  apiRequest('/training/plans/resolve', 'POST', {
+    timezone: 'Asia/Shanghai',
+    device: {
+      deviceId: getDeviceId(),
+      platform: getPlatformName(),
+      appVersion: '0.1.0',
+      resourceManifestVersion: 1,
+      installedPackages: [{ packageId: 'bootstrap', version: 1 }]
+    }
+  }, true, (data: UTSJSONObject) => {
+    const planValue = data['plan']
+    if (planValue != null) uni.setStorageSync(cacheKey, { savedAt: Date.now(), plan: planValue })
+    success(data)
+  }, failure)
+}
+
+export function getServerPlan(): UTSJSONObject | null {
+  if (LOCAL_TEST_MODE) return null
+  const value = uni.getStorageSync(accountPlanKey())
+  if (value == null || value == '') return null
+  const cached = JSON.parse<UTSJSONObject>(JSON.stringify(value))!
+  if (Date.now() - (cached['savedAt'] as number) > 48 * 60 * 60 * 1000) return null
+  return JSON.parse<UTSJSONObject>(JSON.stringify(cached['plan']))
+}
+
+export function submitTrainingResult(planId: string, itemId: string, payload: UTSJSONObject, success: ApiSuccess, failure: ApiFailure) {
+  const submissionId = payload['submissionId'] as string
+  const body = JSON.parse<UTSJSONObject>(JSON.stringify(payload))!
+  body['planId'] = planId
+  body['itemId'] = itemId
+  apiRequest('/training/plans/items/best-result', 'POST', body, true, success, failure, submissionId)
+}
+
+export function getDailyReport(fromDate: string, toDate: string, success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/reports/daily', 'POST', { from: fromDate, to: toDate }, true, success, failure)
+}
+
+export function getOverviewReport(asOf: string, success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/reports/overview', 'POST', { asOf: asOf }, true, success, failure)
+}
+
+export function submitCompanionSession(payload: UTSJSONObject, success: ApiSuccess, failure: ApiFailure) {
+  const submissionId = payload['submissionId'] as string
+  const body = JSON.parse<UTSJSONObject>(JSON.stringify(payload))!
+  apiRequest('/companion/sessions', 'POST', body, true, success, failure, submissionId)
+}
+
+export function getCompanionSessions(success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/companion/sessions/list', 'POST', { limit: 100 }, true, success, failure)
+}
+
+export function getCompanionSummary(days: number, success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/companion/summary', 'POST', { days: days }, true, success, failure)
+}

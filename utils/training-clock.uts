@@ -1,0 +1,88 @@
+type TrainingTask = { id: number, handle: number, due: number, remaining: number, interval: number, callback: () => void }
+
+// 每页独立时钟；暂停保留每个任务的剩余时间，不快进、不补发 interval。
+export class TrainingClock {
+  tasks: TrainingTask[] = []
+  seed: number = 0
+  paused: boolean = false
+  disposed: boolean = false
+  frozenAt: number = 0
+  offset: number = 0
+  players: InnerAudioContext[] = []
+  resumePlayers: InnerAudioContext[] = []
+  now(): number { return (this.paused ? this.frozenAt : Date.now()) - this.offset }
+  arm(task: TrainingTask) {
+    if (this.paused || this.disposed) return
+    task.due = this.now() + task.remaining
+    task.handle = setTimeout(() => {
+      if (this.paused || this.disposed || this.tasks.indexOf(task) < 0) return
+      task.handle = 0
+      if (this.now() < task.due) { task.remaining = task.due - this.now(); this.arm(task); return }
+      if (task.interval == 0) this.tasks.splice(this.tasks.indexOf(task), 1)
+      else { task.remaining = task.interval; task.due = this.now() + task.interval }
+      task.callback()
+      if (task.interval > 0 && this.tasks.indexOf(task) >= 0) this.arm(task)
+    }, task.remaining)
+  }
+  schedule(callback: () => void, delay: number, interval: number): number {
+    if (this.disposed) return 0
+    this.seed += 1
+    const task: TrainingTask = { id: this.seed, handle: 0, due: this.now() + Math.max(0, delay), remaining: Math.max(0, delay), interval, callback }
+    this.tasks.push(task); this.arm(task); return task.id
+  }
+  setTimeout(callback: () => void, delay: number): number { return this.schedule(callback, delay, 0) }
+  setInterval(callback: () => void, delay: number): number { return this.schedule(callback, Math.max(1, delay), Math.max(1, delay)) }
+  clearTimeout(id: number) {
+    const index = this.tasks.findIndex((task: TrainingTask): boolean => task.id == id)
+    if (index < 0) return
+    const task = this.tasks[index]
+    if (task.handle != 0) clearTimeout(task.handle)
+    this.tasks.splice(index, 1)
+  }
+  clearInterval(id: number) { this.clearTimeout(id) }
+  createAudio(): InnerAudioContext {
+    const player = uni.createInnerAudioContext()
+    this.players.push(player)
+    player.onPlay(() => {
+      if (this.paused) {
+        if (this.resumePlayers.indexOf(player) < 0) this.resumePlayers.push(player)
+        player.pause()
+      }
+    })
+    return player
+  }
+  destroyAudio(player: InnerAudioContext | null) {
+    if (player == null) return
+    const index = this.players.indexOf(player)
+    if (index >= 0) this.players.splice(index, 1)
+    const resumeIndex = this.resumePlayers.indexOf(player)
+    if (resumeIndex >= 0) this.resumePlayers.splice(resumeIndex, 1)
+    player.destroy()
+  }
+  pause() {
+    if (this.paused || this.disposed) return
+    const current = this.now()
+    this.frozenAt = Date.now(); this.paused = true
+    this.tasks.forEach((task: TrainingTask) => {
+      task.remaining = Math.max(0, task.due - current)
+      if (task.handle != 0) clearTimeout(task.handle)
+      task.handle = 0
+    })
+    this.players.forEach((player: InnerAudioContext) => {
+      if (!player.paused) { this.resumePlayers.push(player); player.pause() }
+    })
+  }
+  resume() {
+    if (!this.paused || this.disposed) return
+    this.offset += Date.now() - this.frozenAt; this.paused = false
+    this.tasks.slice().forEach((task: TrainingTask) => this.arm(task))
+    const players = this.resumePlayers.slice(); this.resumePlayers = []
+    players.forEach((player: InnerAudioContext) => player.play())
+  }
+  dispose() {
+    this.pause(); this.disposed = true
+    this.tasks = []; this.resumePlayers = []
+    // 页面原有 onUnload 负责销毁播放器；先停声，避免导航期间继续播放。
+    this.players.forEach((player: InnerAudioContext) => player.stop())
+  }
+}

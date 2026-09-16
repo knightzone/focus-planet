@@ -1,0 +1,20 @@
+<template>
+  <view class="rating-stars" :style="{ height: (size + 8) + 'px' }">
+    <image v-for="index in [0,1,2,3,4]" :key="index" class="rating-star" :src="THEME_STAR" mode="aspectFit" :style="{ width: size + 'px', height: size + 'px', opacity: index < count ? 1 : 0.16 }"></image>
+    <view v-if="report" class="pass-star" :class="passed ? 'pass-star-earned' : ''" :style="{ width: (size + 6) + 'px', height: (size + 6) + 'px' }"><image class="rating-star pass-image" :src="THEME_STAR" mode="aspectFit" :style="{ width: size + 'px', height: size + 'px', opacity: passed ? 1 : 0.16 }"></image></view>
+  </view>
+</template>
+<script setup lang="uts">
+import { computed } from 'vue'
+import { resultStarCount, hasPassStar, THEME_STAR } from '../utils/star-rating.uts'
+const props = defineProps<{ score: number, report: boolean, size: number }>()
+const count = computed((): number => resultStarCount(props.score))
+const passed = computed((): boolean => hasPassStar(props.score))
+</script>
+<style>
+.rating-stars { flex-direction: row; align-items: center; pointer-events: none; }
+.rating-star { margin-right: 3px; }
+.pass-star { margin-left: 5px; border-radius: 8px; align-items: center; justify-content: center; background-color: #f0f2f7; }
+.pass-star-earned { background-color: #e2f3e9; }
+.pass-image { margin-right: 0; }
+</style>

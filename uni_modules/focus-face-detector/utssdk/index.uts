@@ -1,0 +1,17 @@
+import { DetectFaceFrame, FaceFrameResult } from './interface.uts'
+
+export const detectFaceFrame: DetectFaceFrame = function (_rgba: ArrayBuffer, _width: number, _height: number): FaceFrameResult {
+  return {
+    supported: false,
+    detected: false,
+    faceCount: 0,
+    faceScale: 0,
+    centerX: 0.5,
+    centerY: 0.5,
+    yaw: 0,
+    roll: 0,
+    pitch: 0,
+    confidence: 0,
+    errorMessage: '当前平台暂不支持端侧面部检测'
+  }
+}

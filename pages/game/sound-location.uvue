@@ -1,81 +1,140 @@
 <template>
+<TrainingFrame title="声音从哪来" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="page">
-    <view class="game-header"><view><text class="round-label">集中注意训练</text><text class="game-title">声音在哪里</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
-    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-    <view class="tip-card"><text class="tip-title">戴上耳机效果更清楚</text><text class="tip-copy">听到提示音后，点击声音传来的方向。</text><button class="tap-target replay" :disabled="!accepting" @click="replay">再听一次</button></view>
-
-    <view v-if="!started" class="instruction">
-      <YoungChildCue kind="listen"></YoungChildCue><text class="instruction-title">先听，再判断方向</text>
-      <text class="instruction-copy">开始按钮会播放第一段声音。请确认设备音量适中，不需要开得很大。</text>
-      <button class="tap-target primary" @click="begin">▶ 开始训练</button>
-    </view>
-    <view v-else class="direction-area">
-      <button class="tap-target direction side" :disabled="!accepting" @click="answer('left')"><text class="arrow tap-content">←</text><text class="direction-label tap-content">左边</text></button>
-      <button v-if="includeCenter" class="tap-target direction center" :disabled="!accepting" @click="answer('center')"><text class="sound-icon tap-content">♫</text><text class="direction-label tap-content">中间</text></button>
-      <button class="tap-target direction side" :disabled="!accepting" @click="answer('right')"><text class="arrow tap-content">→</text><text class="direction-label tap-content">右边</text></button>
-      <text class="feedback" :class="feedback == '判断正确' ? 'good' : 'again'">{{ feedback == '' ? '声音已播放' : feedback }}</text>
-    </view>
-    <view class="footer-stats"><view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view><view class="footer-stat"><text class="footer-value">{{ errors }}</text><text class="footer-label">错误</text></view><view class="footer-stat"><text class="footer-value">{{ replayCount }}</text><text class="footer-label">重听</text></view></view>
+    <image class="background" src="/static/images/runtime/backgrounds/shadow-match-sky-v1.webp" mode="aspectFill"></image>
+    <scroll-view class="scroll" direction="vertical"><view class="content">
+      <view class="header"><view><text class="eyebrow">集中注意</text><text class="title">声音从哪来</text></view><text v-if="started" class="counter">{{ Math.min(roundIndex + 1, totalRounds) }}/{{ totalRounds }}</text></view>
+      <view v-if="started" class="track"><view class="fill" :style="{ width: progressWidth }"></view></view>
+      <view class="board">
+        <text class="prompt">{{ !started ? '先试一下' : '谁在发出声音？' }}</text>
+        <view>
+          <ActionSurface class="listen tap-target" :class="playing ? 'listening' : ''" :disabled="answered" @click="replay"><text class="music tap-content">♫</text><text class="listen-label tap-content">{{ failed ? '点我重试' : playing ? '仔细听…' : heard ? '再听一次' : '点我听听' }}</text></ActionSurface>
+          <text class="hint">{{ failed ? '声音没准备好，再试一次' : feedback != '' ? feedback : '听一听，点图片' }}</text>
+          <view class="choices">
+            <view v-for="item in choices" :key="item.id" class="choice" :class="[(choices.length > 4 ? 'small' : ''), (answered && item.id == target.id ? 'right' : ''), (answered && item.id == selected && item.id != target.id ? 'wrong' : '')]" @click="answer(item.id)">
+              <image class="picture tap-content" :class="choices.length > 4 ? 'small-picture' : ''" :src="item.image" mode="aspectFit"></image><text class="label tap-content">{{ item.label }}</text>
+              <view v-if="answered && item.id == target.id" class="check"><text class="check-text">✓</text></view>
+            </view>
+          </view>
+          <button v-if="!started" class="primary" :disabled="!demoDone" @click="begin">开始</button>
+        </view>
+      </view>
+      <view v-if="started" class="stats"><text class="stat">✓ {{ correct }}</text><text class="stat">重听 {{ replays }}</text><text class="stat">难度 {{ level }}</text></view>
+      <text v-if="!started" class="credits" @click="openCredits">音效来源</text>
+    </view></scroll-view>
   </view>
+</TrainingFrame>
 </template>
 
 <script setup lang="uts">
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
+import ActionSurface from '../../components/ActionSurface.uvue'
 import { ref, computed } from 'vue'
-import YoungChildCue from '../../components/YoungChildCue.uvue'
-import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { getGameTuningAge } from '../../utils/difficulty.uts'
+import { onLoad, onHide, onUnload } from '@dcloudio/uni-app'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { SoundObject, soundObjects, soundPool, soundChoices, shuffledSounds } from '../../utils/sound-sources.uts'
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
 
-const started = ref(false), accepting = ref(false), includeCenter = ref(false)
-const totalRounds = ref(10), roundIndex = ref(0), targetDirection = ref('left')
-const correct = ref(0), errors = ref(0), replayCount = ref(0), feedback = ref('')
-const reactions = ref([] as number[])
-const audio = ref<InnerAudioContext | null>(null)
-let appearedAt = 0, gameStartedAt = 0, nextTimer = 0
-const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
-const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
 
-function configure() {
-  const age = getGameTuningAge('sound-location')
-  if (age <= 6) totalRounds.value = 8
-  else if (age <= 9) totalRounds.value = 10
-  else if (age <= 12) { totalRounds.value = 14; includeCenter.value = true }
-  else { totalRounds.value = 18; includeCenter.value = true }
+const started=ref(false), paused=ref(false), finished=ref(false), answered=ref(false)
+const playing=ref(false), heard=ref(false), failed=ref(false), demoDone=ref(false)
+const level=ref(1), roundIndex=ref(0), totalRounds=ref(8), correct=ref(0), errors=ref(0), replays=ref(0)
+const target=ref(soundObjects[0]), choices=ref([soundObjects[0],soundObjects[13]] as SoundObject[])
+const selected=ref(''), feedback=ref('')
+const reactions=[] as number[]
+let plan=[] as SoundObject[]
+let audio: InnerAudioContext | null = null
+let clip='', playToken=0, timer=0, watchdog=0, activeAt=0, elapsed=0, decisionAt=0, decisionElapsed=0
+const progressWidth=computed((): string => Math.round(roundIndex.value/totalRounds.value*100).toString()+'%')
+function stopClock() {
+  if(activeAt>0) { elapsed+=Math.max(0,trainingClock.now()-activeAt); activeAt=0 }
+  if(decisionAt>0) { decisionElapsed+=Math.max(0,trainingClock.now()-decisionAt); decisionAt=0 }
 }
-function soundPath(): string { return '/static/audio/location/' + targetDirection.value + '.wav' }
+function stopAudio() {
+  playToken+=1
+  if(watchdog>0) trainingClock.clearTimeout(watchdog)
+  watchdog=0
+  if(audio!=null) { audio!.stop(); trainingClock.destroyAudio(audio); audio=null }
+  playing.value=false
+}
 function playSound() {
-  if (audio.value == null) audio.value = uni.createInnerAudioContext(); else audio.value!.stop()
-  audio.value!.src = soundPath(); audio.value!.play()
+  if(paused.value || finished.value || answered.value) return
+  stopClock(); stopAudio(); failed.value=false; heard.value=false; playing.value=true
+  const token=playToken
+  const player=trainingClock.createAudio(); audio=player
+  player.src=clip; player.volume=0.8
+  player.onPlay(() => {
+    if(token!=playToken) return
+    if(started.value && activeAt==0) activeAt=trainingClock.now()
+  })
+  player.onEnded(() => {
+    if(token!=playToken) return
+    if(watchdog>0) trainingClock.clearTimeout(watchdog)
+    watchdog=0; playing.value=false; heard.value=true
+    if(started.value) decisionAt=trainingClock.now()
+  })
+  player.onError((_event) => {
+    if(token!=playToken) return
+    stopClock(); stopAudio(); failed.value=true; heard.value=false
+  })
+  watchdog=trainingClock.setTimeout(() => {
+    if(token!=playToken) return
+    stopClock(); stopAudio(); failed.value=true; heard.value=false
+  },8000)
+  player.play()
 }
-function clearResources() { if (nextTimer > 0) clearTimeout(nextTimer); audio.value?.stop() }
-function finish() {
-  clearResources(); const accuracy = Math.round((correct.value / totalRounds.value) * 100)
-  const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0)
-  const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length)
-  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
-  uni.redirectTo({ url: '/pages/result/result?gameId=sound-location&dimensionId=focused&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&falseAlarms=' + errors.value.toString() })
+function replay() { if (trainingPaused.value) return;
+  if(playing.value || answered.value || paused.value) return
+  if(started.value && heard.value) replays.value+=1
+  playSound()
 }
 function prepare() {
-  if (roundIndex.value >= totalRounds.value) { finish(); return }
-  const directions = includeCenter.value ? ['left', 'center', 'right'] : ['left', 'right']
-  targetDirection.value = directions[Math.floor(Math.random() * directions.length)]
-  feedback.value = ''; accepting.value = true; appearedAt = Date.now(); playSound()
+  if(roundIndex.value>=totalRounds.value) { finish(); return }
+  target.value=plan[roundIndex.value]
+  choices.value=soundChoices(target.value,level.value)
+  clip=target.value.sounds[Math.floor(Math.random()*target.value.sounds.length)]
+  selected.value=''; feedback.value=''; answered.value=false; heard.value=false; decisionElapsed=0; decisionAt=0
+  playSound()
 }
-function begin() { started.value = true; gameStartedAt = Date.now(); prepare() }
-function replay() { if (!accepting.value) return; replayCount.value += 1; playSound() }
-function answer(direction: string) {
-  if (!accepting.value) return; accepting.value = false; reactions.value.push(Date.now() - appearedAt)
-  if (direction == targetDirection.value) { correct.value += 1; feedback.value = '判断正确' }
-  else { errors.value += 1; feedback.value = '方向在' + (targetDirection.value == 'left' ? '左边' : targetDirection.value == 'right' ? '右边' : '中间') }
-  nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 620)
+function begin() { if (trainingPaused.value) return;
+  if(started.value || !demoDone.value) return
+  stopAudio(); plan=[] as SoundObject[]
+  while(plan.length<totalRounds.value) plan=plan.concat(shuffledSounds(soundPool(level.value)))
+  started.value=true; elapsed=0; prepare()
 }
-onLoad((_options: OnLoadOptions) => configure())
-onUnload(() => { clearResources(); audio.value?.destroy(); audio.value = null })
+function answer(id: string) { if (trainingPaused.value) return;
+  if(!heard.value || playing.value || paused.value || answered.value || failed.value || finished.value) return
+  if(!started.value) {
+    if(id==target.value.id) { demoDone.value=true; feedback.value='✓ 就是它！' }
+    else feedback.value='再听听看'
+    return
+  }
+  stopClock(); stopAudio(); answered.value=true; selected.value=id
+  reactions.push(Math.round(decisionElapsed))
+  if(id==target.value.id) { { correct.value+=1; training.playFeedback('correct') } feedback.value='✓ 找到啦！' }
+  else { { errors.value+=1; training.playFeedback('wrong') } feedback.value='是'+target.value.label+'呀' }
+  timer=trainingClock.setTimeout(() => { timer=0; roundIndex.value+=1; prepare() },1100)
+}
+function pause() { training.pause() }
+function resume() { training.resume() }
+function finish() {
+  if(finished.value) return
+  finished.value=true; stopClock(); stopAudio()
+  const accuracy=Math.round(correct.value/totalRounds.value*100)
+  const sum=reactions.reduce((a: number,b: number): number => a+b,0)
+  const reaction=reactions.length==0?0:Math.round(sum/reactions.length)
+  uni.redirectTo({url:'/pages/result/result?gameId=sound-location&dimensionId=focused&score='+accuracy.toString()+'&accuracy='+accuracy.toString()+'&reaction='+reaction.toString()+'&duration='+Math.max(1,Math.round(elapsed/1000)).toString()+'&falseAlarms='+errors.value.toString()+'&completed='+totalRounds.value.toString()+'&total='+totalRounds.value.toString()})
+}
+function openCredits() { if (trainingPaused.value) return; uni.navigateTo({url:'/pages/game/sound-credits'}) }
+onLoad(() => { level.value=getGameDifficulty('sound-location'); totalRounds.value=level.value<=3?8:level.value<=6?10:12; clip=target.value.sounds[0] })
+onUnload(() => { finished.value=true; stopClock(); stopAudio(); if(timer>0) trainingClock.clearTimeout(timer) })
+// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>
-.page { flex: 1; padding: 20px; }.game-header { flex-direction: row; justify-content: space-between; align-items: center; }.round-label { color: #4d74c2; font-size: 12px; font-weight: 700; }.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #eaf0ff; align-items: center; justify-content: center; }.counter-value { color: #4d74c2; font-size: 13px; font-weight: 700; }
-.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; background-color: #5b8def; }.tip-card { margin-top: 14px; padding: 14px 112px 14px 14px; min-height: 76px; border-radius: 18px; background-color: #eaf0ff; position: relative; }.tip-title { color: #405d97; font-size: 14px; font-weight: 700; }.tip-copy { margin-top: 4px; color: #7284a7; font-size: 10px; }.replay { position: absolute; right: 12px; top: 14px; margin: 0; padding: 0 12px; height: 48px; line-height: 48px; border-radius: 11px; background-color: #ffffff; color: #4d74c2; font-size: 11px; }
-.instruction { margin-top: 14px; height: 360px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; }.headphone { width: 92px; height: 92px; border-radius: 46px; background-color: #eaf0ff; align-items: center; justify-content: center; }.headphone-symbol { color: #5b8def; font-size: 42px; }.instruction-title { margin-top: 18px; color: #25314a; font-size: 19px; font-weight: 700; }.instruction-copy { margin-top: 8px; width: 78%; color: #7b8599; font-size: 11px; line-height: 18px; text-align: center; }.primary { margin-top: 20px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #5b8def; color: #ffffff; font-size: 14px; font-weight: 700; }
-.direction-area { margin-top: 14px; height: 360px; border-radius: 25px; background-color: #ffffff; flex-direction: row; align-items: center; justify-content: center; position: relative; }.direction { margin: 0 5px; padding: 0; width: 29%; height: 180px; border-radius: 22px; background-color: #f1f5fb; align-items: center; justify-content: center; }.center { background-color: #fff6df; }.arrow { color: #5b8def; font-size: 48px; }.sound-icon { color: #e2a72b; font-size: 40px; }.direction-label { margin-top: 12px; color: #3e4a61; font-size: 13px; font-weight: 700; }.feedback { position: absolute; bottom: 24px; font-size: 12px; font-weight: 700; }.good { color: #338e72; }.again { color: #c65b66; }
-.footer-stats { margin-top: 14px; flex-direction: row; }.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+.page{flex:1;background-color:#eaf3ff;position:relative}.background{position:absolute;width:100%;height:100%;top:0;left:0;opacity:0.45}.scroll{flex:1}.content{padding:20px;padding-bottom:36px}.header{flex-direction:row;align-items:center;justify-content:space-between}.eyebrow{font-size:12px;color:#637caf;font-weight:700}.title{font-size:25px;color:#253755;font-weight:700;margin-top:5px}.counter{background-color:#ffffff;padding:10px 15px;border-radius:18px;color:#5374b7;font-size:14px;font-weight:700}.track{height:7px;background-color:#d5e2fa;border-radius:4px;overflow:hidden;margin-top:17px}.fill{height:7px;background-color:#728fed;border-radius:4px}.board{margin-top:20px;padding:18px 12px 22px;background-color:#f7faff;border-radius:28px}.prompt{font-size:18px;font-weight:700;color:#354966;text-align:center;margin-bottom:15px}.listen{width:142px;height:108px;padding:10px;margin:0 auto;border-radius:28px;background-color:#778de9;align-items:center;justify-content:center;border-width:0}.listening{background-color:#9a88df}.music{font-size:38px;color:#ffffff;line-height:45px}.listen-label{font-size:14px;color:#ffffff;font-weight:700}.hint{font-size:13px;color:#667897;text-align:center;margin-top:14px;margin-bottom:14px;min-height:20px}.choices{flex-direction:row;flex-wrap:wrap;justify-content:space-around}.choice{width:46%;height:140px;margin-bottom:12px;border-radius:22px;background-color:#edf3ff;border-width:3px;border-color:#edf3ff;align-items:center;justify-content:center;position:relative}.small{width:30%;height:120px}.picture{width:90%;height:100px}.small-picture{height:78px}.label{font-size:13px;font-weight:700;color:#4a5b74;margin-top:3px}.right{border-color:#49b897;background-color:#e0f6ea}.wrong{border-color:#e1b371;background-color:#fff2dd}.check{position:absolute;right:4px;top:4px;width:24px;height:24px;border-radius:12px;background-color:#49b897;align-items:center;justify-content:center}.check-text{color:white;font-size:17px;font-weight:700}.primary{margin:14px auto 0;width:180px;height:48px;line-height:48px;border-radius:18px;background-color:#6889e6;color:white;font-size:17px;font-weight:700}.pause{padding:50px 0}.stats{flex-direction:row;justify-content:space-around;margin-top:20px}.stat{font-size:13px;color:#617597}.credits{text-align:center;font-size:11px;color:#7184a3;margin-top:20px}
 </style>

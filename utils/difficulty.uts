@@ -1,3 +1,4 @@
+import { localTestKey } from './local-test.uts'
 import { getProfile, getRecords, TrainingRecord, getLocalDayKey } from './storage.uts'
 
 export type DifficultyState = {
@@ -19,10 +20,10 @@ type DailyPeak = {
   peak: number
 }
 
-const DIFFICULTY_KEY = 'focus_planet_difficulty_states'
-const TEST_DIFFICULTY_KEY = 'focus_planet_test_difficulty'
+const DIFFICULTY_KEY = localTestKey('focus_planet_difficulty_states')
+const TEST_DIFFICULTY_KEY = localTestKey('focus_planet_test_difficulty')
 export const MAX_DIFFICULTY = 10
-export const UPGRADE_SCORE = 85
+export const UPGRADE_SCORE = 100
 export const LOW_SCORE = 60
 
 function clampLevel(level: number): number {

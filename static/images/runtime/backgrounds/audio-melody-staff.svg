@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="110" viewBox="0 0 320 110">
+  <!-- Neutral decoration, not a transcription or a clue to the target sound. -->
+  <g fill="none" stroke="#CFD2DA" stroke-width="1.4" stroke-linecap="round">
+    <path d="M16 30H304 M16 42H304 M16 54H304 M16 66H304 M16 78H304"/>
+  </g>
+  <g fill="#AEB4C2" stroke="#AEB4C2" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+    <ellipse cx="47" cy="72" rx="7" ry="4.6" transform="rotate(-22 47 72)" stroke="none"/>
+    <path d="M53 70V36 M53 36C54 45 67 44 62 55" fill="none"/>
+    <ellipse cx="99" cy="54" rx="7" ry="4.6" transform="rotate(-22 99 54)" stroke="none"/>
+    <ellipse cx="137" cy="60" rx="7" ry="4.6" transform="rotate(-22 137 60)" stroke="none"/>
+    <path d="M105 52V20L143 26V58" fill="none"/>
+    <path d="M105 20L143 26V31L105 25Z" stroke="none"/>
+    <ellipse cx="188" cy="42" rx="7" ry="4.6" transform="rotate(-22 188 42)" stroke="none"/>
+    <path d="M182 44V78" fill="none"/>
+    <ellipse cx="232" cy="54" rx="7" ry="4.6" transform="rotate(-22 232 54)" stroke="none"/>
+    <ellipse cx="275" cy="66" rx="7" ry="4.6" transform="rotate(-22 275 66)" stroke="none"/>
+    <path d="M238 52V20L281 32V64" fill="none"/>
+    <path d="M238 20L281 32V37L238 25Z" stroke="none"/>
+  </g>
+</svg>

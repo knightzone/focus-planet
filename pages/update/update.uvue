@@ -1,0 +1,77 @@
+<template>
+  <scroll-view class="page" direction="vertical">
+    <view class="update-card">
+      <image class="mascots" src="/static/images/runtime/brand/duo-star-v1.webp" mode="aspectFit"></image>
+      <text class="title">{{ forced ? '更新后，继续探索' : '星伴有新版本啦' }}</text>
+      <text class="version">{{ version }}</text>
+      <text class="subtitle">请家长帮忙更新一下</text>
+      <text v-for="note in notes" :key="note" class="note">{{ note }}</text>
+      <button class="primary" @click="openStore">立即更新</button>
+      <text v-if="openFailed" class="error">暂时打不开更新页面</text>
+      <button v-if="openFailed" class="secondary" @click="copyLink">复制更新链接</button>
+      <button class="secondary" :disabled="checking" @click="retry">{{ checking ? '检查中…' : '重新检查' }}</button>
+      <button v-if="!forced" class="secondary" @click="leave">稍后再说</button>
+    </view>
+  </scroll-view>
+</template>
+<script setup lang="uts">
+import { ref } from 'vue'
+import { onShow, onUnload, onBackPress } from '@dcloudio/uni-app'
+import { currentUpdate, updateRequired, updateMode, installedVersionCode, checkAppUpdate, dismissUpdate } from '../../utils/app-update.uts'
+// #ifdef APP-IOS || APP-ANDROID
+import { openUpdateLink } from '../../uni_modules/focus-face-detector'
+// #endif
+const forced = ref(updateRequired())
+const version = ref('')
+const notes = ref<string[]>([])
+const checking = ref(false)
+const openFailed = ref(false)
+function refreshUpdate() {
+  forced.value = updateRequired()
+  const policy = currentUpdate()
+  if (policy == null || updateMode(policy, installedVersionCode(), Date.now()) == 'none') { uni.reLaunch({ url: '/pages/index/index' }); return }
+  version.value = policy['latestVersionName'] as string
+  const raw = policy['releaseNotes']
+  notes.value = []
+  if (raw != null) {
+    const items = JSON.parse<any[]>(JSON.stringify(raw))
+    if (items != null) for (let i = 0; i < Math.min(3, items.length); i++) {
+      if (typeof items[i] == 'string') notes.value.push((items[i] as string).substring(0, 40))
+    }
+  }
+}
+function checkingChanged(value: boolean) { checking.value = value }
+function retry() { checkAppUpdate(true) }
+function leave() { if (updateRequired()) return; dismissUpdate(); uni.reLaunch({ url: '/pages/index/index' }) }
+function copyLink() {
+  const policy = currentUpdate()
+  if (policy != null) uni.setClipboardData({ data: policy['updateUrl'] as string })
+}
+function openStore() {
+  const policy = currentUpdate()
+  if (policy == null) return
+  // #ifdef APP-IOS || APP-ANDROID
+  openUpdateLink(policy['updateUrl'] as string, (success: boolean) => { openFailed.value = !success })
+  // #endif
+  // #ifndef APP-IOS || APP-ANDROID
+  openFailed.value = true
+  // #endif
+}
+uni.$on('focus-update-changed', refreshUpdate)
+uni.$on('focus-update-checking', checkingChanged)
+onShow(() => refreshUpdate())
+onBackPress((): boolean => { if (updateRequired()) return true; dismissUpdate(); return false })
+onUnload(() => { uni.$off('focus-update-changed', refreshUpdate); uni.$off('focus-update-checking', checkingChanged) })
+</script>
+<style>
+.page { flex: 1; background-color: #eef4ff; }
+.update-card { margin: 100px 24px 40px; padding: 28px 22px; border-radius: 28px; background-color: #fffefd; align-items: center; }
+.mascots { width: 140px; height: 140px; }
+.title { margin-top: 18px; font-size: 23px; font-weight: 700; color: #27344f; }
+.version { margin-top: 10px; color: #5b8def; font-size: 16px; }
+.subtitle { margin-top: 12px; margin-bottom: 16px; font-size: 14px; color: #738099; }
+.note { margin-bottom: 8px; font-size: 14px; color: #526079; }
+.primary { margin-top: 20px; width: 100%; border-radius: 18px; background-color: #5b8def; color: #ffffff; font-size: 17px; }
+.secondary { margin-top: 12px; width: 100%; border-radius: 16px; background-color: #eef4ff; color: #637b9d; font-size: 14px; }
+.error { margin-top: 12px; color: #c57053; font-size: 13px; }
+</style>

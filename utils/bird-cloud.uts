@@ -1,0 +1,15 @@
+export type BirdConfig = { rounds: number, gap: number, speed: number, shift: number }
+
+// 速度为每个 32ms 物理步的画面宽度百分比；一局固定，不额外偷偷加速。
+export function getBirdConfig(level: number): BirdConfig {
+  const index = Math.max(0, Math.min(9, Math.round(level) - 1))
+  const gaps = [210, 200, 190, 180, 170, 160, 150, 140, 130, 120]
+  const speeds = [0.8, 0.88, 0.96, 1.04, 1.12, 1.2, 1.3, 1.4, 1.5, 1.6]
+  const shifts = [30, 38, 46, 54, 62, 70, 78, 86, 94, 102]
+  return { rounds: 10 + Math.floor(index / 2) * 2, gap: gaps[index], speed: speeds[index], shift: shifts[index] }
+}
+
+export function nextBirdGap(previous: number, config: BirdConfig, random: number): number {
+  const margin = config.gap / 2 + 26
+  return Math.max(margin, Math.min(390 - margin, previous + (Math.max(0, Math.min(1, random)) * 2 - 1) * config.shift))
+}

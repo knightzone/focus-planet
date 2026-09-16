@@ -1,0 +1,60 @@
+import { STORY_DIFFERENCE_SCENES } from './spot-difference-story.uts'
+import { DifferenceCandidate, DifferenceScene } from './spot-difference-types.uts'
+function region(id: string, x: number, y: number, w: number, h: number, order: number): DifferenceCandidate {
+  return { id: id, x: x, y: y, w: w, h: h, left: x.toString() + '%', top: y.toString() + '%', width: w.toString() + '%', height: h.toString() + '%', difficulty: order, zone: order }
+}
+const LOW: DifferenceCandidate[] = [
+  region("sun", 14, 3, 10, 17, 0),
+  region("kite", 30, 1, 10, 17, 1),
+  region("flag", 69, 6, 7, 14, 2),
+  region("apple", 88, 14, 9, 12, 3),
+  region("can", 1, 44, 21, 26, 4),
+  region("flowers", 21, 48, 12, 10, 5),
+  region("held-apple", 44, 57, 6, 10, 6),
+  region("ball", 10, 70, 16, 26, 7),
+  region("napkin", 49, 76, 21, 16, 8),
+  region("sail", 83, 61, 9, 14, 9)
+]
+const MEDIUM: DifferenceCandidate[] = [
+  region("clock", 7, 7, 8, 12, 0),
+  region("star", 20, 7, 10, 18, 1),
+  region("porthole", 65, 11, 3, 5, 2),
+  region("pot", 74, 14, 9, 10, 3),
+  region("leaf", 89, 7, 7, 15, 4),
+  region("bow", 8.5, 43, 5, 7, 5),
+  region("emblem", 17, 75, 5, 9, 6),
+  region("wheel", 49, 74, 4, 8, 7),
+  region("cup", 75, 68, 8, 16, 8),
+  region("stripes", 78, 79, 7, 9, 9)
+]
+const HIGH: DifferenceCandidate[] = [
+  region("moon", 7, 3, 7, 14, 0),
+  region("planet", 32, 4, 7, 8, 1),
+  region("lantern", 84, 15, 8, 13, 2),
+  region("telescope", 10, 21, 8, 15, 3),
+  region("door", 63, 30, 5, 9, 4),
+  region("mushroom", 5.8, 67, 4.6, 6, 5),
+  region("book", 49, 73, 5, 7, 6),
+  region("mug", 84, 63, 4, 7, 7),
+  region("compass", 33, 82, 8, 8, 8),
+  region("pot", 79, 83, 12, 9, 9)
+]
+export function differenceTier(level: number): string { return level <= 3 ? 'low' : level <= 7 ? 'medium' : 'high' }
+export function differenceCandidates(level: number): DifferenceCandidate[] { return level <= 3 ? LOW : level <= 7 ? MEDIUM : HIGH }
+export function differenceImage(level: number, alternate: boolean): string { return '/static/images/runtime/spot-difference/v2/' + differenceTier(level) + (alternate ? '-b.webp' : '-a.webp') }
+export function differenceTargetCount(level: number): number { return [2,2,3,3,3,4,4,4,5,5][Math.max(0, Math.min(9, level - 1))] }
+
+// Add validated scene pairs here as resource packs grow; history is keyed by stable scene id.
+export const LEGACY_DIFFERENCE_SCENES: DifferenceScene[] = [
+  { id: 'picnic-v2', tier: 'low', imageA: differenceImage(1, false), imageB: differenceImage(1, true), regions: LOW },
+  { id: 'workshop-v2', tier: 'medium', imageA: differenceImage(5, false), imageB: differenceImage(5, true), regions: MEDIUM },
+  { id: 'observatory-v2', tier: 'high', imageA: differenceImage(10, false), imageB: differenceImage(10, true), regions: HIGH }
+]
+export const DIFFERENCE_SCENES: DifferenceScene[] = STORY_DIFFERENCE_SCENES.length > 0 ? STORY_DIFFERENCE_SCENES : LEGACY_DIFFERENCE_SCENES
+export function differenceSessionPlan(level: number): string[] {
+  if (level <= 1) return ['low', 'low', 'medium']
+  if (level <= 3) return ['low', 'medium', 'high']
+  if (level <= 5) return ['low', 'medium', 'medium', 'high']
+  if (level == 6) return ['low', 'medium', 'high', 'high']
+  return ['low', 'medium', 'medium', 'high', 'high']
+}

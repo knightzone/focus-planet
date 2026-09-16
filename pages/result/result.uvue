@@ -1,59 +1,44 @@
 <template>
   <view class="page">
-    <view class="celebration-pair">
-      <image class="result-bunny" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image>
-      <view class="celebration"><text class="celebration-symbol">✦</text></view>
-      <image class="result-kitten" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.png" mode="aspectFit"></image>
-    </view>
-    <text class="title">训练完成</text>
-    <text class="subtitle">{{ gameName }} · 今天的专注星伴又进步了一点</text>
-    <text class="difficulty-badge">本次难度 {{ playedDifficulty }}/10</text>
-
-    <view class="score-card">
-      <text class="score-label">本次专注得分</text>
-      <text class="score">{{ score }}</text>
-      <view class="score-line"></view>
-      <view class="metrics">
-        <view class="metric">
-          <text class="metric-value">{{ accuracy }}%</text>
-          <text class="metric-label">正确率</text>
-        </view>
-        <view class="metric">
-          <text class="metric-value">{{ reaction > 0 ? reaction.toString() + 'ms' : '--' }}</text>
-          <text class="metric-label">{{ reaction > 0 ? '平均反应' : '节奏完成' }}</text>
-        </view>
-        <view class="metric">
-          <text class="metric-value">{{ performance.completionScore }}%</text>
-          <text class="metric-label">完成度</text>
-        </view>
+    <image class="result-sky tap-content" src="/static/images/runtime/backgrounds/shadow-match-sky-v1.webp" mode="aspectFill"></image>
+    <scroll-view class="result-scroll" direction="vertical" show-scrollbar="false"><view class="result-content">
+      <text class="title">训练完成</text><text class="subtitle">{{ gameName }}</text>
+      <view class="reward-card">
+        <ResultCelebration v-if="dialogueIndex >= 0" :score="score" :character="characterImage"></ResultCelebration>
+        <view class="stars-row"><ScoreStars v-if="!specialCelebration" :score="score" :report="false" :size="36"></ScoreStars><text v-else class="special-label">星光环绕，为你闪耀</text></view>
+        <ResultVoice v-if="dialogueIndex >= 0" :dialogue="dialogueIndex" :key="dialogueIndex"></ResultVoice>
       </view>
-    </view>
-
-    <view class="tip-card">
-      <text class="tip-title">本次表现</text>
-      <text class="tip-copy">{{ feedback }}</text>
-    </view>
-
-    <view class="difficulty-card" :class="difficultyChange > 0 ? 'difficulty-up' : difficultyChange < 0 ? 'difficulty-down' : ''">
-      <text class="difficulty-title">下次难度 {{ nextDifficulty }}/10</text>
-      <text class="difficulty-copy">{{ difficultyMessage }}</text>
-    </view>
-
-    <button class="tap-target primary" @click="continuePlan">{{ nextPlan == null ? '回到首页' : '继续今日训练' }}</button>
-    <button class="tap-target secondary" @click="again">再练一次</button>
+      <button class="tap-target primary" @click="continuePlan">{{ nextPlan == null ? '回到首页' : '继续今日训练' }}</button>
+      <button class="tap-target secondary" @click="again">再练一次</button>
+    </view></scroll-view>
   </view>
 </template>
 
 <script setup lang="uts">
 import { ref, computed } from 'vue'
+import ScoreStars from '../../components/ScoreStars.uvue'
+import ResultCelebration from '../../components/ResultCelebration.uvue'
+import ResultVoice from '../../components/ResultVoice.uvue'
+import { RESULT_DIALOGUES, selectResultDialogue, resultCharacter } from '../../utils/result-dialogue.uts'
+import { resultStarCount, hasPassStar, hasStarCelebration } from '../../utils/star-rating.uts'
 import { onLoad } from '@dcloudio/uni-app'
 import { addRecord, getProfile, getRecords } from '../../utils/storage.uts'
 import { getGameName, getGameRoute } from '../../utils/catalog.uts'
-import { DailyPlanItem, buildDailyPlan, nextPendingPlanItem } from '../../utils/training-plan.uts'
+import { DailyPlanItem, buildDailyPlan, buildServerPlan, nextPendingPlanItem } from '../../utils/training-plan.uts'
 import { getGameDifficulty, updateGameDifficulty } from '../../utils/difficulty.uts'
+import { SCORE_VERSION, gameScoreMax, parseRoundScores } from '../../utils/game-scoring.uts'
 import { evaluatePerformance, PerformanceEvaluation } from '../../utils/performance.uts'
+import { getServerPlan } from '../../utils/server-api.uts'
+import { enqueueResult } from '../../utils/offline-sync.uts'
+import { getDeviceId } from '../../utils/api-client.uts'
 
+const dialogueIndex = ref(-1)
+const characterImage = computed((): string => dialogueIndex.value < 0 ? '' : resultCharacter(RESULT_DIALOGUES[dialogueIndex.value].role, RESULT_DIALOGUES[dialogueIndex.value].band))
+const rawScore = ref(0), roundScores = ref([] as number[])
 const score = ref(0)
+const earnedStars = computed((): number => resultStarCount(score.value))
+const passed = computed((): boolean => hasPassStar(score.value))
+const specialCelebration = computed((): boolean => hasStarCelebration(score.value))
 const accuracy = ref(0)
 const reaction = ref(0)
 const duration = ref(0)
@@ -70,12 +55,11 @@ const passedFlag = ref(-1)
 const targetDuration = ref(0)
 const nextPlan = ref(null as DailyPlanItem | null)
 const playedDifficulty = ref(1)
-const nextDifficulty = ref(1)
-const difficultyChange = ref(0)
-const difficultyMessage = ref('继续保持当前难度')
 
 const performance = computed((): PerformanceEvaluation => evaluatePerformance({
   gameId: gameId.value,
+  rawScore: rawScore.value,
+  roundScores: roundScores.value,
   accuracy: accuracy.value,
   reaction: reaction.value,
   duration: duration.value,
@@ -86,14 +70,7 @@ const performance = computed((): PerformanceEvaluation => evaluatePerformance({
   switchErrors: switchErrors.value,
   interferenceErrors: interferenceErrors.value
 }))
-const feedback = computed((): string => {
-  if (gameId.value == 'number-tap' && passedFlag.value == 0) {
-    if (accuracy.value < 100) return '这次已经完成全部数字，但出现了误点。数字连点需要100%准确，下次看准顺序再点击。'
-    return '顺序全部正确！本次总用时超过了 ' + targetDuration.value.toString() + ' 秒，再熟悉一下数字位置就能过关。'
-  }
-  if (gameId.value == 'number-tap' && passedFlag.value == 1) return '太棒了！三组数字全部完成，准确率100%，总用时也达到本级要求！'
-  return performance.value.feedback
-})
+const feedback = computed((): string => performance.value.feedback)
 
 function optionString(options: UTSJSONObject, key: string, fallback: string): string {
   const value = options[key]
@@ -102,14 +79,16 @@ function optionString(options: UTSJSONObject, key: string, fallback: string): st
 }
 
 function optionNumber(options: UTSJSONObject, key: string): number {
-  return parseInt(optionString(options, key, '0'))
+  const value = parseFloat(optionString(options, key, '0'))
+  return Number.isFinite(value) ? value : 0
 }
 
 onLoad((options: UTSJSONObject) => {
   gameId.value = optionString(options, 'gameId', 'star-catcher')
   dimensionId.value = optionString(options, 'dimensionId', 'focused')
   gameName.value = getGameName(gameId.value)
-  score.value = optionNumber(options, 'score')
+  rawScore.value = optionNumber(options, 'score')
+  roundScores.value = optionString(options, 'scoreVersion', '') == SCORE_VERSION ? parseRoundScores(optionString(options, 'roundScores', '')) : [] as number[]
   accuracy.value = optionNumber(options, 'accuracy')
   reaction.value = optionNumber(options, 'reaction')
   duration.value = optionNumber(options, 'duration')
@@ -122,7 +101,7 @@ onLoad((options: UTSJSONObject) => {
   passedFlag.value = optionNumber(options, 'passed')
   targetDuration.value = optionNumber(options, 'targetDuration')
   score.value = performance.value.score
-  if (gameId.value == 'number-tap') score.value = passedFlag.value == 1 ? 100 : Math.min(84, score.value)
+  dialogueIndex.value = selectResultDialogue(score.value)
   playedDifficulty.value = getGameDifficulty(gameId.value)
   const completedAt = Date.now()
   addRecord({
@@ -130,6 +109,7 @@ onLoad((options: UTSJSONObject) => {
     gameId: gameId.value,
     dimensionId: dimensionId.value,
     score: score.value,
+    scoreAlgorithmVersion: SCORE_VERSION,
     difficultyLevel: playedDifficulty.value,
     accuracy: accuracy.value,
     averageReaction: reaction.value,
@@ -142,13 +122,38 @@ onLoad((options: UTSJSONObject) => {
     totalCount: totalCount.value,
     completedAt: completedAt
   })
-  const difficultyUpdate = updateGameDifficulty(gameId.value, playedDifficulty.value, score.value, completedAt, getRecords())
-  nextDifficulty.value = difficultyUpdate.currentLevel
-  difficultyChange.value = difficultyUpdate.change
-  difficultyMessage.value = difficultyUpdate.message
-  if (gameId.value == 'number-tap' && passedFlag.value == 0) difficultyMessage.value = accuracy.value < 100 ? '本级需要100%准确率，保持当前难度继续练习' : '准确率已达标，但总用时还未达标，保持当前难度继续练习'
+  updateGameDifficulty(gameId.value, playedDifficulty.value, score.value, completedAt, getRecords())
   const profile = getProfile()
   if (profile != null) nextPlan.value = nextPendingPlanItem(buildDailyPlan(profile.age, getRecords(), Date.now()))
+  const serverPlan = getServerPlan()
+  if (profile != null && serverPlan != null) {
+    const serverItems = buildServerPlan(serverPlan)
+    const serverItem = serverItems.find((item: DailyPlanItem): boolean => item.gameId == gameId.value)
+    if (serverItem != null && serverItem.planId != null && serverItem.itemId != null && serverItem.playToken != null) {
+      const submissionId = 'result-' + Date.now().toString() + '-' + Math.round(Math.random() * 100000).toString()
+      const payload: UTSJSONObject = {
+        submissionId: submissionId,
+        playToken: serverItem.playToken!,
+        planRevision: serverItem.planRevision == null ? 1 : serverItem.planRevision,
+        score: score.value,
+        accuracy: accuracy.value,
+        averageReactionMs: reaction.value,
+        durationSeconds: Math.max(1, duration.value),
+        omissions: omissions.value,
+        falseAlarms: falseAlarms.value,
+        switchErrors: switchErrors.value,
+        interferenceErrors: interferenceErrors.value,
+        scoreAlgorithmVersion: SCORE_VERSION,
+        clientCompletedAt: new Date(completedAt).toISOString(),
+        deviceId: getDeviceId()
+      }
+      if (totalCount.value > 0) {
+        payload['completedCount'] = completedCount.value
+        payload['totalCount'] = totalCount.value
+      }
+      enqueueResult(serverItem.planId!, serverItem.itemId!, payload)
+    }
+  }
 })
 
 function backHome() { uni.reLaunch({ url: '/pages/index/index' }) }
@@ -157,27 +162,11 @@ function again() { uni.redirectTo({ url: getGameRoute(gameId.value) }) }
 </script>
 
 <style>
-.page { padding: 38px 20px 32px; align-items: center; }
-.celebration-pair { width: 100%; height: 114px; flex-direction: row; align-items: center; justify-content: center; }
-.result-bunny { width: 96px; height: 108px; border-radius: 48px; }
-.result-kitten { width: 96px; height: 108px; border-radius: 48px; }
-.celebration { margin: 0 -11px; width: 70px; height: 70px; border-radius: 35px; background-color: #ffc857; align-items: center; justify-content: center; z-index: 2; }
-.celebration-symbol { color: #ffffff; font-size: 42px; }
-.title { margin-top: 21px; color: #1f2a44; font-size: 27px; font-weight: 700; }
-.subtitle { margin-top: 8px; color: #7b859b; font-size: 14px; }
-.difficulty-badge { margin-top: 10px; padding: 7px 12px; border-radius: 12px; background-color: #eaf0ff; color: #4d74c2; font-size: 12px; font-weight: 700; }
-.score-card { margin-top: 28px; width: 100%; padding: 24px 18px; border-radius: 24px; background-color: #ffffff; align-items: center; }
-.score-label { color: #778198; font-size: 13px; }
-.score { margin-top: 7px; color: #5b8def; font-size: 56px; font-weight: 700; }
-.score-line { margin-top: 14px; width: 100%; height: 1px; background-color: #edf0f5; }
-.metrics { margin-top: 18px; width: 100%; flex-direction: row; }
-.metric { flex: 1; align-items: center; }
-.metric-value { color: #2b3650; font-size: 16px; font-weight: 700; }
-.metric-label { margin-top: 4px; color: #929aab; font-size: 10px; }
-.tip-card { margin-top: 16px; width: 100%; padding: 18px; border-radius: 18px; background-color: #eef9f5; }
-.tip-title { color: #328e73; font-size: 14px; font-weight: 700; }
-.tip-copy { margin-top: 7px; color: #5e7c72; font-size: 13px; line-height: 20px; }
-.difficulty-card { margin-top: 12px; width: 100%; padding: 16px 18px; border-radius: 18px; background-color: #eef3fb; }.difficulty-up { background-color: #e8f7f1; }.difficulty-down { background-color: #fff4e5; }.difficulty-title { color: #344059; font-size: 14px; font-weight: 700; }.difficulty-copy { margin-top: 5px; color: #748097; font-size: 12px; line-height: 18px; }
-.primary { margin-top: 24px; width: 100%; height: 50px; line-height: 50px; border-radius: 16px; background-color: #5b8def; color: #ffffff; font-size: 16px; font-weight: 700; }
-.secondary { margin-top: 10px; width: 100%; height: 48px; line-height: 48px; border-radius: 16px; background-color: #eaf0ff; color: #4d74c2; font-size: 15px; }
+.page { flex: 1; position: relative; background-color: #edf4ff; }.result-sky { position: absolute; width: 100%; height: 100%; }.result-scroll { flex: 1; position: relative; }.result-content { padding: 24px 20px 32px; align-items: center; }
+.title { color: #35476f; font-size: 27px; font-weight: 700; }.subtitle { margin-top: 8px; color: #7f8dac; font-size: 14px; }
+.reward-card { margin-top: 24px; width: 100%; padding: 10px 0 25px; border-radius: 30px; background-color: rgba(255,255,255,0.76); align-items: center; }
+.stars-row { height: 48px; align-items: center; justify-content: center; }.special-label { color: #9b86c2; font-size: 16px; font-weight: 700; }
+.reward-copy { margin-top: 13px; color: #58698a; font-size: 19px; font-weight: 700; }
+.primary { margin-top: 20px; width: 100%; height: 50px; line-height: 50px; border-radius: 25px; border-width: 0; background-color: #8c9bda; color: #ffffff; font-size: 16px; font-weight: 700; }
+.secondary { margin-top: 10px; width: 100%; height: 48px; line-height: 48px; border-radius: 24px; border-width: 0; background-color: rgba(255,255,255,0.72); color: #8393ba; font-size: 15px; }
 </style>

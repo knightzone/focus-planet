@@ -1,46 +1,65 @@
 <template>
-  <scroll-view class="page" scroll-y="true" show-scrollbar="false">
+  <scroll-view class="page" direction="vertical" show-scrollbar="false">
     <view class="page-content">
     <view class="top-row">
       <view>
-        <text class="eyebrow">专注星伴</text>
+        <text class="eyebrow">星训练</text>
         <text class="greeting">你好，{{ nickname }}</text>
       </view>
-      <view class="avatar" @click="openSettings"><text class="avatar-value tap-content">{{ age }}</text></view>
+      <view class="avatar-entry" @click="openAccount">
+        <view class="avatar"><image class="avatar-image tap-content" :src="avatarPath" mode="aspectFill"></image></view>
+        <text v-if="!loggedIn" class="login-hint">登录</text>
+      </view>
     </view>
 
     <view class="hero-card">
       <view class="hero-copy">
-        <text class="hero-kicker">今日训练</text>
         <text class="hero-title">{{ heroTitle }}</text>
-        <text class="hero-meta">年龄仅用于首次难度 · 约 {{ sessionMinutes }} 分钟</text>
+        <view class="hero-time"><text class="hero-time-icon">◷</text><text class="hero-meta">已练 {{ todayDurationText }}</text></view>
         <button class="tap-target start-button" @click="startTraining">{{ planButtonLabel }}</button>
       </view>
-      <view class="hero-mascot-wrap"><image class="hero-mascot" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.png" mode="aspectFit"></image></view>
+      <view class="hero-visual">
+        <image class="hero-brand-art" src="/static/images/runtime/brand/duo-star-v1.webp" mode="aspectFit"></image>
+        <image class="hero-edge-blend tap-content" src="/static/images/runtime/brand/hero-edge-blend-v1.svg" mode="scaleToFill"></image>
+      </view>
     </view>
 
     <view class="plan-card">
-      <view class="plan-head"><text class="plan-title">今日三段训练</text><text class="plan-progress">{{ completedPlanCount }}/3</text></view>
-      <view v-for="(item, index) in dailyPlan" :key="item.gameId" class="plan-row" :class="item.completed ? 'plan-done' : ''">
-        <view class="plan-index"><text class="plan-index-value">{{ item.completed ? '✓' : (index + 1).toString() }}</text></view>
-        <view class="plan-copy"><text class="plan-role">{{ item.role }} · 难度 {{ item.difficultyLevel }}/10</text><text class="plan-game">{{ item.name }}</text></view>
-        <text class="plan-state">{{ item.completed ? '已完成' : (index == nextPlanIndex ? '下一项' : '待完成') }}</text>
+      <view class="plan-head"><text class="plan-title">今日训练计划</text><text class="plan-progress">{{ completedPlanCount }}/{{ dailyPlan.length }}</text></view>
+      <view v-for="(item, index) in dailyPlan" :key="item.gameId" class="plan-row" :class="item.completed ? 'plan-done' : (index == nextPlanIndex ? 'plan-next' : '')" @click="openPlanItem(item)">
+        <view class="plan-icon-wrap">
+          <image class="plan-icon" :src="item.thumbnail" mode="aspectFill"></image>
+          <view v-if="item.completed" class="plan-check"><text class="plan-check-value">✓</text></view>
+        </view>
+        <view class="plan-copy"><text class="plan-role">{{ item.role }}</text><text class="plan-game">{{ item.name }}</text></view>
+        <text class="plan-state" :class="item.completed ? 'plan-state-done' : (index == nextPlanIndex ? 'plan-state-next' : '')">{{ item.completed ? '已完成' : (index == nextPlanIndex ? '下一项' : '待完成') }}</text>
+        <text class="plan-arrow">›</text>
       </view>
     </view>
 
     <view class="section-header">
       <text class="section-title">五维专注力</text>
-      <view class="tap-link" @click="openDimensions"><text class="section-link tap-content">查看全部</text></view>
     </view>
-    <scroll-view class="dimension-scroll" scroll-x="true" show-scrollbar="false">
+    <view class="dimension-grid">
       <view class="dimension-row">
-        <view v-for="item in dimensions" :key="item.id" class="dimension-card" @click="openDimensions">
-          <view class="dimension-dot tap-content" :style="{ backgroundColor: item.color }"></view>
-          <text class="dimension-name tap-content">{{ item.shortName }}</text>
-          <text class="dimension-desc tap-content">{{ item.description }}</text>
+        <view v-for="item in topDimensions" :key="item.id" class="dimension-card" @click="openDimension(item.id)">
+          <image class="dimension-image tap-content" :src="item.thumbnail" mode="aspectFill"></image>
+          <view class="dimension-copy tap-content">
+            <text class="dimension-name">{{ item.shortName }}</text>
+            <view class="dimension-dot" :style="{ backgroundColor: item.color }"></view>
+          </view>
         </view>
       </view>
-    </scroll-view>
+      <view class="dimension-row dimension-row-bottom">
+        <view v-for="item in bottomDimensions" :key="item.id" class="dimension-card dimension-card-bottom" @click="openDimension(item.id)">
+          <image class="dimension-image tap-content" :src="item.thumbnail" mode="aspectFill"></image>
+          <view class="dimension-copy tap-content">
+            <text class="dimension-name">{{ item.shortName }}</text>
+            <view class="dimension-dot" :style="{ backgroundColor: item.color }"></view>
+          </view>
+        </view>
+      </view>
+    </view>
 
     <view class="section-header">
       <text class="section-title">本周成长</text>
@@ -48,112 +67,168 @@
     </view>
     <view class="stats-card" @click="openReport">
       <view class="stat tap-content">
+        <image class="stat-icon" src="/static/images/runtime/tabbar/star-training-v1.png" mode="aspectFit"></image>
         <text class="stat-number">{{ weeklySessions }}</text>
-        <text class="stat-label">本周训练</text>
+        <text class="stat-label">训练</text>
       </view>
       <view class="divider tap-content"></view>
       <view class="stat tap-content">
+        <image class="stat-icon" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image>
         <text class="stat-number">{{ energy }}</text>
-        <text class="stat-label">星星能量</text>
+        <text class="stat-label">能量</text>
       </view>
       <view class="divider tap-content"></view>
       <view class="stat tap-content">
+        <image class="stat-icon" src="/static/images/runtime/game-objects/firefly-tracking-v1.webp" mode="aspectFit"></image>
         <text class="stat-number">{{ streak }}</text>
-        <text class="stat-label">连续天数</text>
+        <text class="stat-label">连续</text>
       </view>
     </view>
 
-    <view class="notice">
-      <view class="notice-icon"><text class="notice-icon-value">i</text></view>
-      <text class="notice-text">训练用于日常能力练习，不替代专业评估或医疗诊断。</text>
-    </view>
-    <view class="mascot-message">
-      <image class="message-mascot" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image>
-      <view class="message-copy"><text class="message-name">蓝蓝的观察提示</text><text class="message-text">慢一点、看清楚，再做选择。稳定专注比追求速度更重要。</text></view>
-    </view>
     </view>
   </scroll-view>
 </template>
 
 <script setup lang="uts">
 import { ref, computed } from 'vue'
+import { reportStarCount } from '../../utils/star-rating.uts'
 import { onShow } from '@dcloudio/uni-app'
-import { DIMENSIONS, getAgeBand, getGameRoute } from '../../utils/catalog.uts'
-import { getProfile, getRecords, getWeeklyRecords, calculateStreak } from '../../utils/storage.uts'
-import { DailyPlanItem, buildDailyPlan, nextPendingPlanItem } from '../../utils/training-plan.uts'
+import { DIMENSIONS, getGameRoute } from '../../utils/catalog.uts'
+import { getProfile, getRecords, getWeeklyRecords, getLocalDayKey, calculateStreak, TrainingRecord } from '../../utils/storage.uts'
+import { DailyPlanItem, buildDailyPlan, buildServerPlan, nextPendingPlanItem } from '../../utils/training-plan.uts'
+import { requireLogin, getAuthSession } from '../../utils/auth.uts'
+import { resolveTrainingPlan, getServerPlan } from '../../utils/server-api.uts'
+import { getAvatarPath } from '../../utils/profile-options.uts'
 
-const dimensions = DIMENSIONS
+const topDimensions = DIMENSIONS.slice(0, 3)
+const bottomDimensions = DIMENSIONS.slice(3, 5)
 const nickname = ref('探索家')
-const age = ref(8)
-const sessionMinutes = ref(10)
+const todayEffectiveSeconds = ref(0)
 const weeklySessions = ref(0)
 const energy = ref(0)
 const streak = ref(0)
+const loggedIn = ref(false)
+const avatarPath = ref(getAvatarPath('blue-bunny'))
 const dailyPlan = ref([] as DailyPlanItem[])
 const completedPlanCount = computed((): number => dailyPlan.value.filter((item: DailyPlanItem): boolean => item.completed).length)
 const nextPlanIndex = computed((): number => dailyPlan.value.findIndex((item: DailyPlanItem): boolean => !item.completed))
-const heroTitle = computed((): string => completedPlanCount.value == 3 ? '今日计划已完成' : completedPlanCount.value > 0 ? '继续今日的小挑战' : '从一次小挑战开始')
-const planButtonLabel = computed((): string => completedPlanCount.value == 3 ? '今日已完成' : completedPlanCount.value > 0 ? '继续训练' : '开始训练')
+const todayDurationText = computed((): string => {
+  const seconds = todayEffectiveSeconds.value
+  if (seconds <= 0) return '0 分钟'
+  if (seconds < 60) return seconds.toString() + ' 秒'
+  const minutes = Math.floor(seconds / 60)
+  const remaining = seconds % 60
+  return remaining == 0 ? minutes.toString() + ' 分钟' : minutes.toString() + '分' + remaining.toString() + '秒'
+})
+const heroTitle = computed((): string => {
+  if (dailyPlan.value.length > 0 && completedPlanCount.value == dailyPlan.value.length) return '全部完成啦'
+  if (completedPlanCount.value > 0) return '还有 ' + (dailyPlan.value.length - completedPlanCount.value).toString() + ' 项'
+  return '今天练一练'
+})
+const planButtonLabel = computed((): string => dailyPlan.value.length > 0 && completedPlanCount.value == dailyPlan.value.length ? '完成啦' : completedPlanCount.value > 0 ? '继续' : '开始')
 
 function refresh() {
+  const session = getAuthSession()
+  loggedIn.value = session != null
   const profile = getProfile()
   if (profile == null) {
+    nickname.value = '探索家'
+    todayEffectiveSeconds.value = 0
+    dailyPlan.value = buildDailyPlan(8, [] as TrainingRecord[], Date.now())
+    weeklySessions.value = 0
+    energy.value = 0
+    streak.value = 0
     uni.redirectTo({ url: '/pages/profile/profile' })
     return
   }
   nickname.value = profile.nickname
-  age.value = profile.age
-  const band = getAgeBand(profile.age)
-  sessionMinutes.value = band.sessionMinutes
+  avatarPath.value = getAvatarPath(profile.avatarId)
   const records = getRecords()
+  const todayKey = getLocalDayKey(Date.now())
+  todayEffectiveSeconds.value = records
+    .filter((item: TrainingRecord): boolean => getLocalDayKey(item.completedAt) == todayKey)
+    .reduce((total: number, item: TrainingRecord): number => total + Math.max(0, item.durationSeconds == null ? 0 : item.durationSeconds!), 0)
   dailyPlan.value = buildDailyPlan(profile.age, records, Date.now())
+  const cachedPlan = getServerPlan()
+  if (getAuthSession() != null && cachedPlan != null) dailyPlan.value = buildServerPlan(cachedPlan)
   weeklySessions.value = getWeeklyRecords(records).length
-  energy.value = records.reduce((total: number, item): number => total + item.score, 0)
+  energy.value = records.reduce((total: number, item): number => total + reportStarCount(item.score), 0)
   streak.value = calculateStreak(records)
+  if (getAuthSession() != null) {
+    resolveTrainingPlan((data: UTSJSONObject) => {
+      const plan = data['plan']
+      if (plan != null) dailyPlan.value = buildServerPlan(JSON.parse<UTSJSONObject>(JSON.stringify(plan))!)
+    }, (message: string, code: string) => {
+      if (code == 'USER_INFO_REQUIRED') uni.navigateTo({ url: '/pages/profile/profile' })
+      else console.log('训练计划同步失败：' + message)
+    })
+  }
 }
 
 onShow(() => refresh())
 
 function startTraining() {
+  if (!requireLogin()) return
+  if (getProfile() == null) { uni.navigateTo({ url: '/pages/profile/profile' }); return }
   const next = nextPendingPlanItem(dailyPlan.value)
   if (next == null) { uni.showToast({ title: '今日计划已完成', icon: 'success' }); return }
   uni.navigateTo({ url: getGameRoute(next.gameId) })
 }
-function openDimensions() { uni.navigateTo({ url: '/pages/dimensions/dimensions' }) }
-function openReport() { uni.navigateTo({ url: '/pages/report/report' }) }
-function openSettings() { uni.navigateTo({ url: '/pages/settings/settings' }) }
+function openPlanItem(item: DailyPlanItem) {
+  if (!requireLogin()) return
+  if (getProfile() == null) { uni.navigateTo({ url: '/pages/profile/profile' }); return }
+  uni.navigateTo({ url: getGameRoute(item.gameId) })
+}
+function openDimension(dimensionId: string) { uni.navigateTo({ url: '/pages/dimensions/dimensions?dimensionId=' + dimensionId }) }
+function openReport() { if (requireLogin()) uni.navigateTo({ url: '/pages/report/report' }) }
+function openAccount() {
+  if (!requireLogin()) return
+  uni.switchTab({ url: '/pages/mine/mine' })
+}
 </script>
 
 <style>
 .page { height: 100%; }
-.page-content { padding: 50px 20px 32px; }
+.page-content { padding: 50px 20px 126px; }
 .top-row { flex-direction: row; justify-content: space-between; align-items: center; }
 .eyebrow { color: #5b8def; font-size: 13px; font-weight: 700; letter-spacing: 1px; }
 .greeting { margin-top: 5px; color: #1f2a44; font-size: 25px; font-weight: 700; }
-.avatar { width: 48px; height: 48px; border-radius: 24px; background-color: #eaf0ff; align-items: center; justify-content: center; }
-.avatar-value { color: #5b8def; font-size: 16px; font-weight: 700; }
-.hero-card { margin-top: 25px; padding: 24px; min-height: 190px; border-radius: 26px; background-color: #5b8def; flex-direction: row; overflow: hidden; }
-.hero-copy { flex: 1; z-index: 2; }
-.hero-kicker { color: #dce7ff; font-size: 13px; }
-.hero-title { margin-top: 8px; color: #ffffff; font-size: 23px; font-weight: 700; }
-.hero-meta { margin-top: 9px; color: #e7eeff; font-size: 13px; }
-.start-button { margin: 22px 0 0; width: 132px; height: 48px; line-height: 48px; padding: 0; border-radius: 14px; background-color: #ffffff; color: #416fc7; font-size: 14px; font-weight: 700; }
-.hero-mascot-wrap { margin: 13px -18px -20px 8px; width: 126px; height: 160px; border-radius: 63px; background-color: #ffffff; align-items: center; justify-content: center; overflow: hidden; }
-.hero-mascot { width: 122px; height: 154px; }
-.plan-card { margin-top: 16px; padding: 18px; border-radius: 20px; background-color: #ffffff; }.plan-head { margin-bottom: 7px; flex-direction: row; align-items: center; justify-content: space-between; }.plan-title { color: #28344f; font-size: 16px; font-weight: 700; }.plan-progress { color: #5b8def; font-size: 13px; font-weight: 700; }.plan-row { min-height: 55px; border-top: 1px solid #edf0f5; flex-direction: row; align-items: center; }.plan-index { width: 30px; height: 30px; border-radius: 15px; background-color: #eaf0ff; align-items: center; justify-content: center; }.plan-index-value { color: #5b8def; font-size: 12px; font-weight: 700; }.plan-copy { margin-left: 10px; flex: 1; }.plan-role { color: #8791a5; font-size: 10px; }.plan-game { margin-top: 2px; color: #344059; font-size: 13px; font-weight: 700; }.plan-state { color: #8b94a7; font-size: 11px; }.plan-done { opacity: 0.62; }
+.avatar { width: 50px; height: 50px; border-radius: 25px; background-color: #eaf0ff; align-items: center; justify-content: center; overflow: hidden; border-width: 2px; border-color: #ffffff; }
+.avatar-image { width: 58px; height: 58px; }
+.avatar-entry { align-items: center; }
+.login-hint { margin-top: 3px; color: #5b8def; font-size: 10px; font-weight: 700; }
+.hero-card { margin-top: 18px; height: 170px; padding: 18px 20px; border-radius: 24px; background-color: #4f7fe3; flex-direction: row; overflow: hidden; }
+.hero-copy { flex: 1; z-index: 3; justify-content: center; }
+.hero-title { width: 138px; color: #ffffff; font-size: 21px; font-weight: 700; }
+.hero-time { margin-top: 7px; flex-direction: row; align-items: center; }
+.hero-time-icon { color: #ffffff; font-size: 17px; font-weight: 700; }
+.hero-meta { margin-left: 5px; color: #e7eeff; font-size: 13px; }
+.start-button { margin: 9px 0 0; width: 108px; height: 48px; line-height: 48px; padding: 0; border-radius: 24px; background-color: #ffffff; color: #3565c3; font-size: 14px; font-weight: 700; }
+.hero-visual { position: relative; margin: -18px -20px -18px 0; width: 170px; height: 170px; overflow: hidden; }
+.hero-brand-art { width: 170px; height: 170px; }
+.hero-edge-blend { position: absolute; left: 0; top: 0; z-index: 2; width: 52px; height: 170px; }
+.plan-card { margin-top: 14px; padding: 16px 12px 13px; border-radius: 22px; background-color: #e1ebff; }.plan-head { margin: 0 5px 8px; flex-direction: row; align-items: center; justify-content: space-between; }.plan-title { color: #22304d; font-size: 17px; font-weight: 700; }.plan-progress { padding: 5px 10px; border-radius: 12px; background-color: #ffffff; color: #4d7ed7; font-size: 12px; font-weight: 700; }.plan-row { height: 72px; margin-top: 8px; padding: 0; border-radius: 16px; background-color: #ffffff; flex-direction: row; align-items: center; overflow: hidden; }.plan-next { background-color: #f8fbff; border-width: 2px; border-color: #79a3ed; }.plan-copy { margin-left: 12px; flex: 1; }.plan-role { color: #6685bc; font-size: 10px; font-weight: 700; }.plan-game { margin-top: 3px; color: #263551; font-size: 14px; font-weight: 700; }.plan-state { padding: 4px 7px; border-radius: 9px; background-color: #f0f2f6; color: #8b94a7; font-size: 10px; }.plan-state-next { background-color: #dce9ff; color: #3f72cf; }.plan-state-done { background-color: #dff5eb; color: #278b68; }.plan-arrow { margin: 0 8px 0 5px; color: #8092b2; font-size: 22px; }.plan-done { background-color: #f0faf6; }
+.plan-icon-wrap { position: relative; width: 128px; height: 72px; background-color: #dfe9fc; overflow: hidden; }
+.plan-icon { width: 128px; height: 72px; }
+.plan-check { position: absolute; right: 5px; bottom: 5px; width: 17px; height: 17px; border-radius: 9px; background-color: #55c9a5; border-width: 2px; border-color: #ffffff; align-items: center; justify-content: center; }
+.plan-check-value { color: #ffffff; font-size: 9px; font-weight: 700; }
 .section-header { margin-top: 28px; flex-direction: row; align-items: center; justify-content: space-between; }
 .section-title { color: #1f2a44; font-size: 18px; font-weight: 700; }
 .section-link { color: #5b8def; font-size: 13px; }
-.dimension-scroll { margin-top: 14px; width: 100%; }
-.dimension-row { flex-direction: row; width: 700px; }
-.dimension-card { margin-right: 12px; width: 124px; min-height: 122px; padding: 15px; border-radius: 18px; background-color: #ffffff; }
-.dimension-dot { width: 12px; height: 12px; border-radius: 6px; }
-.dimension-name { margin-top: 12px; color: #28344f; font-size: 16px; font-weight: 700; }
-.dimension-desc { margin-top: 6px; color: #7a849b; font-size: 11px; line-height: 16px; }
-.stats-card { margin-top: 14px; padding: 20px 8px; border-radius: 20px; background-color: #ffffff; flex-direction: row; align-items: center; justify-content: space-around; }
+.dimension-grid { margin-top: 11px; }
+.dimension-row { flex-direction: row; justify-content: space-between; }
+.dimension-row-bottom { margin-top: 10px; justify-content: center; }
+.dimension-card { width: 31%; border-radius: 15px; background-color: #f8f9fc; overflow: hidden; }
+.dimension-card-bottom { margin: 0 1.75%; }
+.dimension-image { width: 100%; height: 58px; background-color: #f3f6fb; opacity: 0.76; }
+.dimension-copy { padding: 7px 9px 8px; flex-direction: row; align-items: center; justify-content: space-between; }
+.dimension-name { color: #59647a; font-size: 13px; font-weight: 600; }
+.dimension-dot { width: 7px; height: 7px; border-radius: 4px; opacity: 0.72; }
+.stats-card { margin-top: 14px; padding: 20px 8px; border-radius: 20px; background-color: #fff8e8; flex-direction: row; align-items: center; justify-content: space-around; }
 .stat { flex: 1; align-items: center; }
-.stat-number { color: #1f2a44; font-size: 24px; font-weight: 700; }
-.stat-label { margin-top: 5px; color: #7a849b; font-size: 11px; }
+.stat-icon { width: 29px; height: 29px; }
+.stat-number { margin-top: 4px; color: #1f2a44; font-size: 22px; font-weight: 700; }
+.stat-label { margin-top: 2px; color: #7a849b; font-size: 11px; }
 .divider { width: 1px; height: 34px; background-color: #e8ecf3; }
 .notice { margin-top: 20px; padding: 13px; border-radius: 14px; background-color: #eef3fb; flex-direction: row; align-items: center; }
 .notice-icon { width: 22px; height: 22px; border-radius: 11px; background-color: #dbe6f8; align-items: center; justify-content: center; }

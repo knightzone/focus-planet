@@ -1,62 +1,76 @@
 <template>
-  <view class="page">
-    <view class="game-header">
-      <view>
-        <text class="round-label">选择注意训练</text>
-        <text class="game-title">只看目标颜色</text>
-      </view>
-      <view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view>
-    </view>
-
-    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-
-    <view class="rule-card">
-      <text class="rule-kicker">本局规则</text>
-      <text class="rule-title">{{ readingMode ? '点击文字真正显示的颜色' : '点击星星显示的颜色' }}</text>
-      <text class="rule-tip">{{ readingMode ? '忽略文字写的是什么，只看字的颜色' : '忽略周围的小圆点，只看中间星星' }}</text>
-    </view>
-
-    <view class="play-area">
-      <view class="decor-dot decor-one"></view><view class="decor-dot decor-two"></view>
-      <view class="decor-dot decor-three"></view><view class="decor-dot decor-four"></view>
-
-      <view v-if="!started" class="instruction">
-        <YoungChildCue kind="color"></YoungChildCue>
-        <text class="instruction-title">颜色比文字更重要</text>
-        <text class="instruction-copy">{{ readingMode ? '上面的“黄”是蓝色，所以应该选择蓝色。' : '看到中间的彩色星星，选择相同颜色。' }}</text>
-        <button class="tap-target primary" @click="begin">▶ 开始训练</button>
-      </view>
-
-      <view v-if="started" class="challenge">
-        <text v-if="readingMode" class="color-word" :style="{ color: stimulusColorValue }">{{ wordLabel }}</text>
-        <text v-else class="color-star" :style="{ color: stimulusColorValue }">✦</text>
-        <text class="question">它真正显示的是什么颜色？</text>
-        <view v-if="feedback != ''" class="feedback" :class="feedback == '正确' ? 'feedback-good' : 'feedback-again'">
-          <text class="feedback-text" :class="feedback == '正确' ? 'feedback-text-good' : 'feedback-text-again'">{{ feedback }}</text>
+  <TrainingFrame title="颜色指令" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+    <view class="page">
+      <image class="scene" src="/static/images/runtime/backgrounds/shadow-match-sky-v1.webp" mode="aspectFill"></image>
+      <view class="content">
+        <view class="header">
+          <view>
+            <text class="dimension">选择注意训练</text>
+            <text class="title">{{ readingMode ? '点文字真正的颜色' : '点星星的颜色' }}</text>
+          </view>
+          <view v-if="started" class="counter"><text class="counter-text">{{ displayRound }}/{{ totalRounds }}</text></view>
         </view>
+        <view v-if="started" class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+
+        <view v-if="!started" class="instruction">
+          <text class="demo-title">先试一下</text>
+          <text class="rule-line">{{ readingMode ? '不管写了什么字，只点文字真正的颜色' : '看星星是什么颜色，点一样的颜色' }}</text>
+          <view class="demo-stage">
+            <text v-if="readingMode" class="demo-symbol" :style="{ color: demoColor.value }">{{ demoWord }}</text>
+            <text v-else class="demo-symbol" :style="{ color: demoColor.value }">✦</text>
+            <view class="demo-options">
+              <view v-for="option in demoOptions" :key="'demo-' + option.id" class="demo-option" :class="demoPicked == option.id ? (option.id == demoColor.id ? 'demo-right' : 'demo-wrong') : ''" @click="pickDemo(option.id)">
+                <view class="demo-swatch" :style="{ backgroundColor: option.value }"></view>
+                <text class="demo-option-label">{{ option.label }}</text>
+              </view>
+            </view>
+          </view>
+          <text class="demo-hint">{{ demoHint }}</text>
+          <text v-if="demoDone" class="demo-replay" @click="resetDemo">再试一次</text>
+          <button class="primary" @click="begin">开始</button>
+        </view>
+
+        <template v-else>
+          <view class="play-card">
+            <view class="decor-dot decor-one"></view><view class="decor-dot decor-two"></view>
+            <view class="decor-dot decor-three"></view><view class="decor-dot decor-four"></view>
+            <text v-if="readingMode" class="color-word" :style="{ color: stimulusColorValue }">{{ wordLabel }}</text>
+            <text v-else class="color-star" :style="{ color: stimulusColorValue }">✦</text>
+          </view>
+
+          <view class="answer-grid">
+            <ActionSurface v-for="color in availableColors" :key="color.id" class="tap-target answer-button" :style="{ backgroundColor: tint(color.value, 0.16), borderColor: tint(color.value, 0.55) }" @click="answer(color.id)">
+              <view class="answer-swatch tap-content" :style="{ backgroundColor: color.value }"></view>
+              <text class="answer-label tap-content">{{ color.label }}</text>
+            </ActionSurface>
+          </view>
+
+          <view class="feedback"><text v-if="feedback != ''" :class="feedback == '正确' ? 'good' : 'again'">{{ feedback }}</text></view>
+
+          <view class="stats">
+            <view class="stat"><text class="value">{{ correct }}</text><text class="label">正确</text></view>
+            <view class="stat"><text class="value">{{ errors }}</text><text class="label">错误</text></view>
+            <view class="stat"><text class="value">{{ interferenceErrors }}</text><text class="label">干扰错误</text></view>
+          </view>
+        </template>
       </view>
     </view>
-
-    <view v-if="started" class="answer-grid">
-      <button v-for="color in availableColors" :key="color.id" class="tap-target answer-button" @click="answer(color.id)">
-        <view class="answer-swatch tap-content" :style="{ backgroundColor: color.value }"></view>
-        <text class="answer-label tap-content">{{ color.label }}</text>
-      </button>
-    </view>
-
-    <view class="footer-stats">
-      <view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view>
-      <view class="footer-stat"><text class="footer-value">{{ errors }}</text><text class="footer-label">错误</text></view>
-      <view class="footer-stat"><text class="footer-value">{{ interferenceErrors }}</text><text class="footer-label">干扰错误</text></view>
-    </view>
-  </view>
+  </TrainingFrame>
 </template>
 
 <script setup lang="uts">
+import { timedRoundScore, scoreQuery, searchTargetMs } from '../../utils/game-scoring.uts'
+const roundScores: number[] = []
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
+import ActionSurface from '../../components/ActionSurface.uvue'
 import { ref, computed } from 'vue'
-import YoungChildCue from '../../components/YoungChildCue.uvue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import { getGameTuningAge } from '../../utils/difficulty.uts'
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+
 
 type ColorOption = { id: string, label: string, value: string }
 const COLORS: ColorOption[] = [
@@ -83,6 +97,25 @@ const reactions = ref([] as number[])
 let appearedAt = 0
 let gameStartedAt = 0
 let answerTimer = 0
+
+// 试玩演示与正式训练相互独立，不计时、不计分。
+const demoPicked = ref('')
+const demoColor = computed((): ColorOption => COLORS[1])
+const demoWord = computed((): string => optionById('blue').label.substring(0, 1))
+const demoOptions = computed((): ColorOption[] => availableColors.value)
+const demoDone = computed((): boolean => demoPicked.value == demoColor.value.id)
+const demoHint = computed((): string => {
+  if (demoPicked.value == '') return readingMode.value ? '字写的是「' + demoWord.value + '」，要点它真正的颜色' : '星星是什么颜色？'
+  if (demoDone.value) return '找对啦！'
+  return '再看看，点它真正的颜色'
+})
+function pickDemo(id: string) { if (trainingPaused.value) return; if (demoDone.value) return; demoPicked.value = id }
+function resetDemo() { if (trainingPaused.value) return; demoPicked.value = '' }
+
+function tint(hex: string, alpha: number): string {
+  const r = parseInt(hex.substring(1, 3), 16), g = parseInt(hex.substring(3, 5), 16), b = parseInt(hex.substring(5, 7), 16)
+  return 'rgba(' + r.toString() + ',' + g.toString() + ',' + b.toString() + ',' + alpha.toString() + ')'
+}
 
 function optionById(id: string): ColorOption {
   const option = COLORS.find((item: ColorOption): boolean => item.id == id)
@@ -116,19 +149,18 @@ function differentColorId(id: string): string {
   return candidate
 }
 
-function clearTimer() { if (answerTimer > 0) clearTimeout(answerTimer) }
+function clearTimer() { if (answerTimer > 0) trainingClock.clearTimeout(answerTimer) }
 
 function finishGame() {
   clearTimer()
   const accuracy = Math.round((correct.value / totalRounds.value) * 100)
   const reactionTotal = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
   const average = reactions.value.length == 0 ? 0 : Math.round(reactionTotal / reactions.value.length)
-  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
   uni.redirectTo({
     url: '/pages/result/result?gameId=color-command&dimensionId=selective&score=' + accuracy.toString() +
       '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() +
-      '&interferenceErrors=' + interferenceErrors.value.toString()
-  })
+      '&interferenceErrors=' + interferenceErrors.value.toString() + scoreQuery(roundScores) })
 }
 
 function prepareRound() {
@@ -141,28 +173,28 @@ function prepareRound() {
   wordColorId.value = currentInterference.value ? differentColorId(stimulusColorId.value) : stimulusColorId.value
   feedback.value = ''
   acceptingAnswer.value = true
-  appearedAt = Date.now()
+  appearedAt = trainingClock.now()
 }
 
-function begin() {
+function begin() { if (trainingPaused.value) return;
   started.value = true
-  gameStartedAt = Date.now()
+  gameStartedAt = trainingClock.now()
   prepareRound()
 }
 
-function answer(colorId: string) {
+function answer(colorId: string) { if (trainingPaused.value) return;
   if (!started.value || !acceptingAnswer.value) return
   acceptingAnswer.value = false
-  reactions.value.push(Date.now() - appearedAt)
+  roundScores.push(timedRoundScore(colorId == stimulusColorId.value, trainingClock.now() - appearedAt, searchTargetMs('color-command', getGameTuningAge('color-command') - 4))); reactions.value.push(trainingClock.now() - appearedAt)
   if (colorId == stimulusColorId.value) {
-    correct.value += 1
+    { correct.value += 1; training.playFeedback('correct') }
     feedback.value = '正确'
   } else {
-    errors.value += 1
-    if (currentInterference.value) interferenceErrors.value += 1
+    { errors.value += 1; training.playFeedback('wrong') }
+    if (currentInterference.value) { interferenceErrors.value += 1; training.playFeedback('wrong') }
     feedback.value = '只看颜色'
   }
-  answerTimer = setTimeout(() => {
+  answerTimer = trainingClock.setTimeout(() => {
     roundIndex.value += 1
     prepareRound()
   }, 500)
@@ -170,42 +202,49 @@ function answer(colorId: string) {
 
 onLoad((_options: OnLoadOptions) => configureDifficulty())
 onUnload(() => clearTimer())
+// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>
-.page { flex: 1; padding: 20px; }
-.game-header { flex-direction: row; justify-content: space-between; align-items: center; }
-.round-label { color: #b68418; font-size: 12px; font-weight: 700; }
-.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
-.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #fff4d7; align-items: center; justify-content: center; }
-.counter-value { color: #a97810; font-size: 13px; font-weight: 700; }
-.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }
-.progress-fill { height: 8px; border-radius: 4px; background-color: #ffc857; }
-.rule-card { margin-top: 14px; padding: 15px 17px; border-radius: 18px; background-color: #fff7e5; }
-.rule-kicker { color: #998353; font-size: 10px; font-weight: 700; }
-.rule-title { margin-top: 3px; color: #51462f; font-size: 17px; font-weight: 700; }
-.rule-tip { margin-top: 4px; color: #887a5e; font-size: 11px; }
-.play-area { margin-top: 14px; height: 280px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; position: relative; overflow: hidden; }
-.decor-dot { position: absolute; width: 19px; height: 19px; border-radius: 10px; opacity: 0.18; }
+.page { flex: 1; background-color: #eaf1fb; }
+.scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+.content { position: relative; flex: 1; padding: 16px 18px 20px; }
+.header { flex-direction: row; justify-content: space-between; align-items: center; }
+.dimension { color: #b07815; font-size: 11px; font-weight: 700; }
+.title { margin-top: 3px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.counter { min-width: 64px; height: 40px; padding: 0 12px; border-radius: 20px; background-color: rgba(255, 244, 215, 0.95); align-items: center; justify-content: center; }
+.counter-text { color: #a97810; font-size: 13px; font-weight: 700; }
+.progress { margin-top: 14px; height: 7px; border-radius: 4px; background-color: rgba(255, 255, 255, 0.75); overflow: hidden; }
+.progress-fill { height: 7px; border-radius: 4px; background-color: #f0b429; }
+.instruction { margin-top: 16px; padding: 22px 18px 20px; border-radius: 25px; background-color: rgba(255, 255, 255, 0.94); align-items: center; }
+.demo-title { color: #344059; font-size: 18px; font-weight: 700; }
+.rule-line { margin-top: 6px; color: #998353; font-size: 11px; font-weight: 700; }
+.demo-stage { margin-top: 16px; align-items: center; }
+.demo-symbol { font-size: 62px; font-weight: 800; }
+.demo-options { margin-top: 14px; flex-direction: row; flex-wrap: wrap; justify-content: center; }
+.demo-option { margin: 5px; padding: 10px 13px; border-radius: 16px; background-color: #ffffff; border-width: 2px; border-color: #eee4cd; flex-direction: row; align-items: center; }
+.demo-swatch { width: 22px; height: 22px; border-radius: 11px; }
+.demo-option-label { margin-left: 7px; color: #4a4231; font-size: 12px; font-weight: 700; }
+.demo-right { border-color: #55c9a5; background-color: #eafaf3; }
+.demo-wrong { border-color: #f17c8d; background-color: #fdeef0; }
+.demo-hint { margin-top: 12px; color: #8a7a55; font-size: 12px; }
+.demo-replay { margin-top: 6px; padding: 8px 16px; color: #c08a12; font-size: 12px; font-weight: 700; }
+.primary { margin-top: 14px; width: 150px; height: 48px; line-height: 48px; border-radius: 15px; background-color: #eda62c; color: #ffffff; font-size: 14px; font-weight: 700; }
+.play-card { margin-top: 14px; height: 270px; border-radius: 25px; background-color: rgba(255, 255, 255, 0.92); align-items: center; justify-content: center; position: relative; overflow: hidden; }
+.decor-dot { position: absolute; width: 19px; height: 19px; border-radius: 10px; opacity: 0.16; }
 .decor-one { left: 24px; top: 32px; background-color: #5b8def; }.decor-two { right: 31px; top: 54px; background-color: #f17c8d; }
 .decor-three { left: 48px; bottom: 38px; background-color: #55c9a5; }.decor-four { right: 57px; bottom: 29px; background-color: #ffc857; }
-.instruction { width: 80%; align-items: center; z-index: 2; }
-.sample-word-value { font-size: 74px; font-weight: 800; }
-.instruction-title { margin-top: 11px; color: #25314a; font-size: 19px; font-weight: 700; }
-.instruction-copy { margin-top: 8px; color: #7b8599; font-size: 12px; line-height: 19px; text-align: center; }
-.primary { margin-top: 18px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #e5aa27; color: #ffffff; font-size: 14px; font-weight: 700; }
-.challenge { align-items: center; z-index: 2; }
-.color-word, .color-star { font-size: 92px; font-weight: 800; }
-.question { margin-top: 5px; color: #747f95; font-size: 13px; }
-.feedback { position: absolute; bottom: 13px; padding: 7px 14px; border-radius: 13px; }
-.feedback-good { background-color: #e6f7f0; }.feedback-again { background-color: #fff0f1; }
-.feedback-text-good { color: #338e72; font-size: 12px; font-weight: 700; }.feedback-text-again { color: #c65b66; font-size: 12px; font-weight: 700; }
+.color-word, .color-star { font-size: 96px; font-weight: 800; }
 .answer-grid { margin-top: 12px; flex-direction: row; flex-wrap: wrap; justify-content: center; }
-.answer-button { margin: 5px; width: 43%; height: 54px; border-radius: 16px; background-color: #ffffff; flex-direction: row; align-items: center; justify-content: center; }
-.answer-swatch { width: 24px; height: 24px; border-radius: 12px; }
-.answer-label { margin-left: 8px; color: #3d485f; font-size: 13px; font-weight: 700; }
-.footer-stats { margin-top: 12px; flex-direction: row; }
-.footer-stat { flex: 1; align-items: center; }
-.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }
-.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+.answer-button { margin: 5px; width: 43%; height: 56px; border-radius: 18px; border-width: 2px; flex-direction: row; align-items: center; justify-content: center; }
+.answer-swatch { width: 26px; height: 26px; border-radius: 13px; border-width: 2px; border-color: #ffffff; }
+.answer-label { margin-left: 9px; color: #3d485f; font-size: 14px; font-weight: 700; }
+.feedback { height: 32px; align-items: center; justify-content: center; }
+.good { color: #338e72; font-size: 12px; font-weight: 700; }
+.again { color: #c65b66; font-size: 12px; font-weight: 700; }
+.stats { margin-top: 2px; padding: 12px 8px; border-radius: 18px; background-color: rgba(255, 255, 255, 0.82); flex-direction: row; }
+.stat { flex: 1; align-items: center; }
+.value { color: #25314a; font-size: 17px; font-weight: 700; }
+.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
 </style>

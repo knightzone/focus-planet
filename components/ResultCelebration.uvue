@@ -1,0 +1,39 @@
+<template>
+  <view class="celebration-stage">
+    
+    
+    <image class="celebration-character" :src="props.character" mode="aspectFit"></image>
+    <image v-for="index in (special ? [0,1,2,3,4] : [])" :key="index" class="orbit-star" :src="THEME_STAR" mode="aspectFit" :style="{ left: starLeft(index), top: starTop(index), transform: starScale(index), zIndex: starLayer(index) }"></image>
+  </view>
+</template>
+<script setup lang="uts">
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { onShow, onHide } from '@dcloudio/uni-app'
+import { TrainingClock } from '../utils/training-clock.uts'
+import { THEME_STAR, hasStarCelebration, orbitStar } from '../utils/star-rating.uts'
+const props = defineProps<{ score: number, character: string }>()
+const special = computed((): boolean => hasStarCelebration(props.score))
+const elapsed = ref(0), clock = new TrainingClock()
+let timer = 0, began = 0
+function starLeft(index: number): string { return orbitStar(index, elapsed.value).x + 'px' }
+function starTop(index: number): string { return orbitStar(index, elapsed.value).y + 'px' }
+function starScale(index: number): string { return 'scale(' + orbitStar(index, elapsed.value).scale + ')' }
+function starLayer(index: number): number { return orbitStar(index, elapsed.value).z }
+function updateAnimation() {
+  if (timer > 0) clock.clearInterval(timer)
+  timer = 0; elapsed.value = 0
+  if (!special.value) return
+  began = clock.now()
+  timer = clock.setInterval(() => { elapsed.value = clock.now() - began }, 40)
+}
+watch(() => props.score, () => updateAnimation())
+onMounted(() => updateAnimation())
+onHide(() => clock.pause())
+onShow(() => clock.resume())
+onUnmounted(() => { clock.dispose(); timer = 0 })
+</script>
+<style>
+.celebration-stage { position: relative; width: 280px; height: 230px; pointer-events: none; }
+.celebration-character { position: absolute; left: 40px; top: 15px; width: 200px; height: 200px; z-index: 2; }
+.orbit-star { position: absolute; width: 36px; height: 36px; }
+</style>

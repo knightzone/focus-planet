@@ -1,0 +1,46 @@
+export type SoundObject = { id: string, label: string, image: string, group: string, sounds: string[] }
+export const soundObjects = [
+  { id: 'cat', label: '猫', image: '/static/images/runtime/illustrations/shadow-match/hard-similar-cats/cat-1.webp', group: 'animal', sounds: ['/static/audio/sound-source/cat-01.mp3','/static/audio/sound-source/cat-02.mp3','/static/audio/sound-source/cat-03.mp3','/static/audio/sound-source/cat-04.mp3','/static/audio/sound-source/cat-05.mp3','/static/audio/sound-source/cat-06.mp3'] },
+  { id: 'dog', label: '狗', image: '/static/images/runtime/illustrations/shadow-match/medium-puppies/puppy-1.webp', group: 'animal', sounds: ['/static/audio/sound-source/dog-01.mp3','/static/audio/sound-source/dog-02.mp3'] },
+  { id: 'cow', label: '牛', image: '/static/images/runtime/illustrations/shadow-match/medium-farm-animals/cow.webp', group: 'animal', sounds: ['/static/audio/sound-source/cow-01.mp3','/static/audio/sound-source/cow-02.mp3'] },
+  { id: 'sheep', label: '羊', image: '/static/images/runtime/illustrations/shadow-match/medium-farm-animals/sheep.webp', group: 'animal', sounds: ['/static/audio/sound-source/sheep-01.mp3','/static/audio/sound-source/sheep-02.mp3'] },
+  { id: 'horse', label: '马', image: '/static/images/runtime/illustrations/shadow-match/medium-farm-animals/horse.webp', group: 'animal', sounds: ['/static/audio/sound-source/horse-01.mp3','/static/audio/sound-source/horse-02.mp3'] },
+  { id: 'pig', label: '猪', image: '/static/images/runtime/illustrations/shadow-match/medium-farm-animals/pig.webp', group: 'animal', sounds: ['/static/audio/sound-source/pig-01.mp3','/static/audio/sound-source/pig-02.mp3'] },
+  { id: 'chicken', label: '鸡', image: '/static/images/runtime/illustrations/shadow-match/medium-farm-animals/chicken.webp', group: 'animal', sounds: ['/static/audio/sound-source/chicken-01.mp3','/static/audio/sound-source/chicken-02.mp3'] },
+  { id: 'duck', label: '鸭', image: '/static/images/runtime/illustrations/shadow-match/medium-farm-animals/duck.webp', group: 'animal', sounds: ['/static/audio/sound-source/duck-01.mp3','/static/audio/sound-source/duck-02.mp3'] },
+  { id: 'bird', label: '小鸟', image: '/static/images/runtime/illustrations/shadow-match/medium-similar-birds/bird-1.webp', group: 'animal', sounds: ['/static/audio/sound-source/bird-01.mp3','/static/audio/sound-source/bird-02.mp3'] },
+  { id: 'car', label: '汽车', image: '/static/images/runtime/illustrations/shadow-match/easy-vehicles/car.webp', group: 'vehicle', sounds: ['/static/audio/sound-source/car-01.mp3','/static/audio/sound-source/car-02.mp3'] },
+  { id: 'train', label: '火车', image: '/static/images/runtime/illustrations/shadow-match/easy-vehicles/train.webp', group: 'vehicle', sounds: ['/static/audio/sound-source/train-01.mp3','/static/audio/sound-source/train-02.mp3'] },
+  { id: 'airplane', label: '飞机', image: '/static/images/runtime/illustrations/shadow-match/high-similar-airplanes/airplane-1.webp', group: 'vehicle', sounds: ['/static/audio/sound-source/airplane-01.mp3','/static/audio/sound-source/airplane-02.mp3'] },
+  { id: 'guitar', label: '吉他', image: '/static/images/runtime/illustrations/shadow-match/medium-musical-instruments/guitar.webp', group: 'music', sounds: ['/static/audio/sound-source/guitar-01.mp3','/static/audio/sound-source/guitar-02.mp3'] },
+  { id: 'drum', label: '小鼓', image: '/static/images/runtime/illustrations/shadow-match/medium-musical-instruments/drum.webp', group: 'music', sounds: ['/static/audio/sound-source/drum-01.mp3','/static/audio/sound-source/drum-02.mp3'] },
+  { id: 'maracas', label: '沙锤', image: '/static/images/runtime/illustrations/shadow-match/medium-musical-instruments/maracas.webp', group: 'music', sounds: ['/static/audio/sound-source/maracas-01.mp3','/static/audio/sound-source/maracas-02.mp3'] },
+  { id: 'piano', label: '钢琴', image: '/static/images/runtime/illustrations/shadow-match/medium-musical-instruments/piano.webp', group: 'music', sounds: ['/static/audio/sound-source/piano-01.mp3','/static/audio/sound-source/piano-02.mp3'] },
+  { id: 'violin', label: '小提琴', image: '/static/images/runtime/illustrations/shadow-match/medium-musical-instruments/violin.webp', group: 'music', sounds: ['/static/audio/sound-source/violin-01.mp3','/static/audio/sound-source/violin-02.mp3'] },
+  { id: 'trumpet', label: '小号', image: '/static/images/runtime/illustrations/shadow-match/medium-musical-instruments/trumpet.webp', group: 'music', sounds: ['/static/audio/sound-source/trumpet-01.mp3','/static/audio/sound-source/trumpet-02.mp3'] },
+] as SoundObject[]
+
+export function soundChoiceCount(level: number): number { return [2,2,3,3,4,4,4,5,5,6][Math.max(0,Math.min(9,level-1))] }
+export function shuffledSounds(items: SoundObject[]): SoundObject[] {
+  const result = items.slice()
+  for (let i = result.length-1; i > 0; i--) { const j = Math.floor(Math.random()*(i+1)); const value = result[i]; result[i]=result[j]; result[j]=value }
+  return result
+}
+export function soundPool(level: number): SoundObject[] {
+  if (level >= 4) return soundObjects.slice()
+  return soundObjects.filter((o: SoundObject): boolean => ['cat','dog','cow','duck','bird','car','drum','piano'].includes(o.id))
+}
+export function soundChoices(target: SoundObject, level: number): SoundObject[] {
+  const pool = shuffledSounds(soundPool(level).filter((o: SoundObject): boolean => o.id != target.id))
+  const count = soundChoiceCount(level)
+  const similar = [0,0,0,1,1,2,3,3,4,5][Math.max(0,Math.min(9,level-1))]
+  const chosen = [target] as SoundObject[]
+  const same = pool.filter((o: SoundObject): boolean => o.group == target.group)
+  for (let i=0;i<Math.min(similar,same.length);i++) chosen.push(same[i])
+  const rest = pool.filter((o: SoundObject): boolean => !chosen.some((c: SoundObject): boolean => c.id==o.id))
+  // At entry levels prioritize very different sound sources.
+  const ordered = level<=3 ? rest.filter((o: SoundObject): boolean => o.group!=target.group).concat(rest.filter((o: SoundObject): boolean => o.group==target.group)) : rest
+  for (let i=0;chosen.length<count && i<ordered.length;i++) chosen.push(ordered[i])
+  return shuffledSounds(chosen)
+}
+

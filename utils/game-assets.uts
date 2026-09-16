@@ -7,10 +7,10 @@ export type GameObjectAsset = {
 }
 
 export const GAME_OBJECTS: GameObjectAsset[] = [
-  { id: 'bunny', name: '小兔', path: '/static/images/runtime/game-objects/bunny-blue-card-v1.png', kind: 'animal', color: 'blue' },
-  { id: 'kitten', name: '小猫', path: '/static/images/runtime/game-objects/kitten-yellow-card-v1.png', kind: 'animal', color: 'yellow' },
-  { id: 'car', name: '小汽车', path: '/static/images/runtime/game-objects/car-yellow-card-v1.png', kind: 'vehicle', color: 'yellow' },
-  { id: 'boat', name: '小船', path: '/static/images/runtime/game-objects/boat-blue-card-v1.png', kind: 'vehicle', color: 'blue' }
+  { id: 'bunny', name: '小兔', path: '/static/images/runtime/game-objects/bunny-blue-card-v1.webp', kind: 'animal', color: 'blue' },
+  { id: 'kitten', name: '小猫', path: '/static/images/runtime/game-objects/kitten-yellow-card-v1.webp', kind: 'animal', color: 'yellow' },
+  { id: 'car', name: '小汽车', path: '/static/images/runtime/game-objects/car-yellow-card-v1.webp', kind: 'vehicle', color: 'yellow' },
+  { id: 'boat', name: '小船', path: '/static/images/runtime/game-objects/boat-blue-card-v1.webp', kind: 'vehicle', color: 'blue' }
 ]
 
 export const GAME_OBJECT_IDS = ['bunny', 'kitten', 'car', 'boat']
@@ -22,4 +22,26 @@ export function getGameObjectAsset(id: string): GameObjectAsset {
 
 export function getGameObjectPath(id: string): string {
   return getGameObjectAsset(id).path
+}
+
+export function getGameThumbnail(gameId: string): string {
+  if (gameId == 'star-catcher') return '/static/images/runtime/brand/focus-star-planet-v1.webp'
+  if (gameId == 'shape-match') return '/static/images/runtime/shape-match/butterfly.svg'
+  if (gameId == 'number-tap') return '/static/images/runtime/game-objects/car-yellow-card-v1.webp'
+  if (gameId == 'penalty-kick') return '/static/images/runtime/game-objects/football-v2.webp'
+  if (gameId == 'color-command') return '/static/images/runtime/shape-match/apple.svg'
+  if (gameId == 'forest-search') return '/static/images/runtime/game-objects/firefly-tracking-v1.webp'
+  if (gameId == 'spot-change') return '/static/images/runtime/game-objects/bunny-blue-card-v1.webp'
+  if (gameId == 'spot-difference') return '/static/images/runtime/game-objects/kitten-yellow-card-v1.webp'
+  if (gameId == 'sorting-station') return '/static/images/runtime/game-objects/car-yellow-card-v1.webp'
+  if (gameId == 'water-sort') return '/static/images/runtime/game-objects/boat-blue-card-v1.webp'
+  if (gameId == 'pattern-find') return '/static/images/runtime/shape-match/low2-rocket.svg'
+  if (gameId == 'memory-search') return '/static/images/runtime/game-objects/boat-blue-card-v1.webp'
+  if (gameId == 'sky-watcher') return '/static/images/runtime/brand/focus-star-planet-v1.webp'
+  if (gameId == 'audio-sequence') return '/static/images/runtime/shape-match/cat.svg'
+  if (gameId == 'breathing-planet') return '/static/images/runtime/game-objects/bunny-blue-card-v1.webp'
+  if (gameId == 'light-tracking') return '/static/images/runtime/game-objects/firefly-tracking-v1.webp'
+  if (gameId == 'red-green') return '/static/images/runtime/game-objects/car-yellow-card-v1.webp'
+  if (gameId == 'bird-cloud') return '/static/images/runtime/game-characters/tap-bird-v1.webp'
+  return '/static/images/runtime/brand/focus-star-planet-v1.webp'
 }

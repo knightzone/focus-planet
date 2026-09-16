@@ -1,0 +1,73 @@
+export type AvatarOption = {
+  id: string,
+  name: string,
+  image: string
+}
+
+type NicknameOption = {
+  name: string,
+  gender: string
+}
+
+export const PROFILE_AVATARS: AvatarOption[] = [
+  { id: 'blue-bunny', name: '蓝蓝兔', image: '/static/images/runtime/game-objects/bunny-blue-card-v1.webp' },
+  { id: 'yellow-kitten', name: '暖暖猫', image: '/static/images/runtime/game-objects/kitten-yellow-card-v1.webp' },
+  { id: 'focus-star', name: '专注星', image: '/static/images/runtime/brand/focus-star-planet-v1.webp' }
+]
+
+const PRESET_NICKNAMES: NicknameOption[] = [
+  { name: '乐乐', gender: 'male' },
+  { name: '天天', gender: 'male' },
+  { name: '阳阳', gender: 'male' },
+  { name: '小宇', gender: 'male' },
+  { name: '小宝', gender: 'male' },
+  { name: '晨晨', gender: 'male' },
+  { name: '糖糖', gender: 'female' },
+  { name: '果果', gender: 'female' },
+  { name: '朵朵', gender: 'female' },
+  { name: '悦悦', gender: 'female' },
+  { name: '萌萌', gender: 'female' },
+  { name: '小米', gender: 'female' },
+  { name: '星星', gender: 'universal' },
+  { name: '豆豆', gender: 'universal' },
+  { name: '米粒', gender: 'universal' },
+  { name: '多多', gender: 'universal' },
+  { name: '小七', gender: 'universal' },
+  { name: '团团', gender: 'universal' },
+  { name: '可可', gender: 'universal' },
+  { name: '元宝', gender: 'universal' }
+]
+
+export function getAvatarPath(avatarId: string): string {
+  const found = PROFILE_AVATARS.find((item: AvatarOption): boolean => item.id == avatarId)
+  return found == null ? PROFILE_AVATARS[0].image : found.image
+}
+
+export function randomNickname(gender: string, previous: string = ''): string {
+  const candidates = PRESET_NICKNAMES.filter((item: NicknameOption): boolean => {
+    if (gender == 'male' || gender == 'female') return item.gender == gender || item.gender == 'universal'
+    return item.gender == 'universal'
+  })
+  if (candidates.length == 0) return '星星'
+  let selected = candidates[Math.floor(Math.random() * candidates.length)].name
+  if (candidates.length > 1 && selected == previous) {
+    const currentIndex = candidates.findIndex((item: NicknameOption): boolean => item.name == selected)
+    selected = candidates[(currentIndex + 1) % candidates.length].name
+  }
+  return selected
+}
+
+export function calculateAge(birthYear: number, birthMonth: number): number {
+  const now = new Date()
+  return now.getFullYear() - birthYear - (now.getMonth() + 1 < birthMonth ? 1 : 0)
+}
+
+export function formatBirthDate(birthYear: number, birthMonth: number): string {
+  return birthYear.toString() + ' 年 ' + birthMonth.toString() + ' 月'
+}
+
+export function genderLabel(gender: string): string {
+  if (gender == 'male') return '男孩'
+  if (gender == 'female') return '女孩'
+  return '暂不选择'
+}

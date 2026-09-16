@@ -1,30 +1,37 @@
 <template>
+<TrainingFrame title="声音过滤器" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="page">
     <view class="game-header"><view><text class="round-label">选择注意训练</text><text class="game-title">声音过滤器</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
     <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-    <view class="rule-card"><view><text class="rule-title">忽略背景里的低声干扰</text><text class="rule-tip">只选择前景中最清楚的提示音</text></view><button class="tap-target replay" :disabled="!accepting" @click="replay">再听一次</button></view>
+    <view class="rule-card"><view><text class="rule-title">找出最清楚的声音</text></view><button class="tap-target replay" :disabled="!accepting" @click="replay">再听一次</button></view>
 
     <view v-if="!started" class="instruction">
       <YoungChildCue kind="listen"></YoungChildCue>
-      <text class="instruction-title">先认识目标提示音</text><text class="instruction-copy">点图案试听清晰版本。训练中会加入背景声，请找出原来的提示音。</text>
-      <view class="samples"><button v-for="cue in availableCues" :key="cue.id" class="tap-target sample" @click="preview(cue.id)"><text class="sample-symbol tap-content">{{ cue.icon }}</text><text class="sample-tip tap-content">试听</text></button></view>
-      <button class="tap-target primary" @click="begin">▶ 开始训练</button>
+      <view class="samples"><ActionSurface v-for="cue in availableCues" :key="cue.id" class="tap-target sample" @click="preview(cue.id)"><text class="sample-symbol tap-content">{{ cue.icon }}</text><text class="sample-tip tap-content">试听</text></ActionSurface></view>
+      <button class="tap-target primary" @click="begin">开始</button>
     </view>
     <view v-else class="challenge">
       <view class="noise-view"><view class="wave wave-one"></view><view class="wave wave-two"></view><view class="sound-core"><text class="sound-core-symbol">♫</text></view></view>
-      <text class="question">刚才最清楚的是哪一种声音？</text>
-      <view class="answers"><button v-for="cue in availableCues" :key="cue.id" class="tap-target answer" :disabled="!accepting" @click="answer(cue.id)"><text class="answer-symbol tap-content">{{ cue.icon }}</text></button></view>
+      <view class="answers"><ActionSurface v-for="cue in availableCues" :key="cue.id" class="tap-target answer" :disabled="!accepting" @click="answer(cue.id)"><text class="answer-symbol tap-content">{{ cue.icon }}</text></ActionSurface></view>
       <text class="feedback" :class="feedback == '过滤正确' ? 'good' : 'again'">{{ feedback }}</text>
     </view>
     <view class="footer-stats"><view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view><view class="footer-stat"><text class="footer-value">{{ interferenceErrors }}</text><text class="footer-label">干扰错误</text></view><view class="footer-stat"><text class="footer-value">{{ replayCount }}</text><text class="footer-label">重听</text></view></view>
   </view>
+</TrainingFrame>
 </template>
 
 <script setup lang="uts">
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
+import ActionSurface from '../../components/ActionSurface.uvue'
 import { ref, computed } from 'vue'
 import YoungChildCue from '../../components/YoungChildCue.uvue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import { getGameTuningAge } from '../../utils/difficulty.uts'
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+
 type SoundCue = { id: string, icon: string }
 const CUES: SoundCue[] = [{ id: 'star', icon: '✦' }, { id: 'moon', icon: '☾' }, { id: 'planet', icon: '●' }]
 const started = ref(false), accepting = ref(false), availableCues = ref(CUES.slice(0, 2))
@@ -35,16 +42,18 @@ let appearedAt = 0, gameStartedAt = 0, nextTimer = 0
 const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
 const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
 function configure() { const age = getGameTuningAge('sound-filter'); if (age <= 6) totalRounds.value = 8; else if (age <= 9) totalRounds.value = 10; else { availableCues.value = CUES.slice(0, 3); totalRounds.value = age <= 12 ? 14 : 18 } }
-function cuePath(id: string, filtered: boolean): string { return filtered ? '/static/audio/filter/' + id + '.wav' : '/static/audio/cues/' + id + '.wav' }
-function play(id: string, filtered: boolean) { if (audio.value == null) audio.value = uni.createInnerAudioContext(); else audio.value!.stop(); audio.value!.src = cuePath(id, filtered); audio.value!.play() }
-function preview(id: string) { play(id, false) }
-function clearResources() { if (nextTimer > 0) clearTimeout(nextTimer); audio.value?.stop() }
-function finish() { clearResources(); const accuracy = Math.round((correct.value / totalRounds.value) * 100); const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=sound-filter&dimensionId=selective&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&interferenceErrors=' + interferenceErrors.value.toString() }) }
-function prepare() { if (roundIndex.value >= totalRounds.value) { finish(); return }; targetId.value = availableCues.value[Math.floor(Math.random() * availableCues.value.length)].id; feedback.value = ''; accepting.value = true; appearedAt = Date.now(); play(targetId.value, true) }
-function begin() { started.value = true; gameStartedAt = Date.now(); prepare() }
-function replay() { if (!accepting.value) return; replayCount.value += 1; play(targetId.value, true) }
-function answer(id: string) { if (!accepting.value) return; accepting.value = false; reactions.value.push(Date.now() - appearedAt); if (id == targetId.value) { correct.value += 1; feedback.value = '过滤正确' } else { interferenceErrors.value += 1; feedback.value = '被背景声干扰了' }; nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 620) }
-onLoad((_options: OnLoadOptions) => configure()); onUnload(() => { clearResources(); audio.value?.destroy(); audio.value = null })
+function cuePath(id: string, filtered: boolean): string { return filtered ? '/static/audio/filter/' + id + '.mp3' : '/static/audio/cues/' + id + '.mp3' }
+function play(id: string, filtered: boolean) { if (audio.value == null) audio.value = trainingClock.createAudio(); else audio.value!.stop(); audio.value!.src = cuePath(id, filtered); audio.value!.play() }
+function preview(id: string) { if (trainingPaused.value) return; play(id, false) }
+function clearResources() { if (nextTimer > 0) trainingClock.clearTimeout(nextTimer); audio.value?.stop() }
+function finish() { clearResources(); const accuracy = Math.round((correct.value / totalRounds.value) * 100); const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=sound-filter&dimensionId=selective&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&interferenceErrors=' + interferenceErrors.value.toString() }) }
+function prepare() { if (roundIndex.value >= totalRounds.value) { finish(); return }; targetId.value = availableCues.value[Math.floor(Math.random() * availableCues.value.length)].id; feedback.value = ''; accepting.value = true; appearedAt = trainingClock.now(); play(targetId.value, true) }
+function begin() { if (trainingPaused.value) return; started.value = true; gameStartedAt = trainingClock.now(); prepare() }
+function replay() { if (trainingPaused.value) return; if (!accepting.value) return; replayCount.value += 1; play(targetId.value, true) }
+function answer(id: string) { if (trainingPaused.value) return; if (!accepting.value) return; accepting.value = false; audio.value?.stop(); reactions.value.push(trainingClock.now() - appearedAt); if (id == targetId.value) { { correct.value += 1; training.playFeedback('correct') } feedback.value = '过滤正确' } else { { interferenceErrors.value += 1; training.playFeedback('wrong') } feedback.value = '被背景声干扰了' }; nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepare() }, 620) }
+onLoad((_options: OnLoadOptions) => configure()); onUnload(() => { clearResources(); trainingClock.destroyAudio(audio.value); audio.value = null })
+// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>

@@ -1,81 +1,148 @@
 <template>
-  <view class="page">
-    <view class="mascot-pair">
-      <image class="profile-bunny" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image>
-      <view class="planet"><view class="planet-ring"></view><text class="planet-face">✦</text></view>
-      <image class="profile-kitten" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.png" mode="aspectFit"></image>
-    </view>
-    <text class="title">欢迎来到专注星伴</text>
-    <text class="subtitle">先创建训练档案，年龄只用于设置各游戏的首次默认难度。</text>
-
-    <view class="form-card">
-      <text class="label">怎么称呼你？</text>
-      <input class="input" v-model="nickname" maxlength="10" placeholder="输入昵称" />
-
-      <text class="label age-label">年龄</text>
-      <view class="age-row">
-        <button class="tap-target age-button" @click="changeAge(-1)">−</button>
-        <view class="age-value">
-          <text class="age-number">{{ age }}</text>
-          <text class="age-unit">岁</text>
+  <scroll-view class="page" direction="vertical" show-scrollbar="false">
+    <view class="page-content">
+      <view class="intro">
+        <text class="title">宝宝档案</text>
+      </view>
+      <view class="form-card">
+        <text class="section-label">头像</text>
+        <view class="avatar-row">
+          <view v-for="item in avatars" :key="item.id" class="avatar-option" :class="avatarId == item.id ? 'avatar-option-active' : ''" @click="selectAvatar(item.id)">
+            <view v-if="avatarId == item.id" class="avatar-check"><text class="avatar-check-text">✓</text></view>
+            <image class="avatar-image" :src="item.image" mode="aspectFit"></image>
+            <text class="avatar-name">{{ item.name }}</text>
+          </view>
         </view>
-        <button class="tap-target age-button" @click="changeAge(1)">＋</button>
+        <text class="section-label block-label">性别</text>
+        <view class="gender-row">
+          <button class="gender-button" :class="gender == 'male' ? 'gender-active' : ''" @click="selectGender('male')">男孩</button>
+          <button class="gender-button" :class="gender == 'female' ? 'gender-active' : ''" @click="selectGender('female')">女孩</button>
+          <button class="gender-button gender-button-last" :class="gender == 'unspecified' ? 'gender-active' : ''" @click="selectGender('unspecified')">暂不选择</button>
+        </view>
+        <text class="section-label block-label">昵称</text>
+        <view class="nickname-row">
+          <input class="nickname-input" v-model="nickname" maxlength="10" placeholder="输入宝宝昵称" @input="markNicknameCustomized" />
+          <button class="random-button" @click="useRandomNickname">换一个</button>
+        </view>
+        <text class="section-label block-label">出生年月</text>
+        <view class="birth-row">
+          <picker class="birth-picker" mode="selector" :range="birthYears" :value="birthYearIndex" @change="onBirthYearChange">
+            <view class="picker-value"><text class="picker-text">{{ birthYear }} 年</text><text class="picker-arrow">⌄</text></view>
+          </picker>
+          <picker class="birth-picker birth-picker-month" mode="selector" :range="birthMonths" :value="birthMonth - 1" @change="onBirthMonthChange">
+            <view class="picker-value"><text class="picker-text">{{ birthMonth }} 月</text><text class="picker-arrow">⌄</text></view>
+          </picker>
+        </view>
+        <view class="age-note"><text class="age-note-text">{{ age }} 岁 · {{ band.sessionMinutes }} 分钟/次</text></view>
       </view>
-      <view class="mode-badge">
-        <text class="mode-badge-text">首次难度参考 · 建议每次 {{ band.sessionMinutes }} 分钟</text>
-      </view>
+      <button class="primary" @click="saveAndContinue">完成</button>
     </view>
-
-    <button class="tap-target primary" @click="createProfile">进入我的星球</button>
-    <text class="guardian-note">低龄儿童建议由家长陪同完成设置</text>
-  </view>
+  </scroll-view>
 </template>
 
 <script setup lang="uts">
+import { LOCAL_TEST_MODE } from '../../utils/local-test.uts'
 import { ref, computed } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
 import { getAgeBand } from '../../utils/catalog.uts'
-import { saveProfile } from '../../utils/storage.uts'
+import { getProfile, saveProfile, ChildProfile } from '../../utils/storage.uts'
+import { getAuthSession } from '../../utils/auth.uts'
+import { createRemoteProfile, saveServerProfile } from '../../utils/server-api.uts'
+import { PROFILE_AVATARS, randomNickname, calculateAge } from '../../utils/profile-options.uts'
 
-const nickname = ref('小小探索家')
-const age = ref(8)
+const now = new Date()
+const birthYears = [] as number[]
+for (let year = now.getFullYear() - 16; year <= now.getFullYear() - 3; year++) birthYears.push(year)
+const birthMonths = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as number[]
+const avatars = PROFILE_AVATARS
+const nickname = ref(randomNickname('unspecified'))
+const gender = ref('unspecified')
+const avatarId = ref(PROFILE_AVATARS[0].id)
+const birthYear = ref(now.getFullYear() - 8)
+const birthMonth = ref(now.getMonth() + 1)
+const nicknameCustomized = ref(false)
+const age = computed((): number => calculateAge(birthYear.value, birthMonth.value))
 const band = computed(() => getAgeBand(age.value))
+const birthYearIndex = computed((): number => Math.max(0, birthYears.indexOf(birthYear.value)))
 
-function changeAge(delta: number) {
-  age.value = Math.min(16, Math.max(3, age.value + delta))
+onLoad(() => {
+  const profile = getProfile()
+  if (profile == null) return
+  nickname.value = profile.nickname
+  gender.value = profile.gender
+  avatarId.value = profile.avatarId
+  birthYear.value = profile.birthYear
+  birthMonth.value = profile.birthMonth
+  nicknameCustomized.value = profile.nicknameCustomized
+})
+
+function selectAvatar(value: string) { avatarId.value = value }
+function selectGender(value: string) {
+  if (gender.value == value) return
+  gender.value = value
+  if (!nicknameCustomized.value) nickname.value = randomNickname(value, nickname.value)
+}
+function markNicknameCustomized(_event: UniInputEvent) { nicknameCustomized.value = true }
+function useRandomNickname() { nickname.value = randomNickname(gender.value, nickname.value); nicknameCustomized.value = false }
+function onBirthYearChange(event: UniPickerChangeEvent) { birthYear.value = birthYears[event.detail.value as number] }
+function onBirthMonthChange(event: UniPickerChangeEvent) { birthMonth.value = birthMonths[event.detail.value as number] }
+
+function persist(serverId: string = '') {
+  const current = getProfile()
+  const profile: ChildProfile = {
+    nickname: nickname.value.trim(), age: age.value, birthYear: birthYear.value, birthMonth: birthMonth.value,
+    gender: gender.value, avatarId: avatarId.value, nicknameCustomized: nicknameCustomized.value,
+    createdAt: current == null ? Date.now() : current.createdAt, serverId: serverId
+  }
+  saveProfile(profile)
 }
 
-function createProfile() {
+function saveAndContinue() {
   const name = nickname.value.trim()
-  if (name.length == 0) {
-    uni.showToast({ title: '请先输入昵称', icon: 'none' })
+  if (name.length == 0) { uni.showToast({ title: '请先输入宝宝昵称', icon: 'none' }); return }
+  if (age.value < 3 || age.value > 16) { uni.showToast({ title: '请选择 3 至 16 岁的出生年月', icon: 'none' }); return }
+  const current = getProfile()
+  if (LOCAL_TEST_MODE || getAuthSession() == null) {
+    persist(current == null || current.serverId == null ? '' : current.serverId!)
+    uni.reLaunch({ url: '/pages/index/index' })
     return
   }
-  saveProfile({ nickname: name, age: age.value, createdAt: Date.now() })
-  uni.reLaunch({ url: '/pages/index/index' })
+  uni.showLoading({ title: '同步档案中' })
+  const success = (data: UTSJSONObject) => { uni.hideLoading(); saveServerProfile(data); persist(data['userId'] as string); uni.reLaunch({ url: '/pages/index/index' }) }
+  const failure = (message: string, _code: string) => { uni.hideLoading(); uni.showToast({ title: message, icon: 'none' }) }
+  createRemoteProfile(name, birthYear.value, birthMonth.value, gender.value, avatarId.value, success, failure)
 }
 </script>
 
 <style>
-.page { padding: 54px 24px 32px; align-items: center; }
-.mascot-pair { width: 100%; height: 150px; flex-direction: row; align-items: flex-end; justify-content: center; }
-.profile-bunny { width: 108px; height: 128px; border-radius: 54px; }
-.profile-kitten { width: 108px; height: 128px; border-radius: 54px; }
-.planet { margin: 0 -18px 7px; width: 76px; height: 76px; border-radius: 38px; background-color: #5b8def; align-items: center; justify-content: center; position: relative; z-index: 2; }
-.planet-ring { position: absolute; width: 96px; height: 25px; border: 5px solid #ffc857; border-radius: 50%; transform: rotate(-12deg); }
-.planet-face { color: #ffffff; font-size: 24px; font-weight: 700; z-index: 2; }
-.title { margin-top: 30px; font-size: 26px; font-weight: 700; color: #1f2a44; }
-.subtitle { margin-top: 10px; color: #68738d; font-size: 15px; line-height: 23px; text-align: center; }
-.form-card { margin-top: 30px; width: 100%; padding: 22px; border-radius: 22px; background-color: #ffffff; }
-.label { font-size: 14px; font-weight: 600; color: #4a5570; }
-.input { margin-top: 10px; height: 48px; padding: 0 14px; border-radius: 14px; background-color: #f2f5fa; font-size: 16px; }
-.age-label { margin-top: 22px; }
-.age-row { margin-top: 12px; flex-direction: row; align-items: center; justify-content: space-between; }
-.age-button { width: 52px; height: 48px; line-height: 48px; padding: 0; border-radius: 14px; background-color: #eaf0ff; color: #436fc7; font-size: 24px; }
-.age-value { flex-direction: row; align-items: flex-end; }
-.age-number { font-size: 38px; font-weight: 700; color: #1f2a44; }
-.age-unit { margin: 0 0 5px 4px; font-size: 14px; color: #68738d; }
-.mode-badge { margin-top: 16px; padding: 10px; border-radius: 12px; background-color: #eef9f5; align-items: center; }
-.mode-badge-text { color: #308f73; font-size: 13px; }
-.primary { margin-top: 24px; width: 100%; height: 52px; line-height: 52px; border-radius: 16px; background-color: #5b8def; color: #ffffff; font-size: 17px; font-weight: 600; }
-.guardian-note { margin-top: 14px; font-size: 12px; color: #8a93a8; }
+.page { height: 100%; background-color: #eef4ff; }
+.page-content { padding: 68px 18px 34px; }
+.intro { padding: 17px 18px; border-radius: 22px; background-color: #dfeaff; }
+.title { color: #1f2a44; font-size: 24px; font-weight: 700; }
+.form-card { margin-top: 14px; padding: 18px; border-radius: 24px; background-color: #fffefd; }
+.section-label { color: #3f4d68; font-size: 14px; font-weight: 700; }
+.block-label { margin-top: 20px; }
+.avatar-row { margin-top: 11px; flex-direction: row; justify-content: space-between; }
+.avatar-option { position: relative; width: 31%; padding: 8px 4px 8px; border-radius: 18px; border: 2px solid #edf0f5; align-items: center; background-color: #f8f9fc; overflow: hidden; }
+.avatar-option-active { border-color: #5b8def; background-color: #edf3ff; }
+.avatar-check { position: absolute; top: 6px; right: 6px; z-index: 2; width: 19px; height: 19px; border-radius: 10px; background-color: #5b8def; align-items: center; justify-content: center; }
+.avatar-check-text { color: #ffffff; font-size: 10px; font-weight: 700; }
+.avatar-image { width: 62px; height: 62px; border-radius: 31px; }
+.avatar-name { margin-top: 5px; color: #526079; font-size: 11px; font-weight: 600; }
+.gender-row { margin-top: 10px; flex-direction: row; }
+.gender-button { flex: 1; margin: 0 8px 0 0; height: 42px; line-height: 42px; padding: 0; border-radius: 14px; background-color: #f1f4f9; color: #68738a; font-size: 12px; }
+.gender-button-last { margin-right: 0; }
+.gender-active { background-color: #5b8def; color: #ffffff; }
+.nickname-row { margin-top: 9px; flex-direction: row; }
+.nickname-input { flex: 1; height: 46px; padding: 0 13px; border-radius: 14px; background-color: #fff7e5; color: #28344f; font-size: 15px; }
+.random-button { margin: 0 0 0 9px; width: 72px; height: 46px; line-height: 46px; padding: 0; border-radius: 14px; background-color: #eaf0ff; color: #4d74c2; font-size: 12px; }
+.birth-row { margin-top: 10px; flex-direction: row; }
+.birth-picker { flex: 1; }
+.birth-picker-month { margin-left: 10px; }
+.picker-value { height: 46px; padding: 0 14px; border-radius: 14px; background-color: #f1edff; flex-direction: row; align-items: center; justify-content: space-between; }
+.picker-text { color: #33415c; font-size: 15px; }
+.picker-arrow { margin-bottom: 5px; color: #8893a8; font-size: 13px; }
+.age-note { margin-top: 11px; padding: 9px; border-radius: 12px; background-color: #eef9f5; align-items: center; }
+.age-note-text { color: #308f73; font-size: 12px; }
+.primary { margin-top: 16px; width: 100%; height: 52px; line-height: 52px; border-radius: 18px; background-color: #5b8def; color: #ffffff; font-size: 16px; font-weight: 700; }
 </style>

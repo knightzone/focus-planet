@@ -1,0 +1,2 @@
+export { detectFaceFrame } from '../index.uts'
+export type { FaceFrameResult } from '../interface.uts'

@@ -1,0 +1,67 @@
+export type PatrolConfig = { lanes: number, travelMs: number, gapMs: number, waves: number, blocked: number }
+export type PatrolWave = { id: number, bornAt: number, lanes: number[], safeLane: number, hit: boolean, scored: boolean, reactedAt: number }
+
+// travelMs 为路锥从远处到车头的时间；不是每帧位移，设备帧率不改变难度。
+export function getPatrolConfig(level: number): PatrolConfig {
+  const index = Math.max(0, Math.min(9, Math.round(level) - 1))
+  const travel = [6000, 5500, 5000, 4800, 4400, 4000, 3800, 3500, 3200, 2900]
+  const gaps = [3900, 3500, 3200, 3000, 2700, 2450, 2300, 2100, 1850, 1650]
+  const counts = [10, 11, 12, 13, 14, 15, 16, 17, 18, 20]
+  return { lanes: index < 3 ? 2 : index < 6 ? 3 : 4, travelMs: travel[index], gapMs: gaps[index], waves: counts[index], blocked: index < 4 ? 1 : index < 8 ? 2 : 3 }
+}
+
+// 相邻波次的保底安全车道最多相差一格，且绝不生成封死全部车道的障碍。
+export function makePatrolWave(id: number, bornAt: number, config: PatrolConfig, previousSafe: number): PatrolWave {
+  const neighbors = [] as number[]
+  if (previousSafe > 0) neighbors.push(previousSafe - 1)
+  if (previousSafe < config.lanes - 1) neighbors.push(previousSafe + 1)
+  const safe = neighbors[Math.floor(Math.random() * neighbors.length)]
+  const blocked = [previousSafe] as number[]
+  const candidates = [] as number[]
+  for (let lane = 0; lane < config.lanes; lane++) {
+    if (lane != safe && lane != previousSafe) candidates.push(lane)
+  }
+  while (blocked.length < Math.min(config.blocked, config.lanes - 1) && candidates.length > 0) {
+    const index = Math.floor(Math.random() * candidates.length)
+    blocked.push(candidates[index]); candidates.splice(index, 1)
+  }
+  return { id: id, bornAt: bornAt, lanes: blocked, safeLane: safe, hit: false, scored: false, reactedAt: -1 }
+}
+
+export function patrolDepth(elapsed: number, bornAt: number, travelMs: number): number {
+  return 0.08 + Math.max(0, elapsed - bornAt) / travelMs * 0.82
+}
+
+export function patrolY(depth: number): number {
+  return 24 + 64 * Math.pow(Math.max(0, depth), 1.65)
+}
+
+// 贴合生成背景的消失点（约 y23%）与直线道路边缘。
+export function patrolRoadWidth(depth: number): number {
+  return Math.max(3, (patrolY(depth) - 23) * 1.5 + 2)
+}
+
+export function patrolX(lane: number, laneCount: number, depth: number): number {
+  return 50 + ((lane + 0.5) / laneCount - 0.5) * patrolRoadWidth(depth)
+}
+
+// 用实际插值车位判定碰撞：换道尚未完成时，不能逻辑上瞬移躲过路锥。
+export function patrolOverlaps(carLane: number, obstacleLane: number): boolean {
+  return Math.abs(carLane - obstacleLane) < 0.58
+}
+
+// 只调整视觉，不改变接近时间、投影位置或碰撞窗口。
+export function patrolConeSize(depth: number): number {
+  return 20 + 40 * Math.min(1, Math.max(0, depth))
+}
+
+export function patrolConeOpacity(depth: number): number {
+  // 判定结束后才淡出，仍需躲避的路锥始终清晰。
+  return depth <= 1.06 ? 1 : Math.max(0, (1.16 - depth) / 0.1)
+}
+
+// 把归一化道路斜率转换为当前场景像素角度，长标线与透视分隔线重合。
+export function patrolDividerAngle(divider: number, lanes: number, width: number, height: number): number {
+  const slope = (divider / lanes - 0.5) * 1.5 * width / Math.max(1, height)
+  return -Math.atan(slope) * 180 / Math.PI
+}

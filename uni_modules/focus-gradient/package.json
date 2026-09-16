@@ -1,0 +1,27 @@
+{
+  "id": "focus-gradient",
+  "displayName": "Focus Gradient",
+  "version": "1.0.0",
+  "description": "Native edge gradient used by Focus Planet artwork cards.",
+  "engines": {
+    "HBuilderX": "^5.25.0",
+    "uni-app-x": "^4.0.0"
+  },
+  "dcloudext": {
+    "type": "uts-vue-component"
+  },
+  "uni_modules": {
+    "dependencies": [],
+    "encrypt": [],
+    "platforms": {
+      "client": {
+        "uni-app-x": {
+          "app": {
+            "ios": "12",
+            "android": "21"
+          }
+        }
+      }
+    }
+  }
+}

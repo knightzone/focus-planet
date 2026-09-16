@@ -1,80 +1,131 @@
 <template>
+<TrainingFrame title="呼吸小星球" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="page">
-    <view class="game-header"><view><text class="round-label">持续注意训练</text><text class="game-title">呼吸小星球</text></view><view class="counter"><text class="counter-value">{{ displayCycle }}/{{ totalCycles }}</text></view></view>
-    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-    <view class="guide-card"><text class="guide-title">跟随星球的节奏</text><text class="guide-copy">吸气时变大，呼气时变小。保持自然，不要憋气或勉强。</text></view>
-    <view class="space">
-      <view v-if="!started" class="instruction"><YoungChildCue kind="breathe"></YoungChildCue><text class="instruction-title">准备一段安静练习</text><text class="instruction-copy">星球变大时慢慢吸气，变小时缓缓呼气。</text><button class="tap-target primary" @click="begin">▶ 开始跟随</button></view>
-      <view v-else class="practice">
-        <text class="phase-label">{{ phaseLabel }}</text><text class="phase-count">{{ phaseSeconds }}</text>
-        <view class="planet-glow" :style="{ transform: planetScale, transitionDuration: transitionDuration }"><view class="planet"><text class="planet-symbol">✦</text></view><view class="ring"></view></view>
-        <button v-if="phase == 'confirm'" class="tap-target confirm" :disabled="responded" @click="confirmCycle">{{ responded ? '✓' : '✓  完成' }}</button>
-        <text v-else class="phase-tip">{{ phase == 'inhale' ? '慢慢吸气' : phase == 'hold' ? '轻松停留' : '缓缓呼气' }}</text>
-      </view>
-    </view>
-    <view class="footer-stats"><view class="footer-stat"><text class="footer-value">{{ completed }}</text><text class="footer-label">跟随</text></view><view class="footer-stat"><text class="footer-value">{{ omissions }}</text><text class="footer-label">遗漏</text></view><view class="footer-stat"><text class="footer-value">{{ averageReactionLabel }}</text><text class="footer-label">确认反应</text></view></view>
+    <image class="sky tap-content" src="/static/images/runtime/backgrounds/shadow-match-sky-v1.webp" mode="aspectFill"></image>
+    <scroll-view class="scroll" direction="vertical" show-scrollbar="false"><view class="content">
+      <view class="header"><view><text class="eyebrow">慢慢来，点亮小宇宙</text><text class="title">给星球一点光</text></view><text class="badge">{{ trial ? '试玩' : started ? (cycleIndex + 1) + ' / ' + config.cycles : '难度 ' + level }}</text></view>
+      <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+      <view class="board">
+        <text class="phase-title">{{ phase == 'trial-done' ? '体验完成' : !started ? '和星球一起，慢慢呼吸' : cue }}</text>
+        <text class="subtitle">{{ !started ? '按住充能 · 松开放出星光' : held ? '正在充能' : releasedAt >= 0 ? '星光出发啦' : '跟着星球变大、变小' }}</text>
+        <view class="universe">
+          <view v-for="(star, index) in satellites" :key="index" class="satellite" :style="{ left: star.x + '%', top: star.y + '%' }">
+            <image class="small-star tap-content" :style="{ opacity: index < litStars ? 1 : 0.22 }" src="/static/images/runtime/game-objects/star-four-point-gold-v1.svg" mode="aspectFit"></image>
+          </view>
+          <view v-for="(line, index) in starLines" :key="'line' + index" v-show="index < links" class="constellation-link tap-content" :style="{ left: line.x + '%', top: line.y + '%', width: line.width + '%', marginLeft: (-line.width / 2) + '%', transform: 'rotate(' + line.angle + 'deg)' }"></view>
+          <view class="planet-position">
+            <view class="planet-touch" :class="held ? 'charging' : ''" @touchstart.stop="press" @touchend.stop="release" @touchmove.stop="ignoreMove" @touchcancel="cancelPress">
+              <view v-if="rings > 0" class="earned-ring tap-content"></view>
+              <image class="planet tap-content" :style="{ transform: planetScale }" src="/static/images/runtime/sky-planets/lavender-ring.webp" mode="aspectFit"></image>
+            </view>
+          </view>
+          <image v-if="releasedAt >= 0 && phase != 'reward'" class="flying-star tap-content" :style="{ transform: flightTransform, opacity: flightOpacity }" src="/static/images/runtime/game-objects/star-four-point-gold-v1.svg" mode="aspectFit"></image>
+        </view>
+        <view v-if="!started || phase == 'trial-done'" class="intro"><text class="duration">{{ phase == 'trial-done' ? feedback : config.cycles * 8 + ' 秒 · ' + config.cycles + ' 轮' }}</text><button class="primary" @click="begin">开始训练</button><button class="trial-button" @click="beginTrial">{{ phase == 'trial-done' ? '再试一轮' : '先试一轮' }}</button><text class="comfort">自然呼吸就好，不用憋气</text></view>
+        <view v-else class="play-footer"><text class="feedback">{{ feedback }}</text><view class="phase-track"><view class="phase-fill" :style="{ width: phaseProgress }"></view></view><text class="comfort">{{ guided ? '按住吸气，松开呼气 · 轻松跟随' : '按自己的舒适节奏，轻松跟随' }}</text></view>
+      <button v-if="trial && phase != 'trial-done'" class="trial-button" @click="begin">直接开始训练</button></view>
+      <view v-if="!trial" class="rewards"><view class="reward"><text class="reward-number">{{ completed }}</text><text class="reward-label">星光</text></view><view class="reward"><text class="reward-number">{{ rings }}</text><text class="reward-label">星环</text></view><view class="reward"><text class="reward-number">{{ links }}</text><text class="reward-label">连线</text></view></view>
+      <text class="footnote">只记录操作节奏，不测量呼吸</text>
+    </view></scroll-view>
   </view>
+</TrainingFrame>
 </template>
-
 <script setup lang="uts">
-import { ref, computed } from 'vue'
-import YoungChildCue from '../../components/YoungChildCue.uvue'
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { ref, computed, watch } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { getGameTuningAge } from '../../utils/difficulty.uts'
-
-const started = ref(false), phase = ref('ready'), phaseLabel = ref('准备'), phaseSeconds = ref(0)
-const totalCycles = ref(4), cycleIndex = ref(0), completed = ref(0), omissions = ref(0), responded = ref(false)
-const inhaleMs = ref(3200), holdMs = ref(900), exhaleMs = ref(3800), confirmMs = ref(1800)
-const reactions = ref([] as number[])
-let phaseTimer = 0, countdownTimer = 0, confirmStartedAt = 0, gameStartedAt = 0
-const displayCycle = computed((): number => started.value ? Math.min(totalCycles.value, cycleIndex.value + 1) : 0)
-const progressWidth = computed((): string => started.value ? Math.round((cycleIndex.value / totalCycles.value) * 100).toString() + '%' : '0%')
-const planetScale = computed((): string => phase.value == 'inhale' || phase.value == 'hold' ? 'scale(1.35)' : 'scale(0.78)')
-const transitionDuration = computed((): string => (phase.value == 'inhale' ? inhaleMs.value : phase.value == 'exhale' ? exhaleMs.value : 300).toString() + 'ms')
-const averageReactionLabel = computed((): string => {
-  if (reactions.value.length == 0) return '—'
-  const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0)
-  return Math.round(sum / reactions.value.length).toString() + 'ms'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { useTrainingSession } from '../../utils/training-session.uts'
+import { useTrainingTween } from '../../utils/training-tween.uts'
+import { getBreathingConfig, breathingCycleQuality } from '../../utils/breathing-planet.uts'
+const training = useTrainingSession(), trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+const started = ref(false), level = ref(1), phase = ref('ready'), held = ref(false)
+const trial = ref(false)
+const config = computed(() => getBreathingConfig(trial.value ? 1 : level.value))
+const cycleIndex = ref(0), completed = ref(0), rings = ref(0), links = ref(0), streak = ref(0), elapsed = ref(0)
+const pressedAt = ref(-1), releasedAt = ref(-1), feedback = ref('点亮一颗属于你的星星')
+const reactions: number[] = []
+let timer = 0, cycleBegan = 0, gameBegan = 0
+const flight = useTrainingTween(trainingClock, 0)
+const satellites = [{x: 15, y: 21}, {x: 36, y: 8}, {x: 61, y: 8}, {x: 81, y: 24}, {x: 83, y: 61}, {x: 62, y: 80}, {x: 34, y: 80}, {x: 12, y: 60}]
+const starLines = [{x: 25.5, y: 14.5, width: 24.7, angle: -32}, {x: 48.5, y: 8, width: 25, angle: 0}, {x: 71, y: 16, width: 25.6, angle: 39}, {x: 82, y: 42.5, width: 37, angle: 87}, {x: 72.5, y: 70.5, width: 28, angle: -42}, {x: 48, y: 80, width: 28, angle: 0}, {x: 23, y: 70, width: 29.7, angle: 42}]
+const guided = computed((): boolean => trial.value || cycleIndex.value < config.value.guidedCycles)
+const cue = computed((): string => phase.value == 'reward' ? (releasedAt.value >= 0 ? '星光收好啦' : '轻松来，下一轮') : guided.value ? (phase.value == 'inhale' ? '按住，慢慢吸气' : '松开，缓缓呼气') : '跟着星球，保持节奏')
+const litStars = computed((): number => Math.min(8, Math.ceil(completed.value / config.value.cycles * 8)))
+const progressWidth = computed((): string => (cycleIndex.value / config.value.cycles * 100) + '%')
+const phaseProgress = computed((): string => Math.min(100, elapsed.value / 7000 * 100) + '%')
+const planetScale = computed((): string => {
+  const p = elapsed.value < 3000 ? elapsed.value / 3000 : 1 - Math.min(1, (elapsed.value - 3000) / 4000)
+  return 'scale(' + (0.78 + 0.28 * p * p * (3 - 2 * p)) + ')'
 })
-function configure() {
-  const age = getGameTuningAge('breathing-planet')
-  if (age <= 6) { totalCycles.value = 3; inhaleMs.value = 2800; holdMs.value = 500; exhaleMs.value = 3200 }
-  else if (age <= 9) totalCycles.value = 4
-  else if (age <= 12) { totalCycles.value = 5; inhaleMs.value = 3600; exhaleMs.value = 4200 }
-  else { totalCycles.value = 6; inhaleMs.value = 3800; holdMs.value = 1100; exhaleMs.value = 4500 }
+const flightOpacity = computed((): number => 1 - flight.value.value)
+const flightTransform = computed((): string => 'translate(' + (flight.value.value * 85) + 'px, ' + (-flight.value.value * 125) + 'px) scale(' + (1 - flight.value.value * 0.6) + ')')
+function ignoreMove() {}
+function cancelPress() { held.value = false; if (releasedAt.value < 0) pressedAt.value = -1 }
+function press() {
+  if (trainingPaused.value) return
+  if (!started.value || phase.value != 'inhale' || held.value || releasedAt.value >= 0) return
+  held.value = true; pressedAt.value = trainingClock.now() - cycleBegan
 }
-function clearTimers() { if (phaseTimer > 0) clearTimeout(phaseTimer); if (countdownTimer > 0) clearInterval(countdownTimer) }
+function release() {
+  if (trainingPaused.value) return
+  if (!held.value || phase.value == 'reward' || phase.value == 'finished') return
+  held.value = false; releasedAt.value = trainingClock.now() - cycleBegan
+  flight.move(0, 0); flight.move(1, 1000)
+}
+function resetCycle() {
+  cycleBegan = trainingClock.now(); elapsed.value = 0; phase.value = 'inhale'
+  held.value = false; pressedAt.value = -1; releasedAt.value = -1; flight.move(0, 0)
+}
 function finish() {
-  clearTimers(); const accuracy = Math.round((completed.value / totalCycles.value) * 100)
-  const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length)
-  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
-  uni.redirectTo({ url: '/pages/result/result?gameId=breathing-planet&dimensionId=sustained&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&omissions=' + omissions.value.toString() })
+  if (trial.value) { trainingClock.clearInterval(timer); timer = 0; held.value = false; phase.value = 'trial-done'; return }
+  phase.value = 'finished'; trainingClock.clearInterval(timer); held.value = false
+  const accuracy = Math.round(rings.value / config.value.cycles * 100)
+  const score = Math.round((completed.value + rings.value) / (2 * config.value.cycles) * 100)
+  const sum = reactions.reduce((a: number, b: number): number => a + b, 0)
+  uni.redirectTo({ url: '/pages/result/result?gameId=breathing-planet&dimensionId=sustained&score=' + score + '&accuracy=' + accuracy + '&reaction=' + (reactions.length == 0 ? 0 : Math.round(sum / reactions.length)) + '&duration=' + Math.max(1, Math.round((trainingClock.now() - gameBegan) / 1000)) + '&completed=' + completed.value + '&total=' + config.value.cycles + '&omissions=' + (config.value.cycles - completed.value) })
 }
-function startPhase(nextPhase: string, duration: number) {
-  clearTimers(); phase.value = nextPhase; phaseLabel.value = nextPhase == 'inhale' ? '吸气' : nextPhase == 'hold' ? '停留' : nextPhase == 'exhale' ? '呼气' : '确认'
-  phaseSeconds.value = Math.max(1, Math.ceil(duration / 1000)); responded.value = false
-  countdownTimer = setInterval(() => { if (phaseSeconds.value > 1) phaseSeconds.value -= 1 }, 1000)
-  if (nextPhase == 'confirm') confirmStartedAt = Date.now()
-  phaseTimer = setTimeout(() => {
-    if (phase.value == 'inhale') startPhase('hold', holdMs.value)
-    else if (phase.value == 'hold') startPhase('exhale', exhaleMs.value)
-    else if (phase.value == 'exhale') startPhase('confirm', confirmMs.value)
-    else {
-      if (!responded.value) omissions.value += 1
-      cycleIndex.value += 1
-      if (cycleIndex.value >= totalCycles.value) finish(); else startPhase('inhale', inhaleMs.value)
-    }
-  }, duration)
+function tick() {
+  elapsed.value = trainingClock.now() - cycleBegan
+  if (elapsed.value >= 7000 && phase.value != 'reward') {
+    phase.value = 'reward'; held.value = false
+    const quality = breathingCycleQuality(pressedAt.value, releasedAt.value, config.value.toleranceMs)
+    training.playFeedback(quality > 0 ? 'correct' : 'missed')
+    if (quality > 0) { completed.value += 1; reactions.push(Math.abs(releasedAt.value - 3000)) }
+    if (quality == 2) { rings.value += 1; streak.value += 1; if (streak.value % 3 == 0) links.value = Math.min(7, links.value + 1) }
+    else streak.value = 0
+    feedback.value = quality == 2 ? (streak.value % 3 == 0 ? '星座连起来啦！' : '节奏很稳，多一圈星环') : quality == 1 ? '收到星光啦，慢慢来' : '没关系，下一轮一起试'
+  } else if (elapsed.value >= 3000 && phase.value == 'inhale') phase.value = 'exhale'
+  if (elapsed.value >= 8000) { if (trial.value || cycleIndex.value + 1 >= config.value.cycles) finish(); else { cycleIndex.value += 1; resetCycle() } }
 }
-function begin() { started.value = true; gameStartedAt = Date.now(); startPhase('inhale', inhaleMs.value) }
-function confirmCycle() { if (phase.value != 'confirm' || responded.value) return; responded.value = true; completed.value += 1; reactions.value.push(Date.now() - confirmStartedAt) }
-onLoad((_options: OnLoadOptions) => configure()); onUnload(() => clearTimers())
+function resetSession() {
+  trainingClock.clearInterval(timer); timer = 0; flight.move(0, 0)
+  cycleIndex.value = 0; completed.value = 0; rings.value = 0; links.value = 0; streak.value = 0; reactions.length = 0
+  feedback.value = '点亮一颗属于你的星星'
+}
+function beginTrial() {
+  if (trainingPaused.value || (started.value && !trial.value)) return
+  resetSession(); trial.value = true; started.value = true; resetCycle(); timer = trainingClock.setInterval(() => tick(), 50)
+}
+function begin() {
+  if (trainingPaused.value || (started.value && !trial.value)) return
+  resetSession(); trial.value = false; started.value = true; gameBegan = trainingClock.now(); resetCycle(); timer = trainingClock.setInterval(() => tick(), 50)
+}
+// 物理触摸在暂停后失效；恢复时重做未结算轮，不扣分、不重复发奖。
+watch(trainingPaused, (paused: boolean) => { if (paused) held.value = false; else if (started.value && phase.value != 'reward' && phase.value != 'finished' && phase.value != 'trial-done') resetCycle() })
+onLoad(() => { level.value = getGameDifficulty('breathing-planet') })
+onUnload(() => { trainingClock.clearInterval(timer); held.value = false; phase.value = 'finished' })
+training.setStartedCheck((): boolean => started.value && !trial.value)
 </script>
-
 <style>
-.page { flex: 1; padding: 20px; }.game-header { flex-direction: row; justify-content: space-between; align-items: center; }.round-label { color: #3f987a; font-size: 12px; font-weight: 700; }.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #e5f6ef; align-items: center; justify-content: center; }.counter-value { color: #3f987a; font-size: 13px; font-weight: 700; }
-.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; background-color: #55c9a5; }.guide-card { margin-top: 14px; padding: 15px; border-radius: 18px; background-color: #e8f7f1; }.guide-title { color: #337e67; font-size: 14px; font-weight: 700; }.guide-copy { margin-top: 4px; color: #668c7f; font-size: 10px; line-height: 16px; }
-.space { margin-top: 14px; height: 390px; border-radius: 26px; background-color: #20355f; align-items: center; justify-content: center; overflow: hidden; }.instruction, .practice { width: 100%; align-items: center; }.mini-planet { width: 88px; height: 88px; border-radius: 44px; background-color: #55c9a5; align-items: center; justify-content: center; }.mini-planet-symbol { color: #ffffff; font-size: 36px; }.instruction-title { margin-top: 18px; color: #ffffff; font-size: 19px; font-weight: 700; }.instruction-copy { margin-top: 8px; width: 78%; color: #b7c5df; font-size: 11px; line-height: 18px; text-align: center; }.primary { margin-top: 20px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #55c9a5; color: #ffffff; font-size: 14px; font-weight: 700; }
-.phase-label { color: #d9e7ff; font-size: 22px; font-weight: 700; }.phase-count { margin-top: 3px; color: #8fa8d3; font-size: 13px; }.planet-glow { margin-top: 46px; width: 122px; height: 122px; border-radius: 61px; background-color: #355783; align-items: center; justify-content: center; position: relative; transition-property: transform; transition-timing-function: ease-in-out; }.planet { width: 86px; height: 86px; border-radius: 43px; background-color: #55c9a5; align-items: center; justify-content: center; }.planet-symbol { color: #ffffff; font-size: 35px; }.ring { position: absolute; width: 121px; height: 34px; border: 5px solid #87d9bd; border-radius: 50%; transform: rotate(-12deg); }.phase-tip { margin-top: 48px; color: #b8c8e3; font-size: 12px; }.confirm { margin-top: 43px; width: 150px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #ffffff; color: #337e67; font-size: 13px; font-weight: 700; }
-.footer-stats { margin-top: 14px; flex-direction: row; }.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+.page { position: relative; flex: 1; background-color: #e8f2fc; }.sky { position: absolute; width: 100%; height: 100%; }.scroll { position: relative; flex: 1; }.content { padding: 20px 18px 26px; }
+.header { flex-direction: row; align-items: center; justify-content: space-between; }.eyebrow { color: #818eaf; font-size: 12px; }.title { margin-top: 5px; color: #35456e; font-size: 25px; font-weight: 700; }.badge { padding: 9px 12px; border-radius: 18px; background-color: rgba(255,255,255,0.75); color: #7283a9; font-size: 12px; }
+.progress { margin-top: 18px; height: 5px; border-radius: 3px; background-color: #dce6f4; overflow: hidden; }.progress-fill { height: 5px; background-color: #a299d8; }
+.board { margin-top: 20px; padding: 25px 12px 22px; border-radius: 30px; background-color: rgba(255,255,255,0.65); align-items: center; }.phase-title { font-size: 21px; font-weight: 700; color: #495a82; }.subtitle { margin-top: 8px; font-size: 12px; color: #8a98b3; }
+.universe { width: 280px; height: 280px; position: relative; }.satellite { position: absolute; width: 38px; height: 38px; margin-left: -19px; margin-top: -19px; }.small-star { width: 38px; height: 38px; }.constellation-link { position: absolute; height: 2px; background-color: #bfb4e6; transform-origin: center center; }
+.planet-position { position: absolute; top: 50px; left: 50%; margin-left: -90px; }.planet-touch { width: 180px; height: 180px; align-items: center; justify-content: center; border-radius: 90px; background-color: rgba(220,225,255,0.25); }.charging { background-color: rgba(255,222,135,0.42); }.planet { width: 162px; height: 162px; }.earned-ring { position: absolute; width: 174px; height: 174px; border-radius: 87px; border-width: 2px; border-color: #ddc98f; }.flying-star { position: absolute; width: 35px; height: 35px; left: 50%; top: 143px; margin-left: -17px; }
+.trial-button { margin-top: 12px; width: 200px; height: 42px; line-height: 42px; padding: 0; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; }
+.intro, .play-footer { width: 100%; align-items: center; }.duration { color: #8a97b2; font-size: 12px; }.primary { margin-top: 15px; width: 200px; height: 50px; line-height: 50px; border-radius: 25px; border-width: 0; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; }.comfort { margin-top: 15px; color: #96a2b9; font-size: 11px; }.feedback { height: 26px; color: #8a80b3; font-size: 14px; }.phase-track { width: 70%; height: 5px; background-color: #e5eaf5; border-radius: 3px; overflow: hidden; margin-top: 10px; }.phase-fill { height: 5px; background-color: #b6aade; }
+.rewards { margin-top: 20px; flex-direction: row; padding: 14px; border-radius: 24px; background-color: rgba(255,255,255,0.55); }.reward { flex: 1; align-items: center; }.reward-number { font-size: 22px; font-weight: 700; color: #7c87ba; }.reward-label { margin-top: 4px; color: #92a0b8; font-size: 11px; }.footnote { margin-top: 16px; text-align: center; color: #929fb6; font-size: 10px; }
 </style>

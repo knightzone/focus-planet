@@ -1,26 +1,42 @@
 <template>
   <view class="page">
     <view class="profile-card">
-      <image class="settings-mascot" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image>
+      <image class="settings-mascot" :src="avatarPath" mode="aspectFit"></image>
       <view class="profile-copy">
         <text class="profile-name">{{ nickname }}</text>
-        <text class="profile-mode">年龄用于首次默认难度 · 建议每次 {{ sessionMinutes }} 分钟</text>
+        <text class="profile-mode">{{ genderText }} · {{ birthYear }} 年 {{ birthMonth }} 月出生 · {{ age }} 岁</text>
       </view>
     </view>
     <view class="form-card">
-      <text class="label">昵称</text>
-      <input class="input" v-model="nickname" maxlength="10" placeholder="输入昵称" />
-      <text class="label age-label">年龄</text>
-      <view class="age-row">
-        <button class="tap-target age-button" @click="changeAge(-1)">−</button>
-        <view class="age-value"><text class="age-number">{{ age }}</text><text class="age-unit">岁</text></view>
-        <button class="tap-target age-button" @click="changeAge(1)">＋</button>
+      <text class="label">头像</text>
+      <view class="avatar-row">
+        <view v-for="item in avatars" :key="item.id" class="avatar-option" :class="avatarId == item.id ? 'avatar-option-active' : ''" @click="selectAvatar(item.id)">
+          <image class="avatar-option-image" :src="item.image" mode="aspectFit"></image>
+          <text class="avatar-option-name">{{ item.name }}</text>
+        </view>
       </view>
+      <text class="label block-label">性别</text>
+      <view class="gender-row">
+        <button class="gender-button" :class="gender == 'male' ? 'gender-active' : ''" @click="selectGender('male')">男孩</button>
+        <button class="gender-button" :class="gender == 'female' ? 'gender-active' : ''" @click="selectGender('female')">女孩</button>
+        <button class="gender-button" :class="gender == 'unspecified' ? 'gender-active' : ''" @click="selectGender('unspecified')">暂不选择</button>
+      </view>
+      <text class="label block-label">昵称</text>
+      <view class="nickname-row">
+        <input class="input nickname-input" v-model="nickname" maxlength="10" placeholder="输入宝宝昵称" @input="markNicknameCustomized" />
+        <button class="random-button" @click="useRandomNickname">换一个</button>
+      </view>
+      <text class="label block-label">出生年月</text>
+      <view class="birth-row">
+        <picker class="birth-picker" mode="selector" :range="birthYears" :value="birthYearIndex" @change="onBirthYearChange"><view class="picker-value">{{ birthYear }} 年 ⌄</view></picker>
+        <picker class="birth-picker birth-picker-month" mode="selector" :range="birthMonths" :value="birthMonth - 1" @change="onBirthMonthChange"><view class="picker-value">{{ birthMonth }} 月 ⌄</view></picker>
+      </view>
+      <view class="age-note"><text class="age-note-text">{{ age }} 岁 · {{ sessionMinutes }} 分钟/次</text></view>
       <button class="tap-target save-button" @click="saveChanges">保存档案</button>
     </view>
     <view class="test-card">
       <view class="test-heading">
-        <view><text class="test-title">测试难度</text><text class="test-copy">临时锁定已接入难度系统的游戏，方便逐级检查</text></view>
+        <view><text class="test-title">测试难度</text></view>
         <text class="test-badge">仅测试阶段</text>
       </view>
       <view class="difficulty-row">
@@ -35,45 +51,85 @@
     </view>
     <view class="menu-card">
       <view class="menu-row" @click="openHistory">
-        <view class="tap-content"><text class="menu-title">训练历史</text><text class="menu-copy">查看保存在本机上的所有记录</text></view>
+        <view class="tap-content"><text class="menu-title">训练历史</text></view>
         <text class="arrow tap-content">›</text>
       </view>
       <view class="menu-row menu-row-last" @click="confirmClear">
-        <view class="tap-content"><text class="danger-title">清除训练记录</text><text class="menu-copy">保留档案，只删除训练数据</text></view>
+        <view class="tap-content"><text class="danger-title">清除训练记录</text></view>
         <text class="arrow danger-title tap-content">›</text>
       </view>
     </view>
+    <button class="leave-button" @click="leaveParentMode">退出家长模式</button>
     <view class="privacy-card">
       <text class="privacy-title">单机数据说明</text>
-      <text class="privacy-copy">当前版本的档案和训练记录只保存在这台设备中，不会上传。卸载应用或清除应用数据后无法恢复。</text>
+      <text class="privacy-copy">数据仅保存在本机，卸载后无法恢复。</text>
     </view>
   </view>
 </template>
 
 <script setup lang="uts">
+import { LOCAL_TEST_MODE } from '../../utils/local-test.uts'
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getAgeBand } from '../../utils/catalog.uts'
 import { defaultDifficultyForAge, getTestDifficultyOverride, setTestDifficultyOverride } from '../../utils/difficulty.uts'
-import { getProfile, saveProfile, clearTrainingRecords } from '../../utils/storage.uts'
+import { getProfile, saveProfile, clearTrainingRecords, ChildProfile } from '../../utils/storage.uts'
+import { getAuthSession } from '../../utils/auth.uts'
+import { updateRemoteProfile, saveServerProfile } from '../../utils/server-api.uts'
+import { isParentAreaUnlocked, lockParentArea } from '../../utils/parent-lock.uts'
+import { PROFILE_AVATARS, randomNickname, calculateAge, getAvatarPath, genderLabel } from '../../utils/profile-options.uts'
 
+const now = new Date()
+const birthYears = [] as number[]
+for (let year = now.getFullYear() - 16; year <= now.getFullYear() - 3; year++) birthYears.push(year)
+const birthMonths = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as number[]
+const avatars = PROFILE_AVATARS
 const nickname = ref('')
-const age = ref(8)
+const gender = ref('unspecified')
+const avatarId = ref(PROFILE_AVATARS[0].id)
+const birthYear = ref(now.getFullYear() - 8)
+const birthMonth = ref(now.getMonth() + 1)
+const nicknameCustomized = ref(false)
+const age = computed((): number => calculateAge(birthYear.value, birthMonth.value))
+const birthYearIndex = computed((): number => Math.max(0, birthYears.indexOf(birthYear.value)))
+const avatarPath = computed((): string => getAvatarPath(avatarId.value))
+const genderText = computed((): string => genderLabel(gender.value))
 const testDifficulty = ref(0)
 const band = computed(() => getAgeBand(age.value))
 const sessionMinutes = computed((): number => band.value.sessionMinutes)
 
 onShow(() => {
+  if (getAuthSession() == null) { uni.redirectTo({ url: '/pages/login/login' }); return }
   testDifficulty.value = getTestDifficultyOverride()
   const profile = getProfile()
   if (profile != null) {
     nickname.value = profile.nickname
-    age.value = profile.age
+    gender.value = profile.gender
+    avatarId.value = profile.avatarId
+    birthYear.value = profile.birthYear
+    birthMonth.value = profile.birthMonth
+    nicknameCustomized.value = profile.nicknameCustomized
   }
 })
 
-function changeAge(delta: number) { age.value = Math.min(16, Math.max(3, age.value + delta)) }
+function requireParentMode(): boolean {
+  if (isParentAreaUnlocked()) return true
+  uni.navigateTo({ url: '/pages/parent-lock/parent-lock?action=settings' })
+  return false
+}
+
+function selectAvatar(value: string) { if (!requireParentMode()) return; avatarId.value = value }
+function selectGender(value: string) {
+  if (!requireParentMode() || gender.value == value) return
+  gender.value = value
+  if (!nicknameCustomized.value) nickname.value = randomNickname(value, nickname.value)
+}
+function markNicknameCustomized(_event: UniInputEvent) { nicknameCustomized.value = true }
+function useRandomNickname() { if (!requireParentMode()) return; nickname.value = randomNickname(gender.value, nickname.value); nicknameCustomized.value = false }
+function onBirthYearChange(event: UniPickerChangeEvent) { if (!requireParentMode()) return; birthYear.value = birthYears[event.detail.value as number] }
+function onBirthMonthChange(event: UniPickerChangeEvent) { if (!requireParentMode()) return; birthMonth.value = birthMonths[event.detail.value as number] }
 function changeTestDifficulty(delta: number) {
+  if (!requireParentMode()) return
   let current = testDifficulty.value
   if (current == 0) current = defaultDifficultyForAge(age.value)
   const next = Math.max(1, Math.min(10, current + delta))
@@ -82,22 +138,41 @@ function changeTestDifficulty(delta: number) {
   uni.showToast({ title: '已锁定难度 ' + next.toString(), icon: 'none' })
 }
 function useAutoDifficulty() {
+  if (!requireParentMode()) return
   testDifficulty.value = 0
   setTestDifficultyOverride(0)
   uni.showToast({ title: '已恢复自动难度', icon: 'none' })
 }
 function saveChanges() {
+  if (!requireParentMode()) return
   const name = nickname.value.trim()
   if (name.length == 0) {
     uni.showToast({ title: '昵称不能为空', icon: 'none' })
     return
   }
+  if (age.value < 3 || age.value > 16) { uni.showToast({ title: '请选择 3 至 16 岁的出生年月', icon: 'none' }); return }
   const current = getProfile()
-  saveProfile({ nickname: name, age: age.value, createdAt: current == null ? Date.now() : current.createdAt })
+  const updated: ChildProfile = {
+    nickname: name, age: age.value, birthYear: birthYear.value, birthMonth: birthMonth.value,
+    gender: gender.value, avatarId: avatarId.value, nicknameCustomized: nicknameCustomized.value,
+    createdAt: current == null ? Date.now() : current.createdAt,
+    serverId: current == null || current.serverId == null ? '' : current.serverId
+  }
+  if (!LOCAL_TEST_MODE && getAuthSession() != null) {
+    updateRemoteProfile(name, birthYear.value, birthMonth.value, gender.value, avatarId.value, (data: UTSJSONObject) => {
+      updated.serverId = data['userId'] as string
+      saveServerProfile(data)
+      saveProfile(updated)
+      uni.showToast({ title: '档案已保存', icon: 'success' })
+    }, (message: string, _code: string) => uni.showToast({ title: message, icon: 'none' }))
+    return
+  }
+  saveProfile(updated)
   uni.showToast({ title: '档案已保存', icon: 'success' })
 }
 function openHistory() { uni.navigateTo({ url: '/pages/history/history' }) }
 function confirmClear() {
+  if (!requireParentMode()) return
   uni.showModal({
     title: '清除训练记录？',
     content: '所有本地训练结果和游戏难度进度将被删除，且无法恢复。儿童档案会保留。',
@@ -111,6 +186,11 @@ function confirmClear() {
     }
   })
 }
+function leaveParentMode() {
+  lockParentArea()
+  uni.navigateBack()
+}
+
 </script>
 
 <style>
@@ -123,12 +203,24 @@ function confirmClear() {
 .form-card, .menu-card, .test-card { margin-top: 16px; padding: 19px; border-radius: 22px; background-color: #ffffff; }
 .label { color: #4f5a73; font-size: 13px; font-weight: 600; }
 .input { margin-top: 9px; height: 46px; padding: 0 13px; border-radius: 13px; background-color: #f2f5fa; font-size: 15px; }
-.age-label { margin-top: 20px; }
-.age-row { margin-top: 10px; flex-direction: row; align-items: center; justify-content: space-between; }
-.age-button { width: 50px; height: 48px; line-height: 48px; padding: 0; border-radius: 13px; background-color: #eaf0ff; color: #4d74c2; font-size: 23px; }
-.age-value { flex-direction: row; align-items: flex-end; }
-.age-number { color: #25314a; font-size: 34px; font-weight: 700; }
-.age-unit { margin: 0 0 5px 4px; color: #7d879b; font-size: 12px; }
+.block-label { margin-top: 22px; }
+.avatar-row { margin-top: 11px; flex-direction: row; justify-content: space-between; }
+.avatar-option { width: 31%; padding: 8px 4px; border-radius: 16px; border: 2px solid #eef1f6; align-items: center; background-color: #f8f9fc; }
+.avatar-option-active { border-color: #5b8def; background-color: #edf3ff; }
+.avatar-option-image { width: 58px; height: 58px; border-radius: 29px; }
+.avatar-option-name { margin-top: 4px; color: #526079; font-size: 10px; }
+.gender-row { margin-top: 10px; flex-direction: row; }
+.gender-button { margin: 0 8px 0 0; height: 40px; line-height: 40px; padding: 0 13px; border-radius: 13px; background-color: #f1f4f9; color: #68738a; font-size: 12px; }
+.gender-active { background-color: #5b8def; color: #ffffff; }
+.nickname-row { flex-direction: row; align-items: center; }
+.nickname-input { flex: 1; }
+.random-button { margin: 9px 0 0 9px; width: 72px; height: 46px; line-height: 46px; padding: 0; border-radius: 13px; background-color: #eaf0ff; color: #4d74c2; font-size: 11px; }
+.birth-row { margin-top: 9px; flex-direction: row; }
+.birth-picker { flex: 1; }
+.birth-picker-month { margin-left: 9px; }
+.picker-value { height: 46px; line-height: 46px; padding: 0 11px; border-radius: 13px; background-color: #f2f5fa; color: #344059; font-size: 14px; text-align: center; }
+.age-note { margin-top: 11px; padding: 9px; border-radius: 11px; background-color: #eef9f5; align-items: center; }
+.age-note-text { color: #308f73; font-size: 11px; }
 .save-button { margin-top: 19px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #5b8def; color: #ffffff; font-size: 15px; font-weight: 700; }
 .test-heading { flex-direction: row; align-items: flex-start; justify-content: space-between; }
 .test-title { color: #344059; font-size: 15px; font-weight: 700; }
@@ -147,6 +239,7 @@ function confirmClear() {
 .menu-copy { margin-top: 5px; color: #8992a4; font-size: 11px; }
 .arrow { color: #9da5b4; font-size: 24px; }
 .danger-title { color: #d95c68; font-size: 14px; font-weight: 600; }
+.leave-button { margin-top: 16px; height: 46px; line-height: 46px; border-radius: 14px; background-color: #e9edf5; color: #65718a; font-size: 13px; font-weight: 600; }
 .privacy-card { margin-top: 16px; padding: 16px; border-radius: 17px; background-color: #eef3fb; }
 .privacy-title { color: #596987; font-size: 13px; font-weight: 700; }
 .privacy-copy { margin-top: 6px; color: #748099; font-size: 11px; line-height: 17px; }

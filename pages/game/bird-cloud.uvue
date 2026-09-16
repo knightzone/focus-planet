@@ -1,101 +1,198 @@
-<template><view class="page">
-  <view class="header"><view><text class="dimension">持续注意训练</text><text class="title">小鸟穿云</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
-  <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-  <view class="tip"><text class="tip-title">点击天空，让小鸟向上飞</text><text class="tip-copy">不点击会下落，连续穿过云门缺口</text></view>
-  <view class="sky" @click="flap">
-    <view class="distance-line distance-one tap-content"></view><view class="distance-line distance-two tap-content"></view>
-    <view class="bird-wrap tap-content" :style="{ top: birdTop }"><image class="bird" src="/static/images/runtime/game-characters/tap-bird-v1.png" mode="aspectFit"></image></view>
-    <view class="gate tap-content" :style="{ left: gateLeft }">
-      <view class="cloud-wall cloud-top" :style="{ height: topWallHeight }"><text class="cloud-mark">☁</text></view>
-      <view class="gap-outline" :style="{ top: gapTop, height: gapHeight }"><text class="gap-mark">○</text></view>
-      <view class="cloud-wall cloud-bottom" :style="{ height: bottomWallHeight }"><text class="cloud-mark">☁</text></view>
+<template>
+<TrainingFrame title="小鸟穿云" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+  <view class="page">
+    <image class="cloud-background tap-content" src="/static/images/runtime/backgrounds/shadow-match-sky-v1.webp" mode="aspectFill"></image>
+    <view class="content">
+      <view class="header">
+        <view><text class="dimension">持续注意训练 · 难度 {{ level }}/10</text><text class="title">小鸟穿云</text></view>
+        <button v-if="state == 'demo'" class="skip-button" @click="begin">开始</button>
+      </view>
+      <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+      <view id="bird-sky" class="sky" @click="flap">
+        <view class="gate tap-content" :style="{ left: gateX + '%' }">
+          <view class="cloud-wall cloud-top" :style="{ height: topWallHeight }"><view class="cloud-shine"></view><text class="cloud-mark">☁</text></view>
+          <view class="gap-outline" :style="{ top: gapTop, height: gapHeight }"></view>
+          <view class="cloud-wall cloud-bottom" :style="{ height: bottomWallHeight }"><text class="cloud-mark">☁</text><view class="cloud-shine"></view></view>
+        </view>
+        <view class="bird-wrap tap-content" :style="{ top: state == 'ready' || state == 'demo-done' ? '8%' : birdTop, left: state == 'ready' || state == 'demo-done' ? '42%' : '18px', transform: 'rotate(' + bodyAngle + 'deg)' }">
+          <image class="bird" src="/static/images/runtime/game-characters/tap-bird-body-v2.webp" mode="aspectFit" @load="bodyReady = true" @error="loadFailed = true"></image>
+          <image class="bird-wing" :style="{ transform: wingTransform }" src="/static/images/runtime/game-characters/tap-bird-wing-v2.webp" mode="aspectFit" @load="wingReady = true" @error="loadFailed = true"></image>
+        </view>
+        <text v-if="feedback != ''" class="feedback tap-content" :class="feedbackGood ? 'good' : 'again'">{{ feedback }}</text>
+        <view v-if="state == 'ready' || state == 'demo-done'" class="instruction" @click.stop="ignoreTap">
+          <text class="instruction-title">{{ state == 'demo-done' ? '试过啦，出发吧' : '点一下，飞起来' }}</text>
+          <text v-if="loadFailed" class="hint">小鸟还没准备好，请返回重试</text>
+          <button class="primary" :disabled="!birdReady || loadFailed" @click.stop="begin">{{ birdReady ? '开始' : '准备中…' }}</button>
+          <text v-if="birdReady && !loadFailed" class="replay" @click.stop="startDemo">{{ state == 'demo-done' ? '再试一次' : '先试玩' }}</text>
+        </view>
+      </view>
+      <button class="flap-button" :disabled="state != 'running' && state != 'demo'" @click="flap">↑ 向上飞</button>
+      <view class="stats">
+        <text class="stat">{{ state == 'demo' ? '试玩不计成绩' : '通过 ' + passed + ' / ' + config.rounds }}</text>
+        <text v-if="state == 'running' || state == 'paused'" class="stat">碰云 {{ hits }}</text>
+        <text v-else class="stat">从云朵中间穿过</text>
+      </view>
     </view>
-    <view class="tap-hint tap-content"><text class="tap-hint-symbol">↑</text><text class="tap-hint-copy">点天空上升</text></view>
-    <text class="feedback tap-content" :class="feedback == '穿过去了' ? 'good' : 'again'">{{ feedback }}</text>
   </view>
-  <button class="tap-target flap-button" @click="flap"><text class="flap-symbol tap-content">↑</text><text class="flap-copy tap-content">拍一拍，向上飞</text></button>
-  <view class="stats"><view class="stat"><text class="value">{{ passed }}</text><text class="label">连续通过</text></view><view class="stat"><text class="value">{{ hits }}</text><text class="label">碰云</text></view><view class="stat"><text class="value">{{ levelLabel }}</text><text class="label">速度</text></view></view>
-</view></template>
+</TrainingFrame>
+</template>
 
 <script setup lang="uts">
-import { ref, computed } from 'vue'
-import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { getGameTuningAge } from '../../utils/difficulty.uts'
-const GAME_HEIGHT = 390
-const BIRD_SIZE = 66
-const totalRounds = ref(12), roundIndex = ref(0), passed = ref(0), hits = ref(0)
-const birdY = ref(150.0), birdVelocity = ref(0.0), gateX = ref(105.0)
-const gapCenter = ref(195.0), gapSize = ref(150.0), gateSpeed = ref(1.1)
-const gravity = ref(0.42), flapPower = ref(-6.4), gateResolved = ref(false), active = ref(true)
-const feedback = ref(''), feedbackTicks = ref(0), speedLevel = ref(1)
-let gameTimer = 0, gameStartedAt = 0
-const displayRound = computed((): number => Math.min(totalRounds.value, roundIndex.value + 1))
-const progressWidth = computed((): string => Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%')
-const birdTop = computed((): string => Math.round(birdY.value).toString() + 'px')
-const gateLeft = computed((): string => gateX.value.toString() + '%')
-const gapTop = computed((): string => Math.round(gapCenter.value - gapSize.value / 2).toString() + 'px')
-const gapHeight = computed((): string => Math.round(gapSize.value).toString() + 'px')
-const topWallHeight = computed((): string => Math.max(0, Math.round(gapCenter.value - gapSize.value / 2)).toString() + 'px')
-const bottomWallHeight = computed((): string => Math.max(0, Math.round(GAME_HEIGHT - gapCenter.value - gapSize.value / 2)).toString() + 'px')
-const levelLabel = computed((): string => speedLevel.value.toString() + '级')
-function configure() {
-  const age = getGameTuningAge('bird-cloud')
-  if (age <= 6) { totalRounds.value = 10; gapSize.value = 166.0; gateSpeed.value = 0.95; gravity.value = 0.36; flapPower.value = -5.9 }
-  else if (age <= 9) { totalRounds.value = 14; gapSize.value = 150.0; gateSpeed.value = 1.1 }
-  else { totalRounds.value = 18; gapSize.value = 138.0; gateSpeed.value = 1.25; gravity.value = 0.46; flapPower.value = -6.7 }
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
+import { ref, computed, nextTick } from 'vue'
+import { onLoad, onReady, onHide, onUnload, onResize } from '@dcloudio/uni-app'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { BirdConfig, getBirdConfig, nextBirdGap } from '../../utils/bird-cloud.uts'
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+
+
+const GAME_HEIGHT = 390, BIRD_SIZE = 66, BIRD_LEFT = 18, GATE_WIDTH = 82
+const level = ref(1), config = ref<BirdConfig>(getBirdConfig(1)), state = ref('ready')
+const roundIndex = ref(0), passed = ref(0), hits = ref(0), elapsed = ref(0)
+const birdY = ref(162), birdVelocity = ref(0), gateX = ref(105), gapCenter = ref(195), gateResolved = ref(false)
+const feedback = ref(''), feedbackGood = ref(true), bodyReady = ref(false), wingReady = ref(false), loadFailed = ref(false)
+const birdReady = computed((): boolean => bodyReady.value && wingReady.value)
+const bodyAngle = ref(0), wingAngle = ref(-12), wingScale = ref(1)
+let lastFlapAt = -1000
+const wingTransform = computed((): string => 'rotate(' + wingAngle.value + 'deg) scaleY(' + wingScale.value + ')')
+let gameTimer = 0, lastTick = 0, accumulator = 0, feedbackUntil = 0, skyWidth = 340
+let resumeState = 'running'
+const progressWidth = computed((): string => state.value == 'demo' || state.value == 'demo-done' ? '0%' : Math.round(roundIndex.value / config.value.rounds * 100) + '%')
+const birdTop = computed((): string => birdY.value / GAME_HEIGHT * 100 + '%')
+const gapTop = computed((): string => (gapCenter.value - config.value.gap / 2) / GAME_HEIGHT * 100 + '%')
+const gapHeight = computed((): string => config.value.gap / GAME_HEIGHT * 100 + '%')
+const topWallHeight = computed((): string => (gapCenter.value - config.value.gap / 2) / GAME_HEIGHT * 100 + '%')
+const bottomWallHeight = computed((): string => (GAME_HEIGHT - gapCenter.value - config.value.gap / 2) / GAME_HEIGHT * 100 + '%')
+
+function ignoreTap() { if (trainingPaused.value) return;}
+function stopTimer() { if (gameTimer != 0) trainingClock.clearInterval(gameTimer); gameTimer = 0 }
+function measureSky() {
+  const sky = uni.getElementById('bird-sky')
+  if (sky != null) { const rect = sky.getBoundingClientRect(); if (rect.width > 0) skyWidth = rect.width }
 }
-function updateDifficulty() {
-  speedLevel.value = Math.floor(roundIndex.value / 4) + 1
-  gateSpeed.value += 0.08
-  gapSize.value = Math.max(104.0, gapSize.value - 2.5)
-}
-function randomizeGap() {
-  const half = gapSize.value / 2
-  const minCenter = half + 28
-  const maxCenter = GAME_HEIGHT - half - 28
-  gapCenter.value = minCenter + Math.random() * (maxCenter - minCenter)
-}
-function resetGate() { gateX.value = 105.0; gateResolved.value = false; randomizeGap() }
-function flap() { if (active.value) birdVelocity.value = flapPower.value }
 function finish() {
-  active.value = false
-  if (gameTimer > 0) clearInterval(gameTimer)
-  const accuracy = Math.round((passed.value / Math.max(1, totalRounds.value)) * 100)
-  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
-  uni.redirectTo({ url: '/pages/result/result?gameId=bird-cloud&dimensionId=sustained&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + duration.toString() + '&omissions=' + hits.value.toString() })
+  if (state.value != 'running') return
+  state.value = 'finished'; stopTimer()
+  const accuracy = Math.round(passed.value / Math.max(1, config.value.rounds) * 100)
+  uni.redirectTo({ url: '/pages/result/result?gameId=bird-cloud&dimensionId=sustained&score=' + accuracy + '&accuracy=' + accuracy + '&reaction=0&duration=' + Math.max(1, Math.round(elapsed.value / 1000)) + '&omissions=' + hits.value + '&completed=' + passed.value + '&total=' + config.value.rounds })
+}
+function resetGate() {
+  gateX.value = 105; gateResolved.value = false
+  gapCenter.value = nextBirdGap(gapCenter.value, config.value, Math.random())
 }
 function resolveGate() {
   if (gateResolved.value) return
   gateResolved.value = true
-  const birdCenter = birdY.value + BIRD_SIZE / 2
-  const gapStart = gapCenter.value - gapSize.value / 2 + 8
-  const gapEnd = gapCenter.value + gapSize.value / 2 - 8
-  if (birdCenter >= gapStart && birdCenter <= gapEnd) { passed.value += 1; feedback.value = '穿过去了' }
-  else { hits.value += 1; feedback.value = '碰到云了' }
-  feedbackTicks.value = 18
+  const center = birdY.value + BIRD_SIZE / 2
+  const safe = center >= gapCenter.value - config.value.gap / 2 + 8 && center <= gapCenter.value + config.value.gap / 2 - 8
+  feedbackGood.value = safe; feedback.value = safe ? '穿过去啦！' : '碰到云啦'
+  feedbackUntil = elapsed.value + 700
+  if (state.value == 'demo') {
+    state.value = 'demo-done'; stopTimer(); return
+  }
+  if (safe) { passed.value += 1; training.playFeedback('correct') }
+  else { hits.value += 1; training.playFeedback('wrong') }
   roundIndex.value += 1
-  updateDifficulty()
-  if (roundIndex.value >= totalRounds.value) finish()
+  if (roundIndex.value >= config.value.rounds) finish()
+}
+function animateBird() {
+  // 与物理共用活动时钟：暂停停翅；点击一次明显下拍，再柔和收回。
+  const sinceTap = elapsed.value - lastFlapAt
+  const stroke = sinceTap < 320 ? Math.sin(Math.max(0, sinceTap) / 320 * Math.PI) : 0
+  const idle = Math.sin(elapsed.value / 520 * Math.PI * 2)
+  wingAngle.value = -12 + idle * 14 + stroke * 66
+  wingScale.value = 0.92 - stroke * 0.24 + idle * 0.08
+  const target = Math.max(-14, Math.min(12, birdVelocity.value * 2))
+  bodyAngle.value += (target - bodyAngle.value) * 0.22
+}
+function step() {
+  if (state.value != 'running' && state.value != 'demo') return
+  elapsed.value += 32
+  // 保留点击上升/松手下落的原玩法；重力与点击力度各级一致，避免换级后手感突变。
+  birdVelocity.value = Math.min(7.2, birdVelocity.value + 0.38)
+  birdY.value += birdVelocity.value
+  if (birdY.value < 0) { birdY.value = 0; birdVelocity.value = 0.4 }
+  if (birdY.value > GAME_HEIGHT - BIRD_SIZE) { birdY.value = GAME_HEIGHT - BIRD_SIZE; birdVelocity.value = -2.4 }
+  animateBird()
+  gateX.value -= config.value.speed
+  // 云门中心与小鸟中心真正对齐时判断，替代旧的固定 27% 提前判定。
+  const crossing = (BIRD_LEFT + BIRD_SIZE / 2 - GATE_WIDTH / 2) / skyWidth * 100
+  if (!gateResolved.value && gateX.value <= crossing) resolveGate()
+  if (gateX.value <= -GATE_WIDTH / skyWidth * 100 - 2 && state.value == 'running') resetGate()
+  if (elapsed.value >= feedbackUntil) feedback.value = ''
 }
 function tick() {
-  if (!active.value) return
-  birdVelocity.value += gravity.value
-  if (birdVelocity.value > 7.2) birdVelocity.value = 7.2
-  birdY.value += birdVelocity.value
-  if (birdY.value < 0) { birdY.value = 0.0; birdVelocity.value = 0.4 }
-  const floor = GAME_HEIGHT - BIRD_SIZE
-  if (birdY.value > floor) { birdY.value = floor; birdVelocity.value = -2.4 }
-  gateX.value -= gateSpeed.value
-  if (!gateResolved.value && gateX.value <= 27.0) resolveGate()
-  if (gateX.value <= -28.0 && active.value) resetGate()
-  if (feedbackTicks.value > 0) { feedbackTicks.value -= 1; if (feedbackTicks.value == 0) feedback.value = '' }
+  const now = trainingClock.now(), delta = now - lastTick; lastTick = now
+  if (delta > 250) { training.pause(); return }
+  accumulator += Math.max(0, delta)
+  while (accumulator >= 32 && (state.value == 'running' || state.value == 'demo')) { accumulator -= 32; step() }
 }
-onLoad((_options: OnLoadOptions) => { configure(); randomizeGap(); gameStartedAt = Date.now(); gameTimer = setInterval(() => tick(), 32) })
-onUnload(() => { active.value = false; if (gameTimer > 0) clearInterval(gameTimer) })
+function startTimer() { stopTimer(); nextTick(() => measureSky()); lastTick = trainingClock.now(); gameTimer = trainingClock.setInterval(() => tick(), 32) }
+function resetRun() {
+  stopTimer(); roundIndex.value = 0; passed.value = 0; hits.value = 0; elapsed.value = 0; accumulator = 0
+  birdY.value = 162; birdVelocity.value = 0; gapCenter.value = 195; gateX.value = 105; gateResolved.value = false
+  feedback.value = ''; feedbackUntil = 0
+  bodyAngle.value = 0; wingAngle.value = -12; wingScale.value = 1; lastFlapAt = -1000
+}
+function startDemo() { if (trainingPaused.value) return;
+  if (!birdReady.value || loadFailed.value || (state.value != 'ready' && state.value != 'demo-done')) return
+  resetRun(); config.value = getBirdConfig(1); state.value = 'demo'; startTimer()
+}
+function begin() { if (trainingPaused.value) return;
+  if (!birdReady.value || loadFailed.value || (state.value != 'ready' && state.value != 'demo' && state.value != 'demo-done')) return
+  resetRun(); config.value = getBirdConfig(level.value); state.value = 'running'; startTimer()
+}
+function flap() { if (trainingPaused.value) return;
+  if (state.value != 'running' && state.value != 'demo') return
+  birdVelocity.value = -6.1; lastFlapAt = elapsed.value
+}
+function pauseGame() { training.pause() }
+function resumeGame() { training.resume() }
+function exitGame() { stopTimer(); state.value = 'finished'; uni.navigateBack() }
+onLoad(() => { level.value = getGameDifficulty('bird-cloud'); config.value = getBirdConfig(level.value) })
+onReady(() => measureSky())
+onResize(() => nextTick(() => measureSky()))
+onUnload(() => stopTimer())
+// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => state.value == 'running' || state.value == 'finished')
 </script>
 
 <style>
-.page { flex: 1; padding: 20px; }.header { flex-direction: row; justify-content: space-between; align-items: center; }.dimension { color: #348d74; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #e3f6ef; align-items: center; justify-content: center; }.counter-value { color: #348d74; font-size: 13px; font-weight: 700; }.progress { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; background-color: #55c9a5; }.tip { margin-top: 14px; padding: 15px; border-radius: 18px; background-color: #eaf8f3; }.tip-title { color: #315f52; font-size: 14px; font-weight: 700; }.tip-copy { margin-top: 4px; color: #6c9589; font-size: 10px; }
-.sky { margin-top: 16px; height: 390px; border-radius: 25px; background-color: #dff3ff; position: relative; overflow: hidden; }.distance-line { position: absolute; left: 0; width: 100%; height: 2px; border-top: 2px dashed rgba(255,255,255,0.78); }.distance-one { top: 130px; }.distance-two { top: 260px; }.bird-wrap { position: absolute; left: 18px; width: 66px; height: 66px; z-index: 4; }.bird { width: 66px; height: 66px; }.gate { position: absolute; top: 0; width: 90px; height: 390px; z-index: 3; }.cloud-wall { position: absolute; left: 0; width: 90px; background-color: #ffffff; align-items: center; justify-content: center; overflow: hidden; }.cloud-top { top: 0; border-radius: 0 0 28px 28px; }.cloud-bottom { bottom: 0; border-radius: 28px 28px 0 0; }.cloud-mark { color: #bed7e6; font-size: 48px; }.gap-outline { position: absolute; left: 5px; width: 80px; border: 3px dashed rgba(74,166,210,0.55); border-radius: 25px; align-items: center; justify-content: center; }.gap-mark { color: #57a9cf; font-size: 24px; }.tap-hint { position: absolute; left: 16px; bottom: 14px; padding: 7px 10px; border-radius: 13px; background-color: rgba(255,255,255,0.75); flex-direction: row; align-items: center; }.tap-hint-symbol { color: #3f9bc6; font-size: 16px; font-weight: 800; }.tap-hint-copy { margin-left: 4px; color: #4f8ca9; font-size: 9px; font-weight: 700; }.feedback { position: absolute; top: 16px; width: 100%; text-align: center; font-size: 13px; font-weight: 800; z-index: 6; }.good { color: #287c65; }.again { color: #c65b66; }
-.flap-button { margin-top: 14px; padding: 0; width: 100%; height: 58px; border-radius: 17px; background-color: #55c9a5; flex-direction: row; align-items: center; justify-content: center; }.flap-symbol { color: #ffffff; font-size: 22px; font-weight: 800; }.flap-copy { margin-left: 8px; color: #ffffff; font-size: 13px; font-weight: 700; }.stats { margin-top: 12px; flex-direction: row; }.stat { flex: 1; align-items: center; }.value { color: #25314a; font-size: 18px; font-weight: 700; }.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+.page { flex: 1; position: relative; background-color: #eaf6ff; }
+.cloud-background { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.content { flex: 1; position: relative; padding: 18px 18px 22px; }
+.header { flex-direction: row; justify-content: space-between; align-items: center; }
+.dimension { color: #5982a1; font-size: 12px; font-weight: 700; }
+.title { margin-top: 5px; color: #294c69; font-size: 23px; font-weight: 700; }
+.pause-button { padding: 12px 14px; border-radius: 22px; background-color: rgba(255,255,255,0.8); }
+.pause-label { color: #4b7695; font-size: 13px; }
+.skip-button { margin: 0; padding: 0 16px; height: 42px; line-height: 42px; border-radius: 21px; background-color: #65bfa7; color: #ffffff; font-size: 14px; }
+.progress { margin-top: 14px; height: 6px; border-radius: 3px; background-color: rgba(255,255,255,0.7); overflow: hidden; }
+.progress-fill { height: 6px; border-radius: 3px; background-color: #66bfa9; }
+.sky { flex: 1; min-height: 280px; margin-top: 16px; border-radius: 28px; background-color: rgba(255,255,255,0.5); position: relative; overflow: hidden; }
+.bird-wrap { position: absolute; left: 18px; width: 66px; height: 16.9231%; z-index: 4; }
+.bird { width: 100%; height: 100%; }
+.bird-wing { position: absolute; left: 2%; top: 5%; width: 53%; height: 65%; transform-origin: 80% 82%; }
+.gate { position: absolute; top: 0; width: 82px; height: 100%; z-index: 3; }
+.cloud-wall { position: absolute; left: 0; width: 82px; background-color: #d8eaf7; border-width: 2px; border-color: #bed9ed; align-items: center; justify-content: center; overflow: hidden; }
+.cloud-top { top: 0; border-radius: 0 0 34px 34px; }
+.cloud-bottom { bottom: 0; border-radius: 34px 34px 0 0; }
+.cloud-mark { color: #ffffff; font-size: 43px; }
+.cloud-shine { position: absolute; left: 9px; top: 12px; width: 12px; height: 55%; border-radius: 6px; background-color: rgba(255,255,255,0.45); }
+.gap-outline { position: absolute; left: 4px; width: 74px; border-width: 1px; border-style: dashed; border-color: rgba(85,165,185,0.35); border-radius: 24px; }
+.feedback { position: absolute; top: 16px; left: 8%; width: 84%; text-align: center; font-size: 14px; font-weight: 700; z-index: 6; }
+.good { color: #2c856d; }.again { color: #9e7751; }
+.instruction { position: absolute; left: 6%; right: 6%; top: 28%; padding: 24px 14px 8px; border-radius: 26px; background-color: rgba(255,255,255,0.94); align-items: center; z-index: 10; }
+.instruction-title { color: #305572; font-size: 21px; font-weight: 700; }
+.hint { margin-top: 12px; color: #a66a50; font-size: 13px; }
+.primary { margin-top: 20px; width: 172px; height: 50px; line-height: 50px; border-radius: 25px; background-color: #65bfa7; color: #ffffff; font-size: 17px; font-weight: 700; }
+.replay { padding: 18px; color: #6389a4; font-size: 14px; }
+.pause-cover { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(233,245,255,0.65); align-items: center; justify-content: center; z-index: 15; }
+.pause-card { width: 86%; padding: 24px 12px 8px; border-radius: 26px; background-color: #ffffff; align-items: center; }
+.flap-button { margin-top: 16px; padding: 0; width: 100%; height: 56px; line-height: 56px; border-radius: 24px; background-color: #65bfa7; color: #ffffff; font-size: 18px; font-weight: 700; }
+.stats { margin-top: 12px; flex-direction: row; justify-content: space-between; }
+.stat { color: #60839a; font-size: 12px; }
 </style>

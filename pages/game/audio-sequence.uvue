@@ -1,44 +1,184 @@
-<template><view class="page">
-  <view class="header"><view><text class="dimension">持续注意训练</text><text class="title">听音节奏</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
-  <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-  <view class="tip"><text class="tip-title">听一听，再按顺序点图案</text><text class="tip-copy">声音会一个接一个出现</text></view>
-  <view class="stage">
-    <view class="speaker" :class="playing ? 'speaker-on' : ''"><text class="speaker-symbol">♫</text></view>
-    <text class="state">{{ stateLabel }}</text>
-    <view class="answers"><button v-for="cue in cues" :key="cue.id" class="tap-target answer" :disabled="!accepting" @click="choose(cue.id)"><text class="answer-symbol tap-content">{{ cue.icon }}</text></button></view>
-    <button class="tap-target replay" :disabled="playing" @click="replay">▶ 再听一次</button>
-    <text class="feedback" :class="feedback == '真棒' ? 'good' : 'again'">{{ feedback }}</text>
+<template>
+<TrainingFrame title="听音节奏" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+  <view class="page">
+    <image class="night tap-content" src="/static/images/runtime/backgrounds/star-catcher-sky-v1.webp" mode="aspectFill"></image>
+    <scroll-view class="scroll" direction="vertical" show-scrollbar="false"><view class="content">
+      <view class="header"><text class="heading">{{ started ? '找出一样的声音' : '双星音乐台' }}</text><text class="level">难度 {{ level }} · {{ trial ? '试玩' : started ? displayRound + '/8' : '听一听，选一选' }}</text></view>
+      <view class="progress"><view class="fill" :style="{ width: progressWidth }"></view></view>
+      <view class="board">
+        <image class="cover tap-content" :style="{ height: started ? '100px' : '155px' }" src="/static/images/runtime/level-thumbnails/audio-sequence.webp" mode="aspectFill"></image>
+        <view v-if="!started || phase == 'trial-done'" class="intro">
+          <text class="intro-title">{{ phase == 'trial-done' ? feedback : '记住声音，找到它' }}</text>
+          <text class="hint">目标只放 2 次，选项可以试听</text>
+          <button class="primary" @click="begin">开始训练</button><button class="trial-button" @click="beginTrial">{{ phase == 'trial-done' ? '再试一题' : '先试一题' }}</button>
+        </view>
+        <view v-else class="play-area">
+          <view class="target-display" :class="phase == 'target' ? 'target-active' : ''">
+            <text class="music">{{ phase == 'target' ? '♫' : phase == 'error' ? '!' : '✓' }}</text>
+            <view class="target-copy"><text class="state">{{ stateLabel }}</text><text class="hint">{{ phase == 'target' ? '第 ' + (targetPlayed + 1) + ' / 2 次' : phase == 'error' ? '本轮不计分，请重新训练' : '点音乐键试听，点“选这个”作答' }}</text></view>
+          </view>
+          <view v-if="phase == 'target'" class="waiting">
+            <image class="melody-decoration tap-content" src="/static/images/runtime/backgrounds/audio-melody-staff.svg" mode="aspectFit"></image>
+          </view>
+          <view v-if="phase == 'choices' || phase == 'feedback'" class="options">
+            <view v-for="(sound, index) in options" :key="sound.id" class="option" :class="phase == 'feedback' && sound.id == target.id ? 'option-correct' : ''">
+              <button class="listen" :class="[padClass(index), previewIndex == index ? 'listening' : '']" :disabled="phase != 'choices'" @click="preview(index)">{{ previewIndex == index ? '♫' : '♪' }}</button>
+              <view class="option-copy"><text class="option-name">声音 {{ index + 1 }}</text><text v-if="previewIndex == index" class="option-hint">正在试听</text></view>
+              <button class="choose" :disabled="phase != 'choices'" @click="choose(index)">{{ phase == 'feedback' && sound.id == target.id ? '✓' : '选这个' }}</button>
+            </view>
+          </view>
+          <text v-if="feedback != ''" class="feedback">{{ feedback }}</text>
+          <button v-if="phase == 'error'" class="primary" @click="retryAfterError">重新开始</button><button v-if="trial" class="trial-button" @click="begin">直接开始训练</button>
+        </view>
+      </view>
+      <text v-if="started && !trial" class="footer">已找到 {{ correct }} 个</text>
+    </view></scroll-view>
   </view>
-  <view class="stats"><view class="stat"><text class="value">{{ correct }}</text><text class="label">完成</text></view><view class="stat"><text class="value">{{ errors }}</text><text class="label">重试</text></view></view>
-</view></template>
+</TrainingFrame>
+</template>
 <script setup lang="uts">
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
 import { ref, computed } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { getGameTuningAge } from '../../utils/difficulty.uts'
-type Cue = { id: string, icon: string }
-const cues: Cue[] = [{ id: 'star', icon: '✦' }, { id: 'moon', icon: '☾' }, { id: 'planet', icon: '●' }]
-const totalRounds = ref(8), roundIndex = ref(0), sequenceLength = ref(2), sequence = ref([] as string[]), inputIndex = ref(0)
-const accepting = ref(false), playing = ref(false), feedback = ref(''), correct = ref(0), errors = ref(0)
-const audio = ref<InnerAudioContext | null>(null)
-let gameStartedAt = 0, playTimer = 0, nextTimer = 0
-const displayRound = computed((): number => Math.min(totalRounds.value, roundIndex.value + 1))
-const progressWidth = computed((): string => Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%')
-const stateLabel = computed((): string => playing.value ? '仔细听' : accepting.value ? '轮到你了' : '准备下一组')
-function configure() { const age = getGameTuningAge('audio-sequence'); if (age <= 6) { sequenceLength.value = 2; totalRounds.value = 6 } else if (age <= 9) { sequenceLength.value = 3; totalRounds.value = 8 } else { sequenceLength.value = 4; totalRounds.value = 10 } }
-function cuePath(id: string): string { return '/static/audio/cues/' + id + '.wav' }
-function stopAudio() { if (audio.value != null) audio.value!.stop() }
-function playCue(id: string) { if (audio.value == null) audio.value = uni.createInnerAudioContext(); else audio.value!.stop(); audio.value!.src = cuePath(id); audio.value!.play() }
-function playStep(index: number) { if (index >= sequence.value.length) { playing.value = false; accepting.value = true; return }; playCue(sequence.value[index]); playTimer = setTimeout(() => playStep(index + 1), 720) }
-function playSequence() { accepting.value = false; playing.value = true; inputIndex.value = 0; feedback.value = ''; playStep(0) }
-function makeSequence() { const next = [] as string[]; for (let i = 0; i < sequenceLength.value; i++) next.push(cues[Math.floor(Math.random() * cues.length)].id); sequence.value = next; playSequence() }
-function finish() { stopAudio(); const accuracy = Math.round((correct.value / Math.max(1, correct.value + errors.value)) * 100); const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=audio-sequence&dimensionId=sustained&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + duration.toString() }) }
-function nextRound() { roundIndex.value += 1; if (roundIndex.value >= totalRounds.value) finish(); else makeSequence() }
-function replay() { if (!playing.value) playSequence() }
-function choose(id: string) { if (!accepting.value) return; if (id != sequence.value[inputIndex.value]) { errors.value += 1; feedback.value = '再听一次'; accepting.value = false; nextTimer = setTimeout(() => playSequence(), 650); return }; inputIndex.value += 1; if (inputIndex.value >= sequence.value.length) { correct.value += 1; accepting.value = false; feedback.value = '真棒'; nextTimer = setTimeout(() => nextRound(), 650) } }
-function clearResources() { if (playTimer > 0) clearTimeout(playTimer); if (nextTimer > 0) clearTimeout(nextTimer); stopAudio() }
-onLoad((_options: OnLoadOptions) => { configure(); gameStartedAt = Date.now(); nextTimer = setTimeout(() => makeSequence(), 450) })
-onUnload(() => { clearResources(); if (audio.value != null) audio.value!.destroy(); audio.value = null })
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { MatchSound, getAudioMatchConfig, matchSounds, matchSoundPath, audioMatchChoices } from '../../utils/audio-match.uts'
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+const trial = ref(false)
+const started = ref(false), phase = ref('ready'), level = ref(1)
+const roundIndex = ref(0), correct = ref(0), errors = ref(0), targetPlayed = ref(0), previewIndex = ref(-1)
+const target = ref<MatchSound>({ id: 'i0-p0-r0', instrument: 0, pitch: 0, rhythm: 0 }), options = ref([] as MatchSound[])
+const feedback = ref(''), reactions = [] as number[]
+const remainingTargets = matchSounds()
+let player: InnerAudioContext | null = null
+let playbackToken = 0, watchdog = 0, nextTimer = 0, gameStartedAt = 0, choiceStartedAt = 0
+const displayRound = computed((): number => Math.min(8, roundIndex.value + 1))
+const progressWidth = computed((): string => roundIndex.value / 8 * 100 + '%')
+const stateLabel = computed((): string => phase.value == 'target' ? '先听目标声音' : phase.value == 'error' ? '声音没有播放成功' : '目标已播放完')
+function padClass(index: number): string { return ['pink', 'blue', 'green', 'yellow', 'purple'][index] }
+function stopAudio() {
+  playbackToken += 1
+  if (watchdog > 0) trainingClock.clearTimeout(watchdog)
+  watchdog = 0
+  if (player != null) { player!.stop(); trainingClock.destroyAudio(player); player = null }
+  previewIndex.value = -1
+}
+function finish() {
+  phase.value = 'finished'; stopAudio()
+  const accuracy = Math.round(correct.value / 8 * 100)
+  const sum = reactions.reduce((a: number, b: number): number => a + b, 0)
+  const reaction = reactions.length == 0 ? 0 : Math.round(sum / reactions.length)
+  uni.redirectTo({ url: '/pages/result/result?gameId=audio-sequence&dimensionId=sustained&score=' + accuracy + '&accuracy=' + accuracy + '&reaction=' + reaction + '&duration=' + Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000)) + '&completed=' + correct.value + '&total=8&falseAlarms=' + errors.value })
+}
+function audioFailed(isTarget: boolean) {
+  stopAudio()
+  if (isTarget) phase.value = 'error'
+  else feedback.value = '这段没播放成功，可以再点一次'
+}
+function playSound(sound: MatchSound, isTarget: boolean, index: number) {
+  stopAudio()
+  const token = playbackToken
+  const audio = trainingClock.createAudio(); player = audio
+  audio.src = matchSoundPath(sound.id); audio.volume = 0.7
+  if (!isTarget) previewIndex.value = index
+  audio.onEnded(() => {
+    if (token != playbackToken || phase.value == 'finished' || phase.value == 'feedback') return
+    stopAudio()
+    if (isTarget && phase.value == 'target') {
+      targetPlayed.value += 1
+      if (targetPlayed.value >= getAudioMatchConfig(level.value).targetPlays) { phase.value = 'choices'; choiceStartedAt = trainingClock.now() }
+      else nextTimer = trainingClock.setTimeout(() => playSound(target.value, true, -1), 450)
+    }
+  })
+  audio.onError((_event) => { if (token == playbackToken) audioFailed(isTarget) })
+  watchdog = trainingClock.setTimeout(() => { if (token == playbackToken) audioFailed(isTarget) }, 8000)
+  audio.play()
+}
+function prepareRound() {
+  if (trial.value) {
+    target.value = { id: 'i0-p0-r0', instrument: 0, pitch: 0, rhythm: 0 }
+    options.value = audioMatchChoices(target.value, 1)
+    targetPlayed.value = 0; feedback.value = ''; phase.value = 'target'; playSound(target.value, true, -1); return
+  }
+  if (roundIndex.value >= 8) { finish(); return }
+  const index = Math.floor(Math.random() * remainingTargets.length)
+  target.value = remainingTargets[index]
+  remainingTargets.splice(index, 1)
+  options.value = audioMatchChoices(target.value, level.value)
+  targetPlayed.value = 0; feedback.value = ''; phase.value = 'target'
+  playSound(target.value, true, -1)
+}
+function resetSession() {
+  trainingClock.clearTimeout(nextTimer); nextTimer = 0; stopAudio()
+  roundIndex.value = 0; correct.value = 0; errors.value = 0; reactions.length = 0
+}
+function beginTrial() {
+  if (trainingPaused.value || (started.value && !trial.value)) return
+  resetSession(); trial.value = true; started.value = true; prepareRound()
+}
+function begin() {
+  if (trainingPaused.value || (started.value && !trial.value)) return
+  resetSession(); trial.value = false; started.value = true; gameStartedAt = trainingClock.now(); prepareRound()
+}
+function retryAfterError() { if (trial.value) beginTrial(); else training.restart() }
+function preview(index: number) {
+  if (trainingPaused.value || phase.value != 'choices' || index < 0 || index >= options.value.length) return
+  feedback.value = ''; playSound(options.value[index], false, index)
+}
+function choose(index: number) {
+  if (trainingPaused.value || phase.value != 'choices' || index < 0 || index >= options.value.length) return
+  phase.value = 'feedback'; stopAudio()
+  if (trial.value) {
+    training.playFeedback(options.value[index].id == target.value.id ? 'correct' : 'wrong')
+    feedback.value = options.value[index].id == target.value.id ? '找到啦！' : '绿色框里是目标声音'
+    nextTimer = trainingClock.setTimeout(() => { phase.value = 'trial-done' }, 1400); return
+  }
+  reactions.push(trainingClock.now() - choiceStartedAt)
+  if (options.value[index].id == target.value.id) { { correct.value += 1; training.playFeedback('correct') } feedback.value = '✓ 找到啦！' }
+  else { { errors.value += 1; training.playFeedback('wrong') } feedback.value = '下一个再试试' }
+  nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepareRound() }, 900)
+}
+onLoad(() => { level.value = getGameDifficulty('audio-sequence') })
+onUnload(() => { phase.value = 'finished'; trainingClock.clearTimeout(nextTimer); stopAudio() })
+training.setStartedCheck((): boolean => started.value && !trial.value)
 </script>
 <style>
-.page { flex: 1; padding: 20px; }.header { flex-direction: row; justify-content: space-between; align-items: center; }.dimension { color: #348d74; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #e3f6ef; align-items: center; justify-content: center; }.counter-value { color: #348d74; font-size: 13px; font-weight: 700; }.progress { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; background-color: #55c9a5; }.tip { margin-top: 14px; padding: 15px; border-radius: 18px; background-color: #eaf8f3; }.tip-title { color: #315f52; font-size: 14px; font-weight: 700; }.tip-copy { margin-top: 4px; color: #6c9589; font-size: 10px; }.stage { margin-top: 16px; height: 410px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; }.speaker { width: 112px; height: 112px; border-radius: 56px; background-color: #dff3ed; align-items: center; justify-content: center; }.speaker-on { background-color: #55c9a5; }.speaker-symbol { color: #ffffff; font-size: 46px; }.state { margin-top: 12px; color: #52617a; font-size: 15px; font-weight: 700; }.answers { margin-top: 22px; flex-direction: row; }.answer { margin: 0 6px; padding: 0; width: 78px; height: 78px; border-radius: 20px; background-color: #edf8f5; align-items: center; justify-content: center; }.answer-symbol { color: #3a9b80; font-size: 35px; }.replay { margin-top: 18px; width: 132px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #e4f4ef; color: #348d74; font-size: 12px; }.feedback { margin-top: 13px; height: 20px; font-size: 12px; font-weight: 700; }.good { color: #338e72; }.again { color: #c65b66; }.stats { margin-top: 14px; flex-direction: row; }.stat { flex: 1; align-items: center; }.value { color: #25314a; font-size: 18px; font-weight: 700; }.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+.page { flex: 1; position: relative; background-color: #1a2467; }
+.night { position: absolute; width: 100%; height: 100%; }
+.scroll { flex: 1; position: relative; }
+.content { padding: 18px 18px 28px; }
+.header { flex-direction: row; align-items: center; justify-content: space-between; }
+.heading { color: #ffffff; font-size: 20px; font-weight: 700; }
+.level { color: #e0defa; font-size: 11px; }
+.progress { height: 5px; margin-top: 14px; border-radius: 3px; background-color: rgba(255,255,255,0.25); overflow: hidden; }
+.fill { height: 5px; border-radius: 3px; background-color: #fbd76f; }
+.board { margin-top: 18px; border-radius: 28px; overflow: hidden; background-color: rgba(255,255,255,0.92); }
+.cover { width: 100%; height: 155px; }
+.intro { padding: 26px 18px 30px; align-items: center; }
+.intro-title { color: #374574; font-size: 21px; font-weight: 700; }
+.hint { margin-top: 7px; color: #7682a0; font-size: 12px; }
+.primary { width: 200px; margin-top: 25px; height: 50px; line-height: 50px; border-radius: 25px; border-width: 0; background-color: #7484e8; color: #ffffff; font-size: 17px; font-weight: 700; }
+.trial-button { width: 200px; margin-top: 12px; height: 42px; line-height: 42px; padding: 0; border-width: 0; border-radius: 21px; background-color: #eef1fc; color: #667dc8; font-size: 14px; }
+.play-area { padding: 16px 14px 20px; }
+.target-display { flex-direction: row; align-items: center; padding: 14px; border-radius: 20px; background-color: #e9ecf9; }
+.target-active { background-color: #fff2cd; }
+.music { width: 38px; color: #b192ce; font-size: 29px; font-weight: 700; }
+.target-copy { flex: 1; }
+.state { color: #43527c; font-size: 16px; font-weight: 700; }
+.waiting { height: 180px; align-items: center; justify-content: center; }
+.melody-decoration { width: 100%; max-width: 320px; height: 110px; pointer-events: none; }
+.options { margin-top: 10px; }
+.option { flex-direction: row; align-items: center; margin-top: 8px; padding: 8px; border-radius: 21px; background-color: #ffffff; border-width: 2px; border-color: #ffffff; }
+.option-correct { border-color: #68bea0; }
+.listen { width: 50px; height: 48px; line-height: 46px; padding: 0; margin: 0; border-radius: 18px; border-width: 0; color: #ffffff; font-size: 30px; font-weight: 700; }
+.pink { background-color: #d58dd9; }.blue { background-color: #70b2e9; }.green { background-color: #76bda1; }.yellow { background-color: #dbb366; }.purple { background-color: #9e91dd; }
+.listening { border-width: 3px; border-color: #ffffff; }
+.option-copy { flex: 1; padding-left: 10px; }
+.option-name { color: #455478; font-size: 15px; font-weight: 700; }
+.option-hint { margin-top: 5px; color: #8b94ad; font-size: 10px; }
+.choose { margin: 0; width: 68px; height: 44px; line-height: 44px; padding: 0; border-width: 0; border-radius: 17px; background-color: #eef1fc; color: #667dc8; font-size: 12px; font-weight: 700; }
+.feedback { margin-top: 15px; text-align: center; font-size: 15px; color: #638f84; }
+.footer { margin-top: 15px; text-align: center; color: #e9e8ff; font-size: 12px; }
 </style>

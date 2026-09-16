@@ -1,0 +1,21 @@
+import { ref } from 'vue'
+import { TrainingClock } from './training-clock.uts'
+
+// CSS transition 不受游戏时钟控制；关键运动使用相同的可暂停时钟插值。
+export function useTrainingTween(clock: TrainingClock, initial: number) {
+  const value = ref(initial)
+  let timer = 0
+  function move(target: number, duration: number) {
+    if (timer > 0) clock.clearInterval(timer)
+    timer = 0
+    if (duration <= 0 || Math.abs(value.value - target) < 0.0001) { value.value = target; return }
+    const from = value.value, began = clock.now()
+    timer = clock.setInterval(() => {
+      const p = Math.max(0, Math.min(1, (clock.now() - began) / duration))
+      const eased = p * p * (3 - 2 * p)
+      value.value = from + (target - from) * eased
+      if (p >= 1) { clock.clearInterval(timer); timer = 0 }
+    }, 16)
+  }
+  return { value, move }
+}

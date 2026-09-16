@@ -1,0 +1,148 @@
+<template>
+  <scroll-view class="page" direction="vertical" show-scrollbar="false">
+    <view class="topbar">
+      <view class="back-button" @click="goBack"><text class="back-icon">‹</text></view>
+    </view>
+
+    <view class="page-content">
+      <view class="hero">
+        <view class="hero-visual"><image class="hero-duo" src="/static/images/runtime/brand/duo-star-v1.webp" mode="aspectFill"></image></view>
+        <text class="title">登录专注星伴</text>
+      </view>
+
+      <view class="phone-card">
+        <view class="phone-field">
+          <text class="country-code">+86</text>
+          <view class="field-divider"></view>
+          <input class="phone-input" v-model="phone" type="number" maxlength="11" placeholder="请输入手机号" />
+        </view>
+
+        <view class="code-row">
+          <input class="code-input" v-model="code" type="number" maxlength="6" placeholder="6 位验证码" />
+          <button class="code-button" :class="secondsLeft > 0 || sendingCode ? 'code-button-disabled' : ''" @click="sendCode">{{ codeButtonText }}</button>
+        </view>
+
+        <button class="primary-button" :class="canSubmit && !loggingIn ? '' : 'primary-disabled'" @click="phoneLogin">{{ loggingIn ? '登录中…' : '登录并继续' }}</button>
+
+        <!-- #ifdef APP-IOS -->
+        <view class="or-row"><view class="or-line"></view><text class="or-text">或</text><view class="or-line"></view></view>
+        <ActionSurface class="apple-button" :class="appleLogging ? 'apple-disabled' : ''" :disabled="appleLogging" @click="appleLogin"><text class="apple-mark"></text><text class="apple-label">{{ appleLogging ? '登录中…' : '使用 Apple 登录' }}</text></ActionSurface>
+        <!-- #endif -->
+      </view>
+
+      <text class="agreement">登录即同意用户协议与隐私政策</text>
+    </view>
+  </scroll-view>
+</template>
+
+<script setup lang="uts">
+import ActionSurface from '../../components/ActionSurface.uvue'
+import { ref, computed } from 'vue'
+import { onUnload } from '@dcloudio/uni-app'
+import { requestPhoneCode, loginWithPhone, loginWithApple, AuthAttemptResult } from '../../utils/auth.uts'
+
+const phone = ref('')
+const code = ref('')
+const sendingCode = ref(false)
+const loggingIn = ref(false)
+const appleLogging = ref(false)
+const secondsLeft = ref(0)
+let countdownTimer = 0
+const canSubmit = computed((): boolean => phone.value.trim().length == 11 && code.value.trim().length == 6)
+const codeButtonText = computed((): string => {
+  if (sendingCode.value) return '发送中…'
+  if (secondsLeft.value > 0) return secondsLeft.value.toString() + 's 后重发'
+  return '获取验证码'
+})
+
+onUnload(() => { if (countdownTimer != 0) clearTimeout(countdownTimer) })
+
+function goBack() {
+  uni.navigateBack({
+    delta: 1,
+    fail: () => uni.reLaunch({ url: '/pages/index/index' })
+  })
+}
+
+function showResult(result: AuthAttemptResult, needsProfile: boolean = false, suggestPhoneBinding: boolean = false) {
+  loggingIn.value = false
+  appleLogging.value = false
+  uni.showToast({ title: result.message, icon: result.success ? 'success' : 'none' })
+  if (result.success) {
+    setTimeout(() => {
+      if (suggestPhoneBinding) uni.redirectTo({ url: '/pages/account/account?onboarding=1&needsProfile=' + (needsProfile ? '1' : '0') })
+      else if (needsProfile) uni.redirectTo({ url: '/pages/profile/profile' })
+      else uni.navigateBack()
+    }, 350)
+  }
+}
+
+function runCountdown() {
+  secondsLeft.value = 60
+  const tick = () => {
+    secondsLeft.value -= 1
+    if (secondsLeft.value > 0) countdownTimer = setTimeout(tick, 1000)
+    else countdownTimer = 0
+  }
+  countdownTimer = setTimeout(tick, 1000)
+}
+
+function sendCode() {
+  if (sendingCode.value || secondsLeft.value > 0) return
+  const value = phone.value.trim()
+  if (value.length != 11) { uni.showToast({ title: '请输入 11 位手机号', icon: 'none' }); return }
+  sendingCode.value = true
+  requestPhoneCode(value, (result: AuthAttemptResult, debugCode: string) => {
+    sendingCode.value = false
+    if (debugCode != '') code.value = debugCode
+    if (result.success) runCountdown()
+    uni.showToast({ title: result.message, icon: result.success ? 'success' : 'none', duration: 2500 })
+  })
+}
+
+function phoneLogin() {
+  if (loggingIn.value) return
+  const phoneValue = phone.value.trim()
+  const codeValue = code.value.trim()
+  if (phoneValue.length != 11 || codeValue.length != 6) { uni.showToast({ title: '请填写手机号和 6 位验证码', icon: 'none' }); return }
+  loggingIn.value = true
+  loginWithPhone(phoneValue, codeValue, (result: AuthAttemptResult, needsProfile: boolean) => showResult(result, needsProfile))
+}
+
+function appleLogin() {
+  if (appleLogging.value || loggingIn.value) return
+  appleLogging.value = true
+  loginWithApple((result: AuthAttemptResult, needsProfile: boolean, suggestPhoneBinding: boolean) => showResult(result, needsProfile, suggestPhoneBinding))
+}
+</script>
+
+<style>
+.page { height: 100%; background-color: #eef4ff; }
+.topbar { height: 88px; padding: 44px 18px 0; flex-direction: row; align-items: center; }
+.back-button { width: 44px; height: 44px; border-radius: 22px; background-color: #ffffff; align-items: center; justify-content: center; }
+.back-icon { margin-top: -3px; color: #2c3850; font-size: 36px; font-weight: 300; }
+.page-content { padding: 8px 20px 36px; }
+.hero { align-items: center; }
+.hero-visual { width: 122px; height: 122px; padding: 5px; border-radius: 38px; background-color: #fff2c9; overflow: hidden; }
+.hero-duo { width: 112px; height: 112px; border-radius: 34px; }
+.title { margin-top: 15px; color: #1f2a44; font-size: 24px; font-weight: 700; text-align: center; }
+.phone-card { margin-top: 22px; padding: 18px; border-radius: 24px; background-color: #fffefd; }
+.phone-field { height: 50px; padding: 0 13px; border-radius: 14px; background-color: #edf3ff; flex-direction: row; align-items: center; }
+.country-code { color: #344059; font-size: 14px; font-weight: 700; }
+.field-divider { margin: 0 12px; width: 1px; height: 20px; background-color: #dbe0e9; }
+.phone-input { flex: 1; height: 50px; color: #26324a; font-size: 15px; }
+.code-row { margin-top: 12px; flex-direction: row; }
+.code-input { flex: 1; height: 48px; padding: 0 13px; border-radius: 14px; background-color: #f3efff; color: #26324a; font-size: 15px; }
+.code-button { margin: 0 0 0 9px; width: 112px; height: 48px; line-height: 48px; padding: 0; border-radius: 14px; background-color: #e9f0ff; color: #4b75ca; font-size: 12px; font-weight: 600; }
+.code-button-disabled { background-color: #f0f2f6; color: #98a1b2; }
+.primary-button { margin-top: 20px; height: 50px; line-height: 50px; border-radius: 16px; background-color: #5b8def; color: #ffffff; font-size: 15px; font-weight: 700; }
+.primary-disabled { background-color: #adc4f3; }
+.or-row { height: 34px; flex-direction: row; align-items: center; }
+.or-line { flex: 1; height: 1px; background-color: #e5e9f0; }
+.or-text { margin: 0 12px; color: #a0a8b7; font-size: 10px; }
+.apple-button { margin: 0; height: 50px; line-height: 50px; border-radius: 16px; background-color: #1f2633; color: #ffffff; flex-direction: row; align-items: center; justify-content: center; }
+.apple-mark { margin-right: 7px; color: #ffffff; font-size: 21px; }
+.apple-label { color: #ffffff; font-size: 15px; font-weight: 600; }
+.apple-disabled { background-color: #737986; }
+.agreement { margin-top: 18px; color: #9aa3b3; font-size: 10px; text-align: center; }
+</style>

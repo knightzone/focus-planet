@@ -1,0 +1,50 @@
+import { ref } from 'vue'
+import { onHide, onUnload, onBackPress } from '@dcloudio/uni-app'
+import { TrainingClock } from './training-clock.uts'
+import { createTrainingFeedback } from './training-feedback.uts'
+
+export function useTrainingSession() {
+  const clock = new TrainingClock()
+  const sounds = createTrainingFeedback(clock)
+  const paused = ref(false)
+  const navigating = ref(false)
+  let hasStarted: () => boolean = (): boolean => true
+  function setStartedCheck(check: () => boolean) { hasStarted = check }
+  function pause() { if (navigating.value) return; sounds.stop(); clock.pause(); paused.value = true }
+  function resume() { if (navigating.value) return; paused.value = false; clock.resume() }
+  function navigationFailed() {
+    navigating.value = false
+    uni.showToast({ title: '暂时无法跳转，请重试', icon: 'none' })
+  }
+  function restart() {
+    if (navigating.value) return
+    pause()
+    const pages = getCurrentPages()
+    if (pages.length == 0) return
+    const page = pages[pages.length - 1]
+    let url = '/' + page.route
+    const keys = Object.keys(page.options)
+    const query: string[] = []
+    keys.forEach((key: string) => {
+      const value = page.options[key]
+      if (value != null) query.push(encodeURIComponent(key) + '=' + encodeURIComponent('' + value))
+    })
+    if (query.length > 0) url += '?' + query.join('&')
+    navigating.value = true
+    uni.redirectTo({ url, fail: () => navigationFailed() })
+  }
+  function exit() {
+    if (navigating.value) return
+    sounds.stop(); clock.pause(); navigating.value = true
+    if (getCurrentPages().length > 1) uni.navigateBack({ fail: () => navigationFailed() })
+    else uni.switchTab({ url: '/pages/index/index', fail: () => navigationFailed() })
+  }
+  function back() { if (hasStarted()) pause(); else exit() }
+  onHide(() => pause())
+  onUnload(() => { sounds.stop(); clock.dispose() })
+  onBackPress((_options: OnBackPressOptions): boolean => {
+    if (navigating.value || !hasStarted()) return false
+    pause(); return true
+  })
+  return { clock, paused, navigating, pause, resume, restart, exit, back, setStartedCheck, playFeedback: sounds.play }
+}

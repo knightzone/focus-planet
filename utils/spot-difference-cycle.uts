@@ -1,0 +1,30 @@
+import { localTestKey } from './local-test.uts'
+import { DifferenceScene } from './spot-difference-types.uts'
+
+function seenKey(tier: string): string { return localTestKey('focus_difference_seen_v1_' + tier) }
+function seenIds(tier: string): string[] {
+  const raw = uni.getStorageSync(seenKey(tier))
+  if (raw == null || raw == '') return [] as string[]
+  try { const ids = JSON.parse<string[]>(JSON.stringify(raw)); return ids == null ? [] as string[] : ids } catch (_error) { return [] as string[] }
+}
+export function chooseUnseenDifference(tier: string, scenes: DifferenceScene[]): DifferenceScene | null {
+  const pool = scenes.filter((scene: DifferenceScene): boolean => scene.tier == tier)
+  if (pool.length == 0) return null
+  const seen = seenIds(tier)
+  let available = pool.filter((scene: DifferenceScene): boolean => seen.indexOf(scene.id) < 0)
+  if (available.length == 0) {
+    const rawLast = uni.getStorageSync(seenKey(tier) + '_last')
+    const last = rawLast == null ? '' : rawLast as string
+    available = pool.filter((scene: DifferenceScene): boolean => pool.length == 1 || scene.id != last)
+  }
+  return available[Math.floor(Math.random() * available.length)]
+}
+// Called when the scene image loads on screen, never on completion or prefetch.
+export function markDifferenceShown(scene: DifferenceScene, scenes: DifferenceScene[]) {
+  const pool = scenes.filter((item: DifferenceScene): boolean => item.tier == scene.tier)
+  let seen = seenIds(scene.tier).filter((id: string): boolean => pool.some((item: DifferenceScene): boolean => item.id == id))
+  if (pool.every((item: DifferenceScene): boolean => seen.indexOf(item.id) >= 0)) seen = [] as string[]
+  if (seen.indexOf(scene.id) < 0) seen.push(scene.id)
+  uni.setStorageSync(seenKey(scene.tier), seen)
+  uni.setStorageSync(seenKey(scene.tier) + '_last', scene.id)
+}

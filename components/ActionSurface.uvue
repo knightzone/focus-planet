@@ -1,0 +1,21 @@
+<template>
+  <view class="action-surface" :class="props.disabled ? 'action-surface-disabled' : ''" :hover-class="props.disabled ? 'none' : 'action-surface-pressed'" @click="handleClick">
+    <slot></slot>
+  </view>
+</template>
+
+<script setup lang="uts">
+// Vapor 原生 button 只接受文本；图文点击区域使用 view + slot。
+const props = defineProps({ disabled: { type: Boolean, default: false } })
+const emit = defineEmits(['click'])
+function handleClick() {
+  if (props.disabled) return
+  emit('click')
+}
+</script>
+
+<style>
+.action-surface { align-items: center; justify-content: center; }
+.action-surface-disabled { opacity: 0.45; }
+.action-surface-pressed { opacity: 0.75; }
+</style>

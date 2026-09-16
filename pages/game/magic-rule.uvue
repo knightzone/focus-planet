@@ -1,4 +1,5 @@
 <template>
+<TrainingFrame title="魔法规则" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="page">
     <view class="game-header">
       <view>
@@ -11,17 +12,13 @@
     <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
 
     <view class="rule-card" :class="currentRule == 'color' ? 'rule-color' : 'rule-shape'">
-      <text class="rule-kicker">当前规则</text>
       <text class="rule-title">{{ currentRule == 'color' ? '按照颜色分类' : '按照形状分类' }}</text>
-      <text class="rule-tip">{{ currentRule == 'color' ? '蓝色放左边，黄色放右边' : '圆形放左边，方形放右边' }}</text>
     </view>
 
     <view class="play-area">
       <view v-if="!started" class="instruction">
         <YoungChildCue kind="match"></YoungChildCue>
-        <text class="instruction-title">规则会发生变化</text>
-        <text class="instruction-copy">先看清上方规则，再把图形放到正确的一边。</text>
-        <button class="tap-target primary" @click="begin">▶ 开始训练</button>
+        <button class="tap-target primary" @click="begin">开始</button>
       </view>
 
       <view v-if="started" class="challenge">
@@ -30,7 +27,6 @@
           <view v-if="stimulusShape == 'circle'" class="stimulus stimulus-circle" :style="{ backgroundColor: stimulusColorValue }"></view>
           <view v-else class="stimulus stimulus-square" :style="{ backgroundColor: stimulusColorValue }"></view>
         </view>
-        <text class="question">它应该放在哪一边？</text>
         <view v-if="feedback != ''" class="feedback" :class="feedback == '正确' ? 'feedback-good' : 'feedback-again'">
           <text :class="feedback == '正确' ? 'feedback-text-good' : 'feedback-text-again'">{{ feedback }}</text>
         </view>
@@ -38,16 +34,16 @@
     </view>
 
     <view v-if="started" class="answer-row">
-      <button class="tap-target answer-button answer-left" @click="answer('left')">
+      <ActionSurface class="tap-target answer-button answer-left" @click="answer('left')">
         <view v-if="currentRule == 'color'" class="answer-dot blue-dot tap-content"></view>
         <view v-else class="answer-symbol circle-symbol tap-content"></view>
         <text class="answer-label tap-content">{{ currentRule == 'color' ? '蓝色' : '圆形' }}</text>
-      </button>
-      <button class="tap-target answer-button answer-right" @click="answer('right')">
+      </ActionSurface>
+      <ActionSurface class="tap-target answer-button answer-right" @click="answer('right')">
         <view v-if="currentRule == 'color'" class="answer-dot yellow-dot tap-content"></view>
         <view v-else class="answer-symbol square-symbol tap-content"></view>
         <text class="answer-label tap-content">{{ currentRule == 'color' ? '黄色' : '方形' }}</text>
-      </button>
+      </ActionSurface>
     </view>
 
     <view class="footer-stats">
@@ -56,13 +52,23 @@
       <view class="footer-stat"><text class="footer-value">{{ switchErrors }}</text><text class="footer-label">切换错误</text></view>
     </view>
   </view>
+</TrainingFrame>
 </template>
 
 <script setup lang="uts">
+import { timedRoundScore, scoreQuery, searchTargetMs } from '../../utils/game-scoring.uts'
+const roundScores: number[] = []
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
+import ActionSurface from '../../components/ActionSurface.uvue'
 import { ref, computed } from 'vue'
 import YoungChildCue from '../../components/YoungChildCue.uvue'
 import { onUnload } from '@dcloudio/uni-app'
 import { getGameTuningAge } from '../../utils/difficulty.uts'
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+
 
 const started = ref(false)
 const totalRounds = ref(14)
@@ -97,18 +103,17 @@ function configureDifficulty() {
   else { totalRounds.value = 22; blockSize.value = 3 }
 }
 
-function clearTimer() { if (answerTimer > 0) clearTimeout(answerTimer) }
+function clearTimer() { if (answerTimer > 0) trainingClock.clearTimeout(answerTimer) }
 function finishGame() {
   clearTimer()
   const accuracy = Math.round((correct.value / totalRounds.value) * 100)
   const reactionTotal = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
   const average = reactions.value.length == 0 ? 0 : Math.round(reactionTotal / reactions.value.length)
-  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
   uni.redirectTo({
     url: '/pages/result/result?gameId=magic-rule&dimensionId=alternating&score=' + accuracy.toString() +
       '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() +
-      '&switchErrors=' + switchErrors.value.toString()
-  })
+      '&switchErrors=' + switchErrors.value.toString() + scoreQuery(roundScores) })
 }
 function prepareRound() {
   if (roundIndex.value >= totalRounds.value) {
@@ -121,13 +126,13 @@ function prepareRound() {
   stimulusShape.value = Math.random() < 0.5 ? 'circle' : 'square'
   feedback.value = ''
   acceptingAnswer.value = true
-  appearedAt = Date.now()
+  appearedAt = trainingClock.now()
 }
 
-function begin() {
+function begin() { if (trainingPaused.value) return;
   configureDifficulty()
   started.value = true
-  gameStartedAt = Date.now()
+  gameStartedAt = trainingClock.now()
   prepareRound()
 }
 
@@ -136,25 +141,27 @@ function correctSide(): string {
   return stimulusShape.value == 'circle' ? 'left' : 'right'
 }
 
-function answer(side: string) {
+function answer(side: string) { if (trainingPaused.value) return;
   if (!started.value || !acceptingAnswer.value) return
   acceptingAnswer.value = false
-  reactions.value.push(Date.now() - appearedAt)
+  roundScores.push(timedRoundScore(side == correctSide(), trainingClock.now() - appearedAt, searchTargetMs('magic-rule', getGameTuningAge('magic-rule') - 4))); reactions.value.push(trainingClock.now() - appearedAt)
   if (side == correctSide()) {
-    correct.value += 1
+    { correct.value += 1; training.playFeedback('correct') }
     feedback.value = '正确'
   } else {
-    errors.value += 1
+    { errors.value += 1; training.playFeedback('wrong') }
     if (justSwitched.value) switchErrors.value += 1
     feedback.value = '再看规则'
   }
-  answerTimer = setTimeout(() => {
+  answerTimer = trainingClock.setTimeout(() => {
     roundIndex.value += 1
     prepareRound()
   }, 520)
 }
 
 onUnload(() => clearTimer())
+// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>

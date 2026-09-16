@@ -1,0 +1,263 @@
+<template>
+  <scroll-view class="page" direction="vertical" show-scrollbar="false">
+    <view v-if="loggedIn" class="page-content">
+      <view class="top-row">
+        <view>
+          <text class="eyebrow">星小屋</text>
+          <text class="title">{{ nickname }}</text>
+          <text class="subtitle">{{ age }} 岁</text>
+        </view>
+        <image class="profile-mascot" :src="avatarPath" mode="aspectFit"></image>
+      </view>
+
+      <view class="summary-card" @click="openReport">
+        <view class="summary-copy">
+          <text class="summary-kicker">本周成长</text>
+          <text class="summary-title">{{ weeklySessions }} 次训练 · 连续 {{ streak }} 天</text>
+        </view>
+        <text class="summary-arrow">›</text>
+      </view>
+
+      <view class="stats-card">
+        <view class="stat">
+          <text class="stat-number">{{ recordsCount }}</text>
+          <text class="stat-label">累计训练</text>
+        </view>
+        <view class="divider"></view>
+        <view class="stat">
+          <text class="stat-number">{{ energy }}</text>
+          <text class="stat-label">星星能量</text>
+        </view>
+        <view class="divider"></view>
+        <view class="stat">
+          <text class="stat-number">{{ streak }}</text>
+          <text class="stat-label">连续天数</text>
+        </view>
+      </view>
+
+      <text class="section-title">账户</text>
+      <view class="account-card">
+        <view class="account-copy">
+          <text class="account-title">{{ loggedIn ? accountName : '访客模式' }}</text>
+        </view>
+        <button v-if="!loggedIn" class="account-button" @click="openLogin">登录</button>
+        <button v-else class="logout-button" @click="logout">登出</button>
+      </view>
+
+      <text class="section-title">最近陪伴</text>
+      <view class="companion-card">
+        <view class="companion-head">
+          <view class="companion-copy">
+            <text class="companion-title">{{ lastCompanionTitle }}</text>
+            <text class="companion-meta">{{ lastCompanionMeta }}</text>
+          </view>
+        </view>
+        <view class="companion-stats">
+          <view class="companion-stat"><text class="companion-number">{{ companionCount }}</text><text class="companion-label">完成轮次</text></view>
+          <view class="companion-divider"></view>
+          <view class="companion-stat"><text class="companion-number">{{ companionMinutes }}</text><text class="companion-label">累计分钟</text></view>
+        </view>
+      </view>
+
+      <text class="section-title">成长与记录</text>
+      <view class="menu-card">
+        <view class="menu-row" @click="openReport">
+          <view class="menu-mark report-mark"><image class="menu-mark-image" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image></view>
+          <view class="menu-copy"><text class="menu-title">成长报告</text></view>
+          <text class="arrow">›</text>
+        </view>
+        <view class="menu-row menu-row-last" @click="openHistory">
+          <view class="menu-mark history-mark"><image class="menu-mark-image" src="/static/images/runtime/game-objects/bunny-blue-card-v1.webp" mode="aspectFit"></image></view>
+          <view class="menu-copy"><text class="menu-title">训练历史</text></view>
+          <text class="arrow">›</text>
+        </view>
+      </view>
+
+      <text class="section-title">档案与管理</text>
+      <view class="menu-card">
+        <view class="menu-row" @click="openSettings">
+          <view class="menu-mark settings-mark"><image class="menu-mark-image" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.webp" mode="aspectFit"></image></view>
+          <view class="menu-copy"><text class="menu-title">宝宝档案与家长设置</text></view>
+          <text class="arrow">›</text>
+        </view>
+        <view class="menu-row menu-row-last" @click="openAccount">
+          <view class="menu-mark account-mark"><image class="menu-mark-image" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image></view>
+          <view class="menu-copy"><text class="menu-title">账号与联系</text></view>
+          <text class="arrow">›</text>
+        </view>
+      </view>
+
+      <view class="menu-row" @click="checkAppUpdate(true)">
+        <text class="menu-title">检查更新</text>
+        <text class="arrow">{{ installedVersionName() }} ›</text>
+      </view>
+      <view class="bottom-space"></view>
+    </view>
+    <view v-else class="login-gate">
+      <image class="login-gate-image" src="/static/images/runtime/brand/duo-star-v1.webp" mode="aspectFit"></image>
+      <text class="login-gate-title">登录后查看个人中心</text>
+      <text class="login-gate-copy">训练记录、成长报告和儿童档案都会与账号关联</text>
+      <button class="login-gate-button" @click="openLogin">登录 / 注册</button>
+    </view>
+  </scroll-view>
+</template>
+
+<script setup lang="uts">
+import { LOCAL_TEST_MODE } from '../../utils/local-test.uts'
+import { checkAppUpdate, installedVersionName } from '../../utils/app-update.uts'
+import { ref } from 'vue'
+import { reportStarCount } from '../../utils/star-rating.uts'
+import { onShow } from '@dcloudio/uni-app'
+import { getProfile, getRecords, getWeeklyRecords, calculateStreak } from '../../utils/storage.uts'
+import { getCompanionRecords, getCompanionModeName, getCompanionTotalMinutes, formatCompanionDate } from '../../utils/companion-storage.uts'
+import { isParentAreaUnlocked } from '../../utils/parent-lock.uts'
+import { getAuthSession, clearAuthSession, requireLogin } from '../../utils/auth.uts'
+import { getCompanionSummary, getCompanionSessions } from '../../utils/server-api.uts'
+import { getAvatarPath } from '../../utils/profile-options.uts'
+
+const nickname = ref('探索家')
+const age = ref(8)
+const avatarPath = ref(getAvatarPath('blue-bunny'))
+const weeklySessions = ref(0)
+const recordsCount = ref(0)
+const energy = ref(0)
+const streak = ref(0)
+const companionCount = ref(0)
+const companionMinutes = ref(0)
+const lastCompanionTitle = ref('还没有陪伴记录')
+const lastCompanionMeta = ref('从“星陪伴”完成第一轮专注吧')
+const loggedIn = ref(false)
+const accountName = ref('')
+let loginPrompted = false
+
+onShow(() => {
+  const session = getAuthSession()
+  loggedIn.value = session != null
+  accountName.value = session == null ? '' : session.displayName
+  if (session == null) {
+    if (!loginPrompted) {
+      loginPrompted = true
+      requireLogin()
+    }
+    return
+  }
+  loginPrompted = false
+  const profile = getProfile()
+  if (profile == null) {
+    uni.redirectTo({ url: '/pages/profile/profile' })
+    return
+  }
+  nickname.value = profile.nickname
+  age.value = profile.age
+  avatarPath.value = getAvatarPath(profile.avatarId)
+  const records = getRecords()
+  recordsCount.value = records.length
+  weeklySessions.value = getWeeklyRecords(records).length
+  energy.value = records.reduce((total: number, item): number => total + reportStarCount(item.score), 0)
+  streak.value = calculateStreak(records)
+  const companionRecords = getCompanionRecords()
+  companionCount.value = companionRecords.length
+  companionMinutes.value = getCompanionTotalMinutes(companionRecords)
+  if (companionRecords.length > 0) {
+    const latest = companionRecords[0]
+    lastCompanionTitle.value = getCompanionModeName(latest.mode) + ' · ' + Math.max(1, Math.round(latest.focusedSeconds / 60)).toString() + ' 分钟'
+    const observed = latest.observedSeconds == null ? 0 : latest.observedSeconds
+    const steady = latest.steadyPresenceSeconds == null ? 0 : latest.steadyPresenceSeconds
+    const observationText = latest.cameraAnalysisEnabled == true && observed > 0 ? ' · 稳定在屏 ' + Math.round(steady * 100 / observed).toString() + '%' : ''
+    lastCompanionMeta.value = formatCompanionDate(latest.completedAt) + ' · ' + (latest.breakCompleted ? '完成休息' : '跳过休息') + observationText
+  } else {
+    lastCompanionTitle.value = '还没有陪伴记录'
+    lastCompanionMeta.value = '从“星陪伴”完成第一轮专注吧'
+  }
+  if (getAuthSession() != null) {
+    getCompanionSummary(90, (data: UTSJSONObject) => {
+      companionCount.value = data['sessionCount'] as number
+      companionMinutes.value = Math.round((data['durationSeconds'] as number) / 60)
+    }, (_message: string, _code: string) => {})
+    getCompanionSessions((_data: UTSJSONObject) => {}, (_message: string, _code: string) => {})
+  }
+})
+
+function openReport() { uni.navigateTo({ url: '/pages/report/report' }) }
+function openHistory() { uni.navigateTo({ url: '/pages/history/history' }) }
+function openSettings() {
+  uni.navigateTo({ url: '/pages/settings/settings' })
+}
+function openAccount() { uni.navigateTo({ url: '/pages/account/account' }) }
+function openLogin() { requireLogin() }
+function logout() {
+  if (LOCAL_TEST_MODE) { uni.showToast({ title: '当前为本地测试登录', icon: 'none' }); return }
+  if (!isParentAreaUnlocked()) {
+    uni.navigateTo({ url: '/pages/parent-lock/parent-lock?action=logout' })
+    return
+  }
+  clearAuthSession()
+  loggedIn.value = false
+  accountName.value = ''
+  loginPrompted = true
+  uni.showToast({ title: '已退出登录', icon: 'none' })
+}
+</script>
+
+<style>
+.page { height: 100%; }
+.page-content { padding: 50px 20px 34px; }
+.login-gate { padding: 92px 28px 40px; align-items: center; }
+.login-gate-image { width: 184px; height: 154px; border-radius: 38px; }
+.login-gate-title { margin-top: 22px; color: #1f2a44; font-size: 22px; font-weight: 700; }
+.login-gate-copy { margin-top: 10px; color: #7d879b; font-size: 13px; line-height: 20px; text-align: center; }
+.login-gate-button { margin-top: 24px; width: 180px; height: 50px; line-height: 50px; border-radius: 25px; background-color: #5b8def; color: #ffffff; font-size: 15px; font-weight: 700; }
+.top-row { flex-direction: row; align-items: center; justify-content: space-between; }
+.eyebrow { color: #9b7ede; font-size: 13px; font-weight: 700; letter-spacing: 1px; }
+.title { margin-top: 5px; color: #1f2a44; font-size: 26px; font-weight: 700; }
+.subtitle { margin-top: 5px; color: #818ba0; font-size: 12px; }
+.profile-mascot { width: 76px; height: 82px; border-radius: 38px; }
+.summary-card { margin-top: 24px; min-height: 126px; padding: 22px; border-radius: 24px; background-color: #9b7ede; flex-direction: row; align-items: center; }
+.summary-copy { flex: 1; }
+.summary-kicker { color: #eee9ff; font-size: 12px; font-weight: 700; }
+.summary-title { margin-top: 8px; color: #ffffff; font-size: 19px; font-weight: 700; }
+.summary-desc { margin-top: 7px; color: #f1edff; font-size: 11px; }
+.summary-arrow { color: #ffffff; font-size: 31px; }
+.stats-card { margin-top: 14px; padding: 19px 8px; border-radius: 20px; background-color: #fff8e8; flex-direction: row; align-items: center; }
+.account-card { padding: 17px 18px; border-radius: 20px; background-color: #edf3ff; flex-direction: row; align-items: center; }
+.account-copy { flex: 1; }
+.account-title { color: #344059; font-size: 15px; font-weight: 700; }
+.account-meta { margin-top: 5px; color: #8a93a5; font-size: 10px; }
+.account-button { margin: 0; width: 72px; height: 40px; line-height: 40px; padding: 0; border-radius: 20px; background-color: #5b8def; color: #ffffff; font-size: 12px; font-weight: 700; }
+.logout-button { margin: 0; width: 72px; height: 40px; line-height: 40px; padding: 0; border-radius: 20px; background-color: #f2f4f8; color: #6e788d; font-size: 12px; }
+.stat { flex: 1; align-items: center; }
+.stat-number { color: #2d3952; font-size: 22px; font-weight: 700; }
+.stat-label { margin-top: 5px; color: #818ba0; font-size: 10px; }
+.divider { width: 1px; height: 32px; background-color: #e9edf4; }
+.section-title { margin-top: 27px; margin-bottom: 12px; color: #25314a; font-size: 18px; font-weight: 700; }
+.companion-card { padding: 18px; border-radius: 20px; background-color: #eaf8f3; }
+.companion-head { flex-direction: row; align-items: center; }
+.companion-copy { flex: 1; }
+.companion-title { color: #344059; font-size: 15px; font-weight: 700; }
+.companion-meta { margin-top: 6px; color: #8a93a5; font-size: 10px; }
+.companion-badge { padding: 7px 9px; border-radius: 12px; background-color: #e9f8f3; }
+.companion-badge-text { color: #48947c; font-size: 9px; font-weight: 700; }
+.companion-stats { margin-top: 17px; padding-top: 15px; border-top: 1px solid #edf0f5; flex-direction: row; align-items: center; }
+.companion-stat { flex: 1; align-items: center; }
+.companion-number { color: #55a98d; font-size: 20px; font-weight: 700; }
+.companion-label { margin-top: 4px; color: #8993a5; font-size: 9px; }
+.companion-divider { width: 1px; height: 28px; background-color: #e9edf4; }
+.menu-card { padding: 0 17px; border-radius: 20px; background-color: #ffffff; }
+.menu-row { min-height: 78px; border-bottom: 1px solid #edf0f5; flex-direction: row; align-items: center; }
+.menu-row-last { border-bottom-width: 0; }
+.menu-mark { width: 42px; height: 42px; border-radius: 14px; align-items: center; justify-content: center; }
+.menu-mark-image { width: 40px; height: 40px; border-radius: 13px; }
+.report-mark { background-color: #eaf0ff; }
+.history-mark { background-color: #e9f8f3; }
+.settings-mark { background-color: #fff4dc; }
+.account-mark { background-color: #e8f7f1; }
+.menu-mark-text { color: #53647f; font-size: 13px; font-weight: 700; }
+.menu-copy { margin-left: 13px; flex: 1; }
+.menu-title { color: #344059; font-size: 14px; font-weight: 700; }
+.menu-desc { margin-top: 5px; color: #8a93a5; font-size: 10px; }
+.arrow { color: #a0a8b7; font-size: 24px; }
+.guardian-card { margin-top: 18px; padding: 18px; border-radius: 18px; background-color: #eef3fb; }
+.guardian-title { color: #596987; font-size: 13px; font-weight: 700; }
+.guardian-copy { margin-top: 6px; color: #748099; font-size: 11px; line-height: 17px; }
+.bottom-space { height: 24px; }
+</style>

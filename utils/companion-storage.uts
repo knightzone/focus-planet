@@ -1,0 +1,52 @@
+import { localTestKey } from './local-test.uts'
+export type CompanionRecord = {
+  id: string,
+  mode: string,
+  plannedMinutes: number,
+  focusedSeconds: number,
+  breakMinutes: number,
+  breakCompleted: boolean,
+  postureReminderCount: number,
+  cameraAnalysisEnabled?: boolean,
+  observedSeconds?: number,
+  steadyPresenceSeconds?: number,
+  awaySeconds?: number,
+  tooCloseSeconds?: number,
+  headTurnSeconds?: number,
+  detectionIssueCount?: number,
+  startedAt: number,
+  completedAt: number
+}
+
+const COMPANION_RECORDS_KEY = localTestKey('focus_planet_companion_records')
+
+export function getCompanionModeName(mode: string): string {
+  if (mode == 'screen') return '屏幕学习'
+  if (mode == 'reading') return '阅读时间'
+  return '桌面作业'
+}
+
+export function getCompanionRecords(): CompanionRecord[] {
+  const value = uni.getStorageSync(COMPANION_RECORDS_KEY)
+  if (value == null || value == '') return [] as CompanionRecord[]
+  const records = JSON.parse<CompanionRecord[]>(JSON.stringify(value))
+  return records == null ? [] as CompanionRecord[] : records
+}
+
+export function addCompanionRecord(record: CompanionRecord) {
+  const records = getCompanionRecords()
+  records.unshift(record)
+  if (records.length > 100) records.splice(100, records.length - 100)
+  uni.setStorageSync(COMPANION_RECORDS_KEY, records)
+}
+
+export function getCompanionTotalMinutes(records: CompanionRecord[]): number {
+  const seconds = records.reduce((total: number, item: CompanionRecord): number => total + item.focusedSeconds, 0)
+  return Math.round(seconds / 60)
+}
+
+export function formatCompanionDate(timestamp: number): string {
+  const date = new Date(timestamp)
+  return (date.getMonth() + 1).toString() + '月' + date.getDate().toString() + '日 ' +
+    date.getHours().toString().padStart(2, '0') + ':' + date.getMinutes().toString().padStart(2, '0')
+}

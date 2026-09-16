@@ -1,0 +1,35 @@
+import { DetectFaceFrame, FaceFrameResult } from '../interface.uts'
+import { FocusFaceDetectorNative } from 'uts.focusdetector.android'
+import Intent from 'android.content.Intent'
+import Uri from 'android.net.Uri'
+import { UTSAndroid } from 'io.dcloud.uts'
+
+export function openUpdateLink(url: string, completed: (success: boolean) => void) {
+  try {
+    const context = UTSAndroid.getAppContext()
+    if (context == null || !url.startsWith('https://')) { completed(false); return }
+    const intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url))
+    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    context.startActivity(intent)
+    completed(true)
+  } catch (_error) { completed(false) }
+}
+
+// Native implementation auto-normalizes portrait camera frames before detection.
+export const detectFaceFrame: DetectFaceFrame = function (rgba: ArrayBuffer, width: number, height: number): FaceFrameResult {
+  const value = JSON.parse<FaceFrameResult>(FocusFaceDetectorNative.detectRgba(rgba.toByteBuffer(), width.toInt(), height.toInt()))
+  if (value != null) return value
+  return {
+    supported: false,
+    detected: false,
+    faceCount: 0,
+    faceScale: 0,
+    centerX: 0.5,
+    centerY: 0.5,
+    yaw: 0,
+    roll: 0,
+    pitch: 0,
+    confidence: 0,
+    errorMessage: 'Android 检测结果解析失败'
+  }
+}

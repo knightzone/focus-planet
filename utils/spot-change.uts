@@ -1,0 +1,4 @@
+export function spotChangeConfig(level: number) {
+  const i = Math.max(0, Math.min(9, Math.round(level) - 1))
+  return { cells: [4,6,6,9,9,12,12,16,16,20][i], columns: [2,3,3,3,3,4,4,4,4,4][i], previewMs: [4000,3800,3400,3200,2800,2600,2200,2100,1800,1600][i], targetMs: [9000,8500,8000,7500,7000,6500,6000,5500,5000,4500][i], rounds: 6, maskMs: 500 }
+}

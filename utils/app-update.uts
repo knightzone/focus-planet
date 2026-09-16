@@ -1,0 +1,166 @@
+import { LOCAL_TEST_MODE } from './local-test.uts'
+import { API_BASE_URL, getPlatformName } from './api-client.uts'
+
+// Set by release channel, never inferred from the device manufacturer.
+export function updateChannel(): string { return getPlatformName() == 'ios' ? 'appstore' : 'android_official' }
+export const UPDATE_PAGE = 'pages/update/update'
+const CACHE_KEY = 'focus_update_policy_v1'
+let policy: UTSJSONObject | null = null
+let checking = false
+let initialized = false
+let foreground = false
+let presenting = false
+let companionBusy = false
+let lastCheck = 0
+let lastAttempt = 0
+let watchTimer = 0
+
+export function installedVersionCode(): number {
+  const raw = uni.getAppBaseInfo().appVersionCode
+  return raw == null ? 0 : Number(raw)
+}
+export function installedVersionName(): string {
+  const raw = uni.getAppBaseInfo().appVersion
+  return raw == null ? '' : raw
+}
+export function validUpdateLink(url: string, platform: string): boolean {
+  // Official Android distribution needs a production domain added here before publishing.
+  const hosts = platform == 'ios' ? ['apps.apple.com'] : ['appgallery.huawei.com', 'app.mi.com', 'sj.qq.com']
+  if (!url.startsWith('https://')) return false
+  const host = url.substring(8).split('/')[0].toLowerCase()
+  return hosts.indexOf(host) >= 0
+}
+export function updateMode(value: UTSJSONObject | null, current: number, now: number): string {
+  if (value == null || current <= 0 || !Number.isInteger(current)) return 'none'
+  const latest = value['latestVersionCode']
+  const minimum = value['minSupportedVersionCode']
+  const expiry = value['expiresAt']
+  if (typeof latest != 'number' || typeof minimum != 'number' || typeof expiry != 'string') return 'none'
+  if (!Number.isInteger(latest) || !Number.isInteger(minimum) || minimum < 1 || latest < minimum) return 'none'
+  const deadline = Date.parse(expiry)
+  if (!Number.isFinite(deadline) || deadline <= now || current >= latest) return 'none'
+  return current < minimum ? 'force' : 'optional'
+}
+export function currentUpdate(): UTSJSONObject | null { return policy }
+export function dismissUpdate() {
+  if (policy == null) return
+  const key = 'focus_update_skip_' + getPlatformName() + '_' + updateChannel() + '_' + (policy!['latestVersionCode'] as number).toString()
+  uni.setStorageSync(key, Date.now())
+}
+export function updateRequired(): boolean { return !LOCAL_TEST_MODE && updateMode(policy, installedVersionCode(), Date.now()) == 'force' }
+export function setCompanionUpdateBusy(value: boolean) { companionBusy = value }
+function currentRoute(): string {
+  const pages = getCurrentPages()
+  return pages.length == 0 ? '' : pages[pages.length - 1].route
+}
+function safeToPresent(): boolean {
+  const route = currentRoute()
+  return foreground && route != '' && !route.startsWith('pages/game/') && !companionBusy && route != 'pages/login/login' && route != 'pages/account/account' && route != 'pages/parent-lock/parent-lock'
+}
+export function enforceUpdate(): boolean {
+  if (!updateRequired()) return false
+  if (currentRoute() != UPDATE_PAGE && !presenting) {
+    presenting = true
+    uni.reLaunch({ url: '/' + UPDATE_PAGE, complete: () => { presenting = false } })
+  }
+  return true
+}
+function presentUpdate(manual: boolean = false) {
+  if (!safeToPresent() || presenting) return
+  if (updateRequired()) { enforceUpdate(); return }
+  if (currentRoute() == UPDATE_PAGE) { uni.$emit('focus-update-changed'); return }
+  if (updateMode(policy, installedVersionCode(), Date.now()) != 'optional') return
+  const value = policy!
+  const key = 'focus_update_skip_' + getPlatformName() + '_' + updateChannel() + '_' + (value['latestVersionCode'] as number).toString()
+  const skipped = uni.getStorageSync(key)
+  if (!manual && skipped != null && skipped != '' && Date.now() - (skipped as number) < 24 * 60 * 60 * 1000) return
+  presenting = true
+  uni.showModal({
+    title: '星伴有新版本啦', content: '发现 ' + (value['latestVersionName'] as string) + '，请家长帮忙更新一下。',
+    confirmText: '查看更新', cancelText: '稍后再说',
+    success: (result) => {
+      if (result.confirm) uni.navigateTo({ url: '/' + UPDATE_PAGE })
+      else uni.setStorageSync(key, Date.now())
+    }, complete: () => { presenting = false }
+  })
+}
+export function checkAppUpdate(manual: boolean = false) {
+  if (LOCAL_TEST_MODE) return
+  const platform = getPlatformName()
+  if (platform != 'ios' && platform != 'android') return
+  if (checking) return
+  if (!manual && (Date.now() - lastCheck < 6 * 60 * 60 * 1000 || Date.now() - lastAttempt < 60000)) { presentUpdate(); return }
+  const version = installedVersionCode()
+  if (!Number.isInteger(version) || version <= 0) return
+  checking = true
+  let accepted = false
+  lastAttempt = Date.now()
+  uni.$emit('focus-update-checking', true)
+  uni.request({ url: API_BASE_URL + '/app/version/check', method: 'POST', timeout: 5000,
+    header: { 'Content-Type': 'application/json' },
+    data: { appId: '__UNI__B5780B0', platform: platform, channel: updateChannel(), versionName: installedVersionName(), versionCode: version, osVersion: uni.getDeviceInfo().osVersion },
+    success: (result) => {
+      if (result.statusCode != 200) return
+      const envelope = JSON.parse<UTSJSONObject>(JSON.stringify(result.data))
+      if (envelope == null || !Object.keys(envelope).includes('data')) return
+      const raw = envelope['data']
+      if (raw == null) { policy = null; uni.removeStorageSync(CACHE_KEY) }
+      else {
+        const next = JSON.parse<UTSJSONObject>(JSON.stringify(raw))
+        if (next == null) return
+        const latest = next['latestVersionCode']
+        const minimum = next['minSupportedVersionCode']
+        const link = next['updateUrl']
+        const expiry = next['expiresAt']
+        if (next['platform'] != platform || next['channel'] != updateChannel() || typeof latest != 'number' || typeof minimum != 'number' || typeof link != 'string' || typeof expiry != 'string' || typeof next['latestVersionName'] != 'string') return
+        if (!Number.isInteger(latest) || !Number.isInteger(minimum) || minimum < 1 || latest < minimum || !validUpdateLink(link, platform)) return
+        const end = Date.parse(expiry)
+        if (!Number.isFinite(end) || end <= Date.now() || end > Date.now() + 24 * 60 * 60 * 1000) return
+        policy = next
+        uni.setStorageSync(CACHE_KEY, next)
+      }
+      accepted = true
+      lastCheck = Date.now()
+      uni.$emit('focus-update-changed')
+      if (manual && updateMode(policy, version, Date.now()) == 'none' && currentRoute() != UPDATE_PAGE) uni.showToast({ title: '已经是最新版本', icon: 'none' })
+      presentUpdate(manual)
+    }, fail: () => {},
+    complete: () => {
+      checking = false
+      uni.$emit('focus-update-checking', false)
+      if (manual && !accepted) uni.showToast({ title: '暂时无法检查，请稍后再试', icon: 'none' })
+    }
+  })
+}
+export function initializeAppUpdate() {
+  if (LOCAL_TEST_MODE) return
+  if (initialized) return
+  initialized = true
+  const raw = uni.getStorageSync(CACHE_KEY)
+  if (raw != null && raw != '') {
+    const saved = JSON.parse<UTSJSONObject>(JSON.stringify(raw))
+    if (saved != null && saved['platform'] == getPlatformName() && saved['channel'] == updateChannel() && typeof saved['updateUrl'] == 'string' && validUpdateLink(saved['updateUrl'] as string, getPlatformName())) policy = saved
+  }
+  uni.$on('focus-app-update-required', () => checkAppUpdate(true))
+  const routes = ['navigateTo', 'redirectTo', 'reLaunch', 'switchTab']
+  for (let i = 0; i < routes.length; i++) {
+    uni.addInterceptor(routes[i], {
+      invoke: (options: UTSJSONObject): boolean => {
+        if (!updateRequired()) return true
+        const url = options['url']
+        if (typeof url == 'string' && url.startsWith('/' + UPDATE_PAGE)) return true
+        // Results persist in result onLoad; let the active round finish saving.
+        if (typeof url == 'string' && url.startsWith('/pages/result/result') && currentRoute().startsWith('pages/game/')) return true
+        setTimeout(() => enforceUpdate(), 0)
+        return false
+      }
+    })
+  }
+}
+export function resumeAppUpdate() {
+  if (LOCAL_TEST_MODE) return
+  foreground = true
+  if (watchTimer == 0) watchTimer = setInterval(() => presentUpdate(), 1000)
+  setTimeout(() => checkAppUpdate(currentRoute() == UPDATE_PAGE), 400)
+}
+export function pauseAppUpdate() { foreground = false; if (watchTimer != 0) clearInterval(watchTimer); watchTimer = 0 }

@@ -19,7 +19,8 @@ export type FocusDimension = {
   name: string,
   shortName: string,
   color: string,
-  description: string
+  description: string,
+  thumbnail: string
 }
 
 export const AGE_BANDS: AgeBand[] = [
@@ -30,16 +31,16 @@ export const AGE_BANDS: AgeBand[] = [
 ]
 
 export const DIMENSIONS: FocusDimension[] = [
-  { id: 'focused', name: '集中注意', shortName: '集中', color: '#5B8DEF', description: '快速发现目标并作出回应' },
-  { id: 'sustained', name: '持续注意', shortName: '持续', color: '#55C9A5', description: '在一段时间内保持稳定投入' },
-  { id: 'selective', name: '选择注意', shortName: '选择', color: '#FFC857', description: '忽略干扰并找到关键信息' },
-  { id: 'alternating', name: '转换注意', shortName: '转换', color: '#9B7EDE', description: '在不同任务规则之间灵活切换' },
-  { id: 'divided', name: '分配注意', shortName: '分配', color: '#F17C8D', description: '同时关注两类简单信息' }
+  { id: 'focused', name: '集中注意', shortName: '集中', color: '#5B8DEF', description: '快速发现目标并作出回应', thumbnail: '/static/images/runtime/dimensions/focused.webp' },
+  { id: 'sustained', name: '持续注意', shortName: '持续', color: '#55C9A5', description: '在一段时间内保持稳定投入', thumbnail: '/static/images/runtime/dimensions/sustained.webp' },
+  { id: 'selective', name: '选择注意', shortName: '选择', color: '#FFC857', description: '忽略干扰并找到关键信息', thumbnail: '/static/images/runtime/dimensions/selective.webp' },
+  { id: 'alternating', name: '转换注意', shortName: '转换', color: '#9B7EDE', description: '在不同任务规则之间灵活切换', thumbnail: '/static/images/runtime/dimensions/alternating.webp' },
+  { id: 'divided', name: '分配注意', shortName: '分配', color: '#F17C8D', description: '同时关注两类简单信息', thumbnail: '/static/images/runtime/dimensions/divided.webp' }
 ]
 
 export const GAMES: TrainingGame[] = [
   { id: 'star-catcher', dimensionId: 'focused', name: '星星捕手', summary: '目标出现后快速点击', status: 'ready' },
-  { id: 'sound-location', dimensionId: 'focused', name: '声音在哪里', summary: '根据声音方向寻找目标', status: 'ready' },
+  { id: 'sound-location', dimensionId: 'focused', name: '声音从哪来', summary: '听声音，找到对应的图片', status: 'ready' },
   { id: 'shape-match', dimensionId: 'focused', name: '影子配对', summary: '把卡通图案送回对应影子', status: 'ready' },
   { id: 'light-tracking', dimensionId: 'focused', name: '萤火虫追踪', summary: '记住路径并按顺序复现萤火虫的移动', status: 'ready' },
   { id: 'number-tap', dimensionId: 'focused', name: '数字连点', summary: '按顺序完成三组 9 至 25 个数字', status: 'ready' },
@@ -49,13 +50,13 @@ export const GAMES: TrainingGame[] = [
   { id: 'car-patrol', dimensionId: 'sustained', name: '小车巡逻', summary: '保持路线并避开障碍', status: 'ready' },
   { id: 'spot-change', dimensionId: 'sustained', name: '找出变化', summary: '发现画面中的偶发变化', status: 'ready' },
   { id: 'breathing-planet', dimensionId: 'sustained', name: '呼吸小星球', summary: '跟随节奏完成连续操作', status: 'ready' },
-  { id: 'audio-sequence', dimensionId: 'sustained', name: '听音节奏', summary: '听声音并按顺序复现图案', status: 'ready' },
+  { id: 'audio-sequence', dimensionId: 'sustained', name: '听音节奏', summary: '记住目标声音，试听并找出相同的一项', status: 'ready' },
   { id: 'bird-cloud', dimensionId: 'sustained', name: '小鸟穿云', summary: '持续调整高度穿过云门', status: 'ready' },
 
   { id: 'forest-search', dimensionId: 'selective', name: '森林寻宝', summary: '在复杂场景中寻找物品', status: 'ready' },
   { id: 'color-command', dimensionId: 'selective', name: '颜色指令', summary: '忽略干扰并选择目标颜色', status: 'ready' },
   { id: 'sound-filter', dimensionId: 'selective', name: '声音过滤器', summary: '忽略背景音识别目标声音', status: 'ready' },
-  { id: 'symbol-detective', dimensionId: 'selective', name: '字符侦探', summary: '在大量字符中寻找目标', status: 'ready' },
+  { id: 'symbol-detective', dimensionId: 'selective', name: '图案侦探', summary: '找齐不同的图案', status: 'ready' },
   { id: 'spot-difference', dimensionId: 'selective', name: '找茬乐园', summary: '比较两幅场景并找出不同', status: 'ready' },
 
   { id: 'magic-rule', dimensionId: 'alternating', name: '魔法规则', summary: '在颜色与形状规则间切换', status: 'ready' },
@@ -87,11 +88,15 @@ export function getGameName(gameId: string): string {
   return game == null ? '专注训练' : game.name
 }
 
+export function getGameThumbnail(gameId: string): string {
+  return '/static/images/runtime/level-thumbnails/' + gameId + '.webp'
+}
+
 export function getGameRoute(gameId: string): string {
   if (gameId == 'spot-change' || gameId == 'symbol-detective' || gameId == 'memory-search') {
     return '/pages/game/grid-challenge?gameId=' + gameId
   }
-  if (gameId == 'light-tracking' || gameId == 'car-patrol' || gameId == 'little-driver') {
+  if (gameId == 'light-tracking' || gameId == 'little-driver') {
     return '/pages/game/motion-challenge?gameId=' + gameId
   }
   return '/pages/game/' + gameId

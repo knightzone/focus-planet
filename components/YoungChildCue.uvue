@@ -10,12 +10,12 @@
       <view class="target blue"><text class="target-symbol">✦</text></view><text class="motion-arrow">→</text><view class="choice-pair"><view class="color-choice yellow"></view><view class="color-choice blue selected"></view></view>
     </view>
     <view v-else-if="props.kind == 'search'" class="cue-row">
-      <image class="object-image" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image><text class="motion-arrow">→</text><view class="choice-pair"><image class="mini-image" src="/static/images/runtime/game-objects/car-yellow-card-v1.png" mode="aspectFit"></image><image class="mini-image selected" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image></view>
+      <image class="object-image" src="/static/images/runtime/game-objects/bunny-blue-card-v1.webp" mode="aspectFit"></image><text class="motion-arrow">→</text><view class="choice-pair"><image class="mini-image" src="/static/images/runtime/game-objects/car-yellow-card-v1.webp" mode="aspectFit"></image><image class="mini-image selected" src="/static/images/runtime/game-objects/bunny-blue-card-v1.webp" mode="aspectFit"></image></view>
     </view>
     <view v-else-if="props.kind == 'change'" class="change-cue">
-      <view class="cue-row compact"><image class="mini-image" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image><image class="mini-image" src="/static/images/runtime/game-objects/car-yellow-card-v1.png" mode="aspectFit"></image><image class="mini-image" src="/static/images/runtime/game-objects/boat-blue-card-v1.png" mode="aspectFit"></image></view>
+      <view class="cue-row compact"><image class="mini-image" src="/static/images/runtime/game-objects/bunny-blue-card-v1.webp" mode="aspectFit"></image><image class="mini-image" src="/static/images/runtime/game-objects/car-yellow-card-v1.webp" mode="aspectFit"></image><image class="mini-image" src="/static/images/runtime/game-objects/boat-blue-card-v1.webp" mode="aspectFit"></image></view>
       <text class="down-arrow">↓</text>
-      <view class="cue-row compact"><image class="mini-image" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image><image class="mini-image selected" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.png" mode="aspectFit"></image><image class="mini-image" src="/static/images/runtime/game-objects/boat-blue-card-v1.png" mode="aspectFit"></image></view>
+      <view class="cue-row compact"><image class="mini-image" src="/static/images/runtime/game-objects/bunny-blue-card-v1.webp" mode="aspectFit"></image><image class="mini-image selected" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.webp" mode="aspectFit"></image><image class="mini-image" src="/static/images/runtime/game-objects/boat-blue-card-v1.webp" mode="aspectFit"></image></view>
     </view>
     <view v-else-if="props.kind == 'watch'" class="cue-row">
       <view class="target gold"><text class="target-symbol">●</text></view><text class="motion-arrow">→</text><view class="finger"><text class="finger-symbol">☝</text></view><view class="target muted"><text class="target-symbol">☾</text></view><text class="pause-symbol">Ⅱ</text>
@@ -28,7 +28,7 @@
       <view class="planet-small"><text class="planet-symbol">✦</text></view><text class="motion-arrow">↔</text><view class="planet-large"><text class="planet-symbol">✦</text></view>
     </view>
     <view v-else-if="props.kind == 'track'" class="cue-row">
-      <view class="track-dot"></view><text class="track-path">· · ·</text><image class="firefly" src="/static/images/runtime/game-objects/firefly-tracking-v1.png" mode="aspectFit"></image><text class="motion-arrow">→</text><view class="finger"><text class="finger-symbol">☝</text></view>
+      <view class="track-dot"></view><text class="track-path">· · ·</text><image class="firefly" src="/static/images/runtime/game-objects/firefly-tracking-v1.webp" mode="aspectFit"></image><text class="motion-arrow">→</text><view class="finger"><text class="finger-symbol">☝</text></view>
     </view>
     <view v-else-if="props.kind == 'traffic'" class="traffic-cue">
       <view class="traffic-pair"><view class="traffic-light green"></view><view class="action green-action"><text class="action-symbol">✓</text></view></view>

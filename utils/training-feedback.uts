@@ -1,0 +1,35 @@
+import { TrainingClock } from './training-clock.uts'
+
+export const FINISH_VOICE_LINES = ['这一段训练完成啦，休息一下吧。', '谢谢你和我们一起玩，放松一下小手吧。', '今天的探索先到这里，喝口水，歇一歇吧。', '每一次尝试，都值得鼓励。我们慢慢来。']
+let lastFinishVoice = -1
+export function nextFinishVoice(): number {
+  const offset = 1 + Math.floor(Math.random() * 3)
+  lastFinishVoice = lastFinishVoice < 0 ? Math.floor(Math.random() * 4) : (lastFinishVoice + offset) % 4
+  return lastFinishVoice
+}
+// Isolated one-shot channel. Never queues, never resumes old feedback after a pause.
+export function createTrainingFeedback(clock: TrainingClock) {
+  let player: InnerAudioContext | null = null
+  let expiry = 0, lastAt = -1000
+  function stop() {
+    clock.clearTimeout(expiry); expiry = 0
+    if (player != null) { const previous = player!; player = null; previous.stop(); clock.destroyAudio(previous) }
+  }
+  function play(kind: string) {
+    if (clock.paused || clock.disposed) return
+    const voice = kind.startsWith('finish-')
+    if (!voice && clock.now() - lastAt < 180) return
+    if (!voice && kind != 'correct' && kind != 'wrong' && kind != 'missed') return
+    // Questions take priority: don't mask any sound still playing in this session.
+    if (!voice && clock.players.some((p: InnerAudioContext): boolean => p != player && !p.paused)) return
+    stop(); lastAt = clock.now()
+    const current = clock.createAudio(); player = current
+    current.src = '/static/audio/feedback/' + kind + '.mp3'
+    current.volume = voice ? 0.75 : 0.42
+    current.onEnded(() => { if (player == current) stop() })
+    current.onError((_event) => { if (player == current) stop() })
+    expiry = clock.setTimeout(() => { if (player == current) stop() }, voice ? 12000 : 450)
+    current.play()
+  }
+  return { play, stop }
+}

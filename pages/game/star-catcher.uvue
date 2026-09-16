@@ -1,32 +1,42 @@
 <template>
+<TrainingFrame title="星星捕手" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="sc-page">
+    <image class="sc-sky-background tap-content" src="/static/images/runtime/backgrounds/star-catcher-sky-v1.webp" mode="aspectFill"></image>
+    <view class="sc-content">
     <view class="sc-header">
       <view>
         <text class="sc-round-label">集中注意训练</text>
         <text class="sc-title">找到闪亮的星星</text>
       </view>
-      <view class="sc-counter"><text class="sc-counter-value">{{ hits }}/{{ targetCount }}</text></view>
+      <view v-if="started" class="sc-counter"><text class="sc-counter-value">{{ hits }}/{{ targetCount }}</text></view>
     </view>
 
-    <view class="sc-progress-track">
+    <view v-if="started" class="sc-progress-track">
       <view class="sc-progress-fill" :style="{ width: progressWidth }"></view>
     </view>
 
     <view class="sc-play-area" @click="missTarget">
-      <image class="sc-sky-background tap-content" src="/static/images/runtime/backgrounds/star-catcher-sky-v1.png" mode="aspectFill"></image>
-      <view class="sc-sky-vignette tap-content"></view>
+      <view v-if="!started" class="sc-demo">
+        <text class="sc-demo-title">先试一下</text>
+        <view class="sc-demo-star" :class="demoCaught ? 'sc-demo-caught' : ''" @click.stop="catchDemo">
+          <image class="sc-demo-image tap-content" src="/static/images/runtime/game-objects/star-four-point-gold-v1.svg" mode="aspectFit"></image>
+        </view>
+        <text class="sc-demo-hint">{{ demoCaught ? '✓ 抓到啦！' : '点一下星星' }}</text>
+        <view class="sc-demo-replay-row"><text v-if="demoCaught" class="sc-demo-replay" @click.stop="resetDemo">再试一次</text></view>
+        <button class="tap-target sc-start" @click.stop="begin">开始</button>
+      </view>
       <view
         v-if="started && !finished"
         :key="starId"
         class="star-target"
-        :style="{ left: targetX + 'px', top: targetY + 'px', transform: starTransform, opacity: starOpacity }"
+        :style="{ left: targetX + 'px', top: targetY + 'px', width: targetSize + 'px', height: targetSize + 'px', transform: starTransform, opacity: starOpacity }"
         @click.stop="hitTarget"
       >
-        <image class="star-target-image tap-content" src="/static/images/runtime/game-objects/star-four-point-gold-v1.svg" mode="aspectFit"></image>
+        <image class="star-target-image tap-content" :style="{ width: starSize + 'px', height: starSize + 'px' }" src="/static/images/runtime/game-objects/star-four-point-gold-v1.svg" mode="aspectFit"></image>
       </view>
     </view>
 
-    <view class="sc-footer-stats">
+    <view v-if="started" class="sc-footer-stats">
       <view class="sc-footer-stat">
         <text class="sc-footer-value">{{ misses }}</text>
         <text class="sc-footer-label">误触</text>
@@ -36,15 +46,40 @@
         <text class="sc-footer-label">平均反应</text>
       </view>
     </view>
+    </view>
   </view>
+</TrainingFrame>
 </template>
 
 <script setup lang="uts">
+import { timedRoundScore, scoreQuery, searchTargetMs } from '../../utils/game-scoring.uts'
+const roundScores: number[] = []
+let scoringMisses = 0
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
 import { ref, computed } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
 
-const targetCount = 12
+
+const difficultyLevel = ref(1), targetCount = ref(6), targetSize = ref(108), starSize = ref(84)
+const reactionTargetMs = ref(2500), nextTargetDelayMs = ref(700)
+let boardWidth = 320
+function configureDifficulty() {
+  const level = Math.max(1, Math.min(10, getGameDifficulty('star-catcher')))
+  difficultyLevel.value = level; targetCount.value = 5 + level
+  targetSize.value = 112 - level * 4; starSize.value = 88 - level * 4
+  reactionTargetMs.value = 2700 - level * 200
+  nextTargetDelayMs.value = 750 - level * 50
+  boardWidth = Math.max(200, uni.getWindowInfo().windowWidth - 40)
+}
 const started = ref(false)
+const demoCaught = ref(false)
+function catchDemo() { if (trainingPaused.value) return; if (!started.value) demoCaught.value = true }
+function resetDemo() { if (trainingPaused.value) return; if (!started.value) demoCaught.value = false }
 const finished = ref(false)
 const hits = ref(0)
 const misses = ref(0)
@@ -62,7 +97,7 @@ let flashEndTimer = 0
 let flashRepeatTimer = 0
 let captureTimer = 0
 
-const progressWidth = computed((): string => ((hits.value / targetCount) * 100).toString() + '%')
+const progressWidth = computed((): string => ((hits.value / targetCount.value) * 100).toString() + '%')
 const starTransform = computed((): string => starCaptured.value ? 'scale(1.48)' : starFlashing.value ? 'scale(1.20)' : 'scale(1)')
 const starOpacity = computed((): number => starCaptured.value ? 0 : 1)
 const reactionLabel = computed((): string => {
@@ -72,10 +107,10 @@ const reactionLabel = computed((): string => {
 })
 
 function clearStarAnimation() {
-  if (flashStartTimer > 0) clearTimeout(flashStartTimer)
-  if (flashEndTimer > 0) clearTimeout(flashEndTimer)
-  if (flashRepeatTimer > 0) clearInterval(flashRepeatTimer)
-  if (captureTimer > 0) clearTimeout(captureTimer)
+  if (flashStartTimer > 0) trainingClock.clearTimeout(flashStartTimer)
+  if (flashEndTimer > 0) trainingClock.clearTimeout(flashEndTimer)
+  if (flashRepeatTimer > 0) trainingClock.clearInterval(flashRepeatTimer)
+  if (captureTimer > 0) trainingClock.clearTimeout(captureTimer)
   flashStartTimer = 0
   flashEndTimer = 0
   flashRepeatTimer = 0
@@ -84,22 +119,28 @@ function clearStarAnimation() {
 
 function triggerStarFlash() {
   if (finished.value) return
-  if (flashEndTimer > 0) clearTimeout(flashEndTimer)
+  if (flashEndTimer > 0) trainingClock.clearTimeout(flashEndTimer)
   starFlashing.value = true
-  flashEndTimer = setTimeout(() => { starFlashing.value = false }, 130)
+  flashEndTimer = trainingClock.setTimeout(() => { starFlashing.value = false }, 440 - difficultyLevel.value * 20)
 }
 
 function moveTarget() {
+  scoringMisses = misses.value
   clearStarAnimation()
   starId.value += 1
   starFlashing.value = false
   starCaptured.value = false
   accepting.value = true
-  targetX.value = 18 + Math.floor(Math.random() * 250)
-  targetY.value = 28 + Math.floor(Math.random() * 350)
-  appearedAt = Date.now()
-  flashStartTimer = setTimeout(() => triggerStarFlash(), 40)
-  flashRepeatTimer = setInterval(() => triggerStarFlash(), 3000)
+  // 低等级集中在中部；按屏宽与目标大小计算范围，避免小屏边缘裁切。
+  const coverage = 0.45 + (difficultyLevel.value - 1) * 0.055
+  const safeMargin = 20
+  const spanX = Math.max(0, boardWidth - targetSize.value - safeMargin * 2)
+  const spanY = Math.max(0, 470 - targetSize.value - safeMargin * 2)
+  targetX.value = safeMargin + Math.round(spanX * ((1 - coverage) / 2 + Math.random() * coverage))
+  targetY.value = safeMargin + Math.round(spanY * ((1 - coverage) / 2 + Math.random() * coverage))
+  appearedAt = trainingClock.now()
+  flashStartTimer = trainingClock.setTimeout(() => triggerStarFlash(), 40)
+  flashRepeatTimer = trainingClock.setInterval(() => triggerStarFlash(), 3000)
 }
 
 function finishGame() {
@@ -108,61 +149,73 @@ function finishGame() {
   const total = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
   const average = reactions.value.length > 0 ? Math.round(total / reactions.value.length) : 0
   const accuracy = Math.round((hits.value / (hits.value + misses.value)) * 100)
-  const speedBonus = Math.max(0, 60 - Math.round(average / 25))
-  const score = Math.max(10, Math.min(100, Math.round(accuracy * 0.7 + speedBonus * 0.3)))
-  const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000))
+  const speedScore = Math.max(0, Math.min(100, 100 - (average - reactionTargetMs.value) * 100 / reactionTargetMs.value))
+  const score = Math.max(0, Math.min(100, Math.round(accuracy * 0.8 + speedScore * 0.2)))
+  const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
   uni.redirectTo({
-    url: '/pages/result/result?gameId=star-catcher&dimensionId=focused&score=' + score.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString()
-  })
+    url: '/pages/result/result?gameId=star-catcher&dimensionId=focused&score=' + score.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + scoreQuery(roundScores) })
 }
 
-function begin() {
+function begin() { if (trainingPaused.value) return;
+  if (started.value) return
   started.value = true
-  gameStartedAt = Date.now()
+  gameStartedAt = trainingClock.now()
   moveTarget()
 }
 
-function hitTarget() {
+function hitTarget() { if (trainingPaused.value) return;
   if (!started.value || finished.value || !accepting.value) return
   accepting.value = false
-  reactions.value.push(Date.now() - appearedAt)
-  hits.value += 1
-  if (flashStartTimer > 0) clearTimeout(flashStartTimer)
-  if (flashEndTimer > 0) clearTimeout(flashEndTimer)
-  if (flashRepeatTimer > 0) clearInterval(flashRepeatTimer)
+  roundScores.push(timedRoundScore(true, trainingClock.now() - appearedAt, reactionTargetMs.value, misses.value - scoringMisses))
+  reactions.value.push(trainingClock.now() - appearedAt)
+  { hits.value += 1; training.playFeedback('correct') }
+  if (flashStartTimer > 0) trainingClock.clearTimeout(flashStartTimer)
+  if (flashEndTimer > 0) trainingClock.clearTimeout(flashEndTimer)
+  if (flashRepeatTimer > 0) trainingClock.clearInterval(flashRepeatTimer)
   starFlashing.value = false
   starCaptured.value = true
-  captureTimer = setTimeout(() => {
-    if (hits.value >= targetCount) finishGame()
+  captureTimer = trainingClock.setTimeout(() => {
+    if (hits.value >= targetCount.value) finishGame()
     else moveTarget()
-  }, 180)
+  }, nextTargetDelayMs.value)
 }
 
-function missTarget() {
-  if (started.value && !finished.value) misses.value += 1
+function missTarget() { if (trainingPaused.value) return;
+  if (started.value && !finished.value && accepting.value) { { misses.value += 1; training.playFeedback('missed') } }
 }
 
-onLoad((_options: OnLoadOptions) => begin())
+onLoad((_options: OnLoadOptions) => configureDifficulty())
 onUnload(() => clearStarAnimation())
 
+// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>
-.sc-page { flex: 1; padding: 20px; }
+.sc-page { position: relative; flex: 1; background-color: #17266d; }
+.sc-content { position: relative; flex: 1; padding: 20px; }
 .sc-header { flex-direction: row; justify-content: space-between; align-items: center; }
-.sc-round-label { color: #5b8def; font-size: 12px; font-weight: 700; }
-.sc-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.sc-round-label { color: #dbe8ff; font-size: 12px; font-weight: 700; }
+.sc-title { margin-top: 4px; color: #ffffff; font-size: 21px; font-weight: 700; }
 .sc-counter { width: 58px; height: 38px; border-radius: 19px; background-color: #eaf0ff; align-items: center; justify-content: center; }
 .sc-counter-value { color: #4c78d0; font-size: 13px; font-weight: 700; }
 .sc-progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }
 .sc-progress-fill { height: 8px; border-radius: 4px; background-color: #55c9a5; }
-.sc-play-area { margin-top: 18px; height: 470px; border-radius: 26px; background-color: #17266d; position: relative; overflow: hidden; align-items: center; justify-content: center; }
-.sc-sky-background { position: absolute; left: 0; top: 0; width: 100%; height: 470px; }
-.sc-sky-vignette { position: absolute; left: 0; bottom: 0; width: 100%; height: 90px; background-color: rgba(16, 32, 105, 0.18); }
+.sc-play-area { margin-top: 18px; height: 470px; border-radius: 26px; background-color: rgba(255,255,255,0.5); position: relative; overflow: hidden; align-items: center; justify-content: center; }
+.sc-sky-background { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
 .star-target { position: absolute; width: 72px; height: 72px; align-items: center; justify-content: center; transition-property: transform, opacity; transition-duration: 120ms; transition-timing-function: ease-out; }
 .star-target-image { width: 54px; height: 54px; }
 .sc-footer-stats { margin-top: 16px; flex-direction: row; }
 .sc-footer-stat { flex: 1; align-items: center; }
-.sc-footer-value { color: #25314a; font-size: 18px; font-weight: 700; }
-.sc-footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+.sc-footer-value { color: #ffffff; font-size: 18px; font-weight: 700; }
+.sc-footer-label { margin-top: 3px; color: #dbe8ff; font-size: 11px; }
+.sc-demo { width: 100%; align-items: center; }
+.sc-demo-title { color: #25314a; font-size: 18px; font-weight: 700; }
+.sc-demo-star { position: relative; margin-top: 28px; width: 106px; height: 106px; align-items: center; justify-content: center; transition-property: transform; transition-duration: 180ms; }
+.sc-demo-caught { transform: scale(1.12); }
+.sc-demo-image { width: 76px; height: 76px; }
+.sc-demo-replay-row { height: 42px; align-items: center; justify-content: center; }
+.sc-demo-hint { margin-top: 24px; color: #25314a; font-size: 14px; }
+.sc-demo-replay { padding: 12px 18px; color: #344b75; font-size: 12px; }
+.sc-start { margin-top: 24px; width: 140px; height: 48px; line-height: 48px; border-radius: 16px; background-color: #5b8def; color: #ffffff; font-size: 15px; font-weight: 700; }
 </style>

@@ -1,21 +1,36 @@
 <template>
+<TrainingFrame :title="gameName" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="page">
-    <view class="header"><view><text class="dimension">{{ dimensionLabel }}</text><text class="title">{{ gameName }}</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
+    <image v-if="mode == 'light-tracking'" class="scene-background" src="/static/images/runtime/backgrounds/firefly-night-forest-v1.webp" mode="aspectFill"></image>
+    <view class="page-content">
+    <view class="header" :class="mode == 'light-tracking' ? 'forest-header' : ''"><view><text class="dimension">{{ dimensionLabel }}</text><text class="title">{{ gameName }}</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
     <view class="progress"><view class="progress-fill" :style="{ width: progressWidth, backgroundColor: accentColor }"></view></view>
-    <view class="mission"><text class="mission-title">{{ missionTitle }}</text><text class="mission-tip">{{ missionTip }}</text></view>
+    <view v-if="mode != 'light-tracking'" class="mission"><text class="mission-title">{{ missionTitle }}</text></view>
 
-    <view v-if="!started" class="instruction"><YoungChildCue :kind="mode == 'light-tracking' ? 'track' : 'tap'"></YoungChildCue><text class="intro-copy">{{ introCopy }}</text><button class="tap-target primary" :style="{ backgroundColor: accentColor }" @click="begin">▶ 开始训练</button></view>
+    <view v-if="!started" class="instruction" :class="mode == 'light-tracking' ? 'forest-instruction' : ''">
+      <template v-if="mode == 'light-tracking'">
+        <text class="demo-title">先试一下</text>
+        <text class="demo-hint">{{ demoHint }}</text>
+        <view class="demo-board">
+          <view v-for="index in 3" :key="'demo-' + index" class="demo-cell" :class="demoPhase == 'recall' && index - 1 == demoSequence[demoInput] ? 'demo-next' : ''" @click="tapDemo(index - 1)">
+            <image v-if="demoCell == index - 1" class="demo-firefly" src="/static/images/runtime/game-objects/firefly-tracking-v2.webp" mode="aspectFit"></image>
+            <text v-else-if="demoInput > 0 && index == 1" class="demo-check">1 ✓</text>
+            <text v-else-if="demoInput == 2 && index == 3" class="demo-check">2 ✓</text>
+          </view>
+        </view>
+        <text class="demo-replay" @click="startDemo">再看一次</text>
+      </template>
+      <YoungChildCue v-else kind="tap"></YoungChildCue>
+      <button class="tap-target primary" :style="{ backgroundColor: accentColor }" @click="begin">开始</button>
+    </view>
 
-    <view v-else-if="mode == 'light-tracking'" class="light-game">
+    <view v-else-if="mode == 'light-tracking'" class="light-game forest-light-game">
       <view class="memory-head"><text class="memory-phase" :class="lightPhase == 'recall' ? 'phase-recall' : ''">{{ lightPhaseLabel }}</text><text class="memory-count">本轮 {{ currentMoveCount }} 次移动</text></view>
       <view class="step-row"><view v-for="index in currentMoveCount" :key="'step-'+index" class="step-dot" :class="stepClass(index - 1)"><text class="step-symbol" :class="stepTextClass(index - 1)">{{ stepSymbol(index - 1) }}</text></view></view>
       <view class="light-board" :class="lightPhase == 'watch' ? 'board-watching' : ''">
-        <image class="night-background" src="/static/images/runtime/backgrounds/firefly-night-forest-v1.png" mode="aspectFill"></image>
-        <view class="night-overlay" :class="lightPhase == 'watch' ? 'night-overlay-watch' : ''"></view>
         <view v-for="index in 9" :key="index" class="light-cell" @click="tapLight(index - 1)"><view v-if="markCell == index - 1" class="answer-mark" :class="markCorrect ? 'mark-correct' : 'mark-wrong'"><text class="answer-symbol">{{ markCorrect ? '✓' : '×' }}</text></view></view>
         <view v-if="activeCell >= 0" class="firefly-glow" :class="fireflyPositionClass"></view>
-        <image v-if="activeCell >= 0" class="moving-firefly" :class="fireflyPositionClass" src="/static/images/runtime/game-objects/firefly-tracking-v2.png" mode="aspectFit"></image>
-        <view v-if="lightPhase == 'recall'" class="recall-hint"><text class="recall-hint-text">按刚才的顺序点击格子</text></view>
+        <image v-if="activeCell >= 0" class="moving-firefly" :class="fireflyPositionClass" src="/static/images/runtime/game-objects/firefly-tracking-v2.webp" mode="aspectFit"></image>
       </view>
     </view>
 
@@ -25,20 +40,31 @@
         <view class="lane" @click="chooseLane('left')"><text class="lane-label tap-content">左</text><view v-if="obstacleLane == 'left'" class="obstacle tap-content"><text class="obstacle-symbol">×</text></view><view v-if="chosenLane == 'left'" class="car tap-content"><text class="car-symbol">▲</text></view></view>
         <view class="lane" @click="chooseLane('right')"><text class="lane-label tap-content">右</text><view v-if="obstacleLane == 'right'" class="obstacle tap-content"><text class="obstacle-symbol">×</text></view><view v-if="chosenLane == 'right'" class="car tap-content"><text class="car-symbol">▲</text></view></view>
       </view>
-      <text v-if="mode == 'little-driver'" class="dual-tip">避开障碍，同时点击路边金色星星</text>
+      <text v-if="mode == 'little-driver'" class="dual-tip">躲障碍 · 点星星</text>
     </view>
 
-    <view class="feedback"><text v-if="feedback != ''" :class="feedbackGood ? 'good' : 'again'">{{ feedback }}</text></view>
-    <view class="stats"><view class="stat-item"><text class="value">{{ correct }}</text><text class="label">正确</text></view><view class="stat-item"><text class="value">{{ errors }}</text><text class="label">错误</text></view><view class="stat-item"><text class="value">{{ omissions }}</text><text class="label">遗漏</text></view></view>
+    <view class="feedback"><text v-if="feedback != ''" :class="(feedbackGood ? 'good' : 'again') + (mode == 'light-tracking' ? (feedbackGood ? ' forest-good' : ' forest-again') : '')">{{ feedback }}</text></view>
+    <view v-if="started || mode != 'light-tracking'" class="stats" :class="mode == 'light-tracking' ? 'forest-stats' : ''"><view class="stat-item"><text class="value">{{ correct }}</text><text class="label">正确</text></view><view class="stat-item"><text class="value">{{ errors }}</text><text class="label">错误</text></view><view class="stat-item"><text class="value">{{ omissions }}</text><text class="label">遗漏</text></view></view>
+    </view>
   </view>
+</TrainingFrame>
 </template>
 
 <script setup lang="uts">
+import { scoreQuery } from '../../utils/game-scoring.uts'
+const roundScores: number[] = []
+let scoringCorrect = 0
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
 import { ref, computed } from 'vue'
 import YoungChildCue from '../../components/YoungChildCue.uvue'
-import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { onLoad, onUnload, onHide, onShow } from '@dcloudio/uni-app'
 import { getGameDifficulty, getGameTuningAge } from '../../utils/difficulty.uts'
 import { getGameName } from '../../utils/catalog.uts'
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+
 
 const mode = ref('light-tracking'), gameName = ref('萤火虫追踪'), dimensionId = ref('focused')
 const started = ref(false), totalRounds = ref(12), roundIndex = ref(0), roundDuration = ref(1200), difficultyLevel = ref(1)
@@ -46,6 +72,27 @@ const activeCell = ref(4), obstacleLane = ref('left'), chosenLane = ref(''), roa
 const accepting = ref(false), feedback = ref(''), feedbackGood = ref(true), correct = ref(0), errors = ref(0), omissions = ref(0), reactions = ref([] as number[])
 const lightPhase = ref('idle'), lightSequence = ref([] as number[]), stepResults = ref([] as string[]), inputIndex = ref(0), playbackIndex = ref(0), markCell = ref(-1), markCorrect = ref(false)
 const lightRoundMoves = ref([2, 2, 3] as number[])
+// 教学状态独立，不计入正式训练成绩。
+const demoSequence = [0, 2] as number[]
+const demoPhase = ref('watch'), demoCell = ref(-1), demoInput = ref(0), demoHint = ref('先看它飞')
+let demoTimer = 0
+function stopDemo() { if (demoTimer > 0) trainingClock.clearTimeout(demoTimer); demoTimer = 0 }
+function startDemo() { if (trainingPaused.value) return;
+  stopDemo()
+  if (started.value || mode.value != 'light-tracking') return
+  demoPhase.value = 'watch'; demoInput.value = 0; demoCell.value = 0; demoHint.value = '先看它飞'
+  demoTimer = trainingClock.setTimeout(() => {
+    demoCell.value = 2
+    demoTimer = trainingClock.setTimeout(() => { demoCell.value = -1; demoPhase.value = 'recall'; demoHint.value = '按刚才的顺序点' }, 1100)
+  }, 1100)
+}
+function tapDemo(index: number) { if (trainingPaused.value) return;
+  if (started.value || demoPhase.value != 'recall') return
+  if (index != demoSequence[demoInput.value]) { demoHint.value = '点亮框，再试试'; return }
+  demoInput.value += 1
+  demoHint.value = demoInput.value == 2 ? '记对啦！' : '再点下一个'
+  if (demoInput.value == 2) demoPhase.value = 'done'
+}
 let shownAt = 0, gameStartedAt = 0, roundTimer = 0, nextTimer = 0, playbackTimer = 0, markerTimer = 0
 const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
 const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
@@ -83,8 +130,8 @@ function configureDifficulty() {
 function stepClass(index: number): string { if (index >= stepResults.value.length) return lightPhase.value == 'recall' && index == inputIndex.value ? 'step-current' : ''; return stepResults.value[index] == 'correct' ? 'step-correct' : 'step-wrong' }
 function stepSymbol(index: number): string { if (index >= stepResults.value.length) return (index + 1).toString(); return stepResults.value[index] == 'correct' ? '✓' : '×' }
 function stepTextClass(index: number): string { return index < stepResults.value.length || (lightPhase.value == 'recall' && index == inputIndex.value) ? 'step-symbol-active' : 'step-symbol-pending' }
-function clearTimers() { if (roundTimer > 0) clearTimeout(roundTimer); if (nextTimer > 0) clearTimeout(nextTimer); if (playbackTimer > 0) clearTimeout(playbackTimer); if (markerTimer > 0) clearTimeout(markerTimer); roundTimer = 0; nextTimer = 0; playbackTimer = 0; markerTimer = 0 }
-function finish() { clearTimers(); const attempts = correct.value + errors.value + omissions.value; const accuracy = Math.round((correct.value / Math.max(1, attempts)) * 100); const sum = reactions.value.reduce((a: number, b: number): number => a + b, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=' + mode.value + '&dimensionId=' + dimensionId.value + '&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&omissions=' + omissions.value.toString() + '&completed=' + correct.value.toString() + '&total=' + attempts.toString() }) }
+function clearTimers() { if (roundTimer > 0) trainingClock.clearTimeout(roundTimer); if (nextTimer > 0) trainingClock.clearTimeout(nextTimer); if (playbackTimer > 0) trainingClock.clearTimeout(playbackTimer); if (markerTimer > 0) trainingClock.clearTimeout(markerTimer); roundTimer = 0; nextTimer = 0; playbackTimer = 0; markerTimer = 0 }
+function finish() { clearTimers(); const attempts = correct.value + errors.value + omissions.value; const accuracy = Math.round((correct.value / Math.max(1, attempts)) * 100); const sum = reactions.value.reduce((a: number, b: number): number => a + b, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=' + mode.value + '&dimensionId=' + dimensionId.value + '&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&omissions=' + omissions.value.toString() + '&completed=' + correct.value.toString() + '&total=' + attempts.toString() + scoreQuery(roundScores) }) }
 function createLightSequence(count: number): number[] {
   const result = [] as number[]
   let previous = -1; activeCell.value = -1
@@ -92,67 +139,93 @@ function createLightSequence(count: number): number[] {
   return result
 }
 function advanceLightPlayback() {
-  if (playbackIndex.value >= lightSequence.value.length) { activeCell.value = -1; lightPhase.value = 'recall'; accepting.value = true; feedback.value = '轮到你了，请从第一个位置开始'; feedbackGood.value = true; shownAt = Date.now(); return }
+  if (playbackIndex.value >= lightSequence.value.length) { activeCell.value = -1; lightPhase.value = 'recall'; accepting.value = true; feedback.value = '轮到你了，请从第一个位置开始'; feedbackGood.value = true; shownAt = trainingClock.now(); return }
   activeCell.value = lightSequence.value[playbackIndex.value]; playbackIndex.value += 1
-  playbackTimer = setTimeout(() => advanceLightPlayback(), 720)
+  playbackTimer = trainingClock.setTimeout(() => advanceLightPlayback(), 720)
 }
 function prepare() {
   if (roundIndex.value >= totalRounds.value) { finish(); return }
-  feedback.value = ''; chosenLane.value = ''; roadsideDone.value = false
+  feedback.value = ''; chosenLane.value = ''; roadsideDone.value = false; scoringCorrect = correct.value
   if (mode.value == 'light-tracking') {
     accepting.value = false; lightPhase.value = 'watch'; stepResults.value = [] as string[]; inputIndex.value = 0; playbackIndex.value = 0; markCell.value = -1
     lightSequence.value = createLightSequence(currentMoveCount.value); feedback.value = '准备观察，记住每次出现的位置'; feedbackGood.value = true
-    playbackTimer = setTimeout(() => advanceLightPlayback(), 520); return
+    playbackTimer = trainingClock.setTimeout(() => advanceLightPlayback(), 520); return
   }
-  accepting.value = true; shownAt = Date.now(); obstacleLane.value = Math.random() < 0.5 ? 'left' : 'right'; roadsideTarget.value = mode.value == 'little-driver' && Math.random() < 0.45
-  roundTimer = setTimeout(() => {
+  accepting.value = true; shownAt = trainingClock.now(); obstacleLane.value = Math.random() < 0.5 ? 'left' : 'right'; roadsideTarget.value = mode.value == 'little-driver' && Math.random() < 0.45
+  roundTimer = trainingClock.setTimeout(() => {
     if (!accepting.value) return
     accepting.value = false
-    if (mode.value == 'little-driver') { if (chosenLane.value == '') omissions.value += 1; if (roadsideTarget.value && !roadsideDone.value) omissions.value += 1 }
-    else omissions.value += 1
+    if (mode.value == 'little-driver') { if (chosenLane.value == '') { omissions.value += 1; training.playFeedback('missed') } if (roadsideTarget.value && !roadsideDone.value) { omissions.value += 1; training.playFeedback('missed') } }
+    else { omissions.value += 1; training.playFeedback('missed') }
+    recordDriverRound()
     feedback.value = '错过了'; feedbackGood.value = false
-    nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 450)
+    nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepare() }, 450)
   }, roundDuration.value)
 }
-function scheduleNext() { if (roundTimer > 0) clearTimeout(roundTimer); nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 450) }
-function completeSingle(success: boolean) { if (!accepting.value) return; accepting.value = false; if (success) { correct.value += 1; reactions.value.push(Date.now() - shownAt); feedback.value = '正确'; feedbackGood.value = true } else { errors.value += 1; feedback.value = '再看仔细'; feedbackGood.value = false }; scheduleNext() }
-function begin() { started.value = true; gameStartedAt = Date.now(); prepare() }
-function tapLight(index: number) {
+function recordDriverRound() { if (mode.value == 'little-driver') roundScores.push(Math.max(0, Math.min(100, 100 * (correct.value - scoringCorrect) / (1 + (roadsideTarget.value ? 1 : 0) + (!roadsideTarget.value && roadsideDone.value ? 1 : 0))))) }
+function scheduleNext() { recordDriverRound(); if (roundTimer > 0) trainingClock.clearTimeout(roundTimer); nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepare() }, 450) }
+function completeSingle(success: boolean) { if (!accepting.value) return; accepting.value = false; if (success) { { correct.value += 1; training.playFeedback('correct') } reactions.value.push(trainingClock.now() - shownAt); feedback.value = '正确'; feedbackGood.value = true } else { { errors.value += 1; training.playFeedback('wrong') } feedback.value = '再看仔细'; feedbackGood.value = false }; scheduleNext() }
+function begin() { if (trainingPaused.value) return; if (started.value) return; stopDemo(); started.value = true; gameStartedAt = trainingClock.now(); prepare() }
+function tapLight(index: number) { if (trainingPaused.value) return;
   if (!accepting.value || lightPhase.value != 'recall' || inputIndex.value >= lightSequence.value.length) return
   const success = index == lightSequence.value[inputIndex.value]
   markCell.value = index; markCorrect.value = success; stepResults.value.push(success ? 'correct' : 'wrong')
-  reactions.value.push(Date.now() - shownAt); shownAt = Date.now()
-  if (success) { correct.value += 1; feedback.value = '顺序正确，继续'; feedbackGood.value = true }
-  else { errors.value += 1; feedback.value = '顺序不对，继续下一步'; feedbackGood.value = false }
+  reactions.value.push(trainingClock.now() - shownAt); shownAt = trainingClock.now()
+  if (success) { { correct.value += 1; training.playFeedback('correct') } feedback.value = '顺序正确，继续'; feedbackGood.value = true }
+  else { { errors.value += 1; training.playFeedback('wrong') } feedback.value = '顺序不对，继续下一步'; feedbackGood.value = false }
   inputIndex.value += 1
-  if (markerTimer > 0) clearTimeout(markerTimer)
+  if (markerTimer > 0) trainingClock.clearTimeout(markerTimer)
   if (inputIndex.value >= lightSequence.value.length) {
     accepting.value = false; lightPhase.value = 'complete'
+    roundScores.push(100 * stepResults.value.filter((s: string): boolean => s == 'correct').length / lightSequence.value.length)
     feedback.value = stepResults.value.indexOf('wrong') < 0 ? '这一轮路径全部记对了！' : '本轮完成，下一轮再记准一点'
     feedbackGood.value = stepResults.value.indexOf('wrong') < 0
-    nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 720)
-  } else markerTimer = setTimeout(() => { markCell.value = -1 }, 280)
+    nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepare() }, 720)
+  } else markerTimer = trainingClock.setTimeout(() => { markCell.value = -1 }, 280)
 }
-function chooseLane(lane: string) {
+function chooseLane(lane: string) { if (trainingPaused.value) return;
   if (!accepting.value || chosenLane.value != '') return; chosenLane.value = lane
-  if (lane == obstacleLane.value) { errors.value += 1; feedback.value = '撞到障碍'; feedbackGood.value = false; accepting.value = false; scheduleNext() }
+  if (lane == obstacleLane.value) { { errors.value += 1; training.playFeedback('wrong') } feedback.value = '撞到障碍'; feedbackGood.value = false; accepting.value = false; scheduleNext() }
   else if (mode.value == 'car-patrol') completeSingle(true)
-  else { correct.value += 1; reactions.value.push(Date.now() - shownAt); feedbackGood.value = true; if (!roadsideTarget.value || roadsideDone.value) { accepting.value = false; feedback.value = '正确'; scheduleNext() } }
+  else { { correct.value += 1; training.playFeedback('correct') } reactions.value.push(trainingClock.now() - shownAt); feedbackGood.value = true; if (!roadsideTarget.value || roadsideDone.value) { accepting.value = false; feedback.value = '正确'; scheduleNext() } }
 }
-function tapRoadside() {
+function tapRoadside() { if (trainingPaused.value) return;
   if (!accepting.value || mode.value != 'little-driver' || roadsideDone.value) return; roadsideDone.value = true
-  if (roadsideTarget.value) { correct.value += 1; feedbackGood.value = true; if (chosenLane.value != '') { accepting.value = false; feedback.value = '正确'; scheduleNext() } }
-  else { errors.value += 1; feedback.value = '蓝点不用收集'; feedbackGood.value = false }
+  if (roadsideTarget.value) { { correct.value += 1; training.playFeedback('correct') } feedbackGood.value = true; if (chosenLane.value != '') { accepting.value = false; feedback.value = '正确'; scheduleNext() } }
+  else { { errors.value += 1; training.playFeedback('wrong') } feedback.value = '蓝点不用收集'; feedbackGood.value = false }
 }
-onLoad((options: UTSJSONObject) => { const option = options['gameId']; mode.value = option == null || option == '' ? 'light-tracking' : option as string; gameName.value = getGameName(mode.value); dimensionId.value = mode.value == 'light-tracking' ? 'focused' : mode.value == 'car-patrol' ? 'sustained' : 'divided'; configureDifficulty() })
-onUnload(() => clearTimers())
+onLoad((options: UTSJSONObject) => { const option = options['gameId']; mode.value = option == null || option == '' ? 'light-tracking' : option as string; if (mode.value == 'car-patrol') { uni.redirectTo({ url: '/pages/game/car-patrol' }); return }; gameName.value = getGameName(mode.value); dimensionId.value = mode.value == 'light-tracking' ? 'focused' : mode.value == 'car-patrol' ? 'sustained' : 'divided'; configureDifficulty() })
+onShow(() => { if (!trainingPaused.value && !started.value && mode.value == 'light-tracking') startDemo() })
+onUnload(() => { stopDemo(); clearTimers() })
+// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>
+.scene-background { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.page-content { position: relative; flex: 1; }
+.demo-title { color: #25314a; font-size: 18px; font-weight: 700; }
+.demo-hint { margin-top: 10px; color: #557bc4; font-size: 14px; font-weight: 700; }
+.demo-board { width: 100%; margin-top: 22px; flex-direction: row; }
+.demo-cell { flex: 1; height: 90px; margin: 0 3px; border-radius: 18px; border-width: 2px; border-color: #c3d5e6; background-color: #f7faff; align-items: center; justify-content: center; }
+.demo-next { border-color: #5b8def; background-color: #dce9ff; }
+.demo-firefly { width: 72px; height: 72px; }
+.demo-check { color: #28896e; font-size: 18px; font-weight: 700; }
+.demo-replay { padding: 16px; margin-top: 6px; color: #557bc4; font-size: 13px; }
 .page { flex: 1; padding: 20px; }.header { flex-direction: row; align-items: center; justify-content: space-between; }.dimension { color: #7b8498; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #edf1f7; align-items: center; justify-content: center; }.counter-value { color: #65718b; font-size: 13px; font-weight: 700; }.progress { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; }.mission { margin-top: 14px; padding: 15px 17px; border-radius: 18px; background-color: #ffffff; }.mission-title { color: #3c485f; font-size: 15px; font-weight: 700; }.mission-tip { margin-top: 4px; color: #858fa3; font-size: 11px; }
 .instruction { margin-top: 16px; padding: 42px 22px; border-radius: 24px; background-color: #ffffff; align-items: center; }.intro-firefly { width: 126px; height: 126px; }.intro-icon { color: #6a7b99; font-size: 58px; }.intro-copy { margin-top: 14px; color: #737e94; font-size: 12px; line-height: 19px; text-align: center; }.primary { margin-top: 20px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; color: #ffffff; font-size: 14px; font-weight: 700; }
 .light-game { margin-top: 14px; }.memory-head { height: 30px; flex-direction: row; align-items: center; justify-content: space-between; }.memory-phase { color: #557bc4; font-size: 13px; font-weight: 700; }.phase-recall { color: #28896e; }.memory-count { color: #8a94a8; font-size: 10px; }.step-row { height: 36px; flex-direction: row; align-items: center; justify-content: center; }.step-dot { margin: 0 3px; width: 25px; height: 25px; border-radius: 13px; background-color: #e8edf5; align-items: center; justify-content: center; }.step-current { background-color: #5b8def; }.step-correct { background-color: #55c89f; }.step-wrong { background-color: #ef7884; }.step-symbol { font-size: 11px; font-weight: 800; }.step-symbol-active { color: #ffffff; }.step-symbol-pending { color: #8792a6; }
 .light-board { position: relative; padding: 10px; height: 330px; border-radius: 24px; background-color: #102d5a; flex-direction: row; flex-wrap: wrap; justify-content: center; align-content: center; overflow: hidden; }.night-background { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 0; }.night-overlay { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(4,20,55,0.2); z-index: 1; }.night-overlay-watch { background-color: rgba(4,18,50,0.3); }.light-cell { position: relative; margin: 5px; width: 28%; height: 84px; border-radius: 17px; border-width: 2px; border-color: rgba(181,218,255,0.68); background-color: rgba(22,58,111,0.7); box-shadow: 0 4px 10px rgba(0,11,38,0.3); align-items: center; justify-content: center; z-index: 2; }.answer-mark { width: 48px; height: 48px; border-radius: 24px; align-items: center; justify-content: center; z-index: 4; }.mark-correct { background-color: #55c89f; }.mark-wrong { background-color: #ef7884; }.answer-symbol { color: #ffffff; font-size: 30px; font-weight: 800; }.firefly-glow { position: absolute; width: 74px; height: 74px; border-radius: 37px; background-color: rgba(255,211,74,0.28); z-index: 5; transition-property: left, top, transform; transition-duration: 500ms; transition-timing-function: ease-in-out; }.moving-firefly { position: absolute; width: 74px; height: 74px; z-index: 6; transition-property: left, top, transform; transition-duration: 500ms; transition-timing-function: ease-in-out; }.firefly-position-0 { left: 7%; top: 9%; }.firefly-position-1 { left: 39%; top: 9%; }.firefly-position-2 { left: 71%; top: 9%; }.firefly-position-3 { left: 7%; top: 38%; }.firefly-position-4 { left: 39%; top: 38%; }.firefly-position-5 { left: 71%; top: 38%; }.firefly-position-6 { left: 7%; top: 67%; }.firefly-position-7 { left: 39%; top: 67%; }.firefly-position-8 { left: 71%; top: 67%; }.recall-hint { position: absolute; top: 8px; right: 10px; padding: 6px 9px; border-radius: 12px; background-color: rgba(42,137,110,0.9); z-index: 8; }.recall-hint-text { color: #ffffff; font-size: 9px; font-weight: 700; }
 .road-board { margin-top: 14px; height: 370px; border-radius: 24px; background-color: #dbe2eb; position: relative; overflow: hidden; }.roadside { height: 70px; align-items: center; justify-content: center; }.roadside-cue { width: 48px; height: 48px; border-radius: 24px; align-items: center; justify-content: center; }.cue-target { background-color: #fff0c4; }.cue-ignore { background-color: #d5deec; }.roadside-symbol-target { color: #e8ad27; font-size: 29px; }.roadside-symbol-ignore { color: #8094b5; font-size: 24px; }.lanes { flex: 1; flex-direction: row; padding: 0 18px 20px; }.lane { flex: 1; margin: 0 5px; border-radius: 18px; background-color: #ffffff; align-items: center; justify-content: center; position: relative; }.lane-label { position: absolute; top: 12px; color: #8a94a6; font-size: 10px; }.obstacle { width: 62px; height: 62px; border-radius: 16px; background-color: #fde1e5; align-items: center; justify-content: center; }.obstacle-symbol { color: #cf5d6c; font-size: 30px; }.car { position: absolute; bottom: 18px; }.car-symbol { color: #5b8def; font-size: 38px; }.dual-tip { position: absolute; bottom: 4px; width: 100%; text-align: center; color: #718097; font-size: 9px; }
 .feedback { height: 34px; align-items: center; justify-content: center; }.good { color: #338e72; font-size: 12px; font-weight: 700; }.again { color: #c65b66; font-size: 12px; font-weight: 700; }.stats { flex-direction: row; }.stat-item { flex: 1; align-items: center; }.value { color: #25314a; font-size: 17px; font-weight: 700; }.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+/* 核心区用近白底；放在基础样式之后，原生端也不依赖后代选择器覆盖深色底。 */
+.light-board { background-color: #ffffff; }
+.light-cell { border-color: #c3d5e6; background-color: #f7faff; box-shadow: none; }
+/* 夜间森林模式的半透明白卡：扁平类直接挂在元素上，兼容样式隔离 2.0。 */
+.forest-header { padding: 14px; border-radius: 20px; background-color: rgba(255,255,255,0.92); }
+.forest-instruction { padding: 26px 14px; background-color: rgba(255,255,255,0.98); }
+.forest-light-game { padding: 12px 8px; border-radius: 24px; background-color: rgba(255,255,255,0.98); }
+.forest-stats { padding: 12px; border-radius: 18px; background-color: rgba(255,255,255,0.92); }
+.forest-good { color: #b9f5dc; }
+.forest-again { color: #ffe0d2; }
 </style>

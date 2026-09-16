@@ -1,21 +1,32 @@
 <template>
+<TrainingFrame title="奇偶轨道" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="page">
     <view class="game-header"><view><text class="round-label">转换注意训练</text><text class="game-title">奇偶轨道</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
     <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-    <view class="rule-card" :class="reversed ? 'reversed-card' : ''"><text class="rule-kicker">{{ reversed ? '紫色规则' : '蓝色规则' }}</text><text class="rule-title">{{ reversed ? '偶数走左轨 · 奇数走右轨' : '奇数走左轨 · 偶数走右轨' }}</text><text v-if="justSwitched" class="switch-badge">轨道已切换</text></view>
+    <view class="rule-card" :class="reversed ? 'reversed-card' : ''"><text class="rule-title">{{ reversed ? '偶数走左 · 奇数走右' : '奇数走左 · 偶数走右' }}</text><text v-if="justSwitched" class="switch-badge">换轨</text></view>
     <view class="number-stage">
-      <view v-if="!started" class="instruction"><view class="sample-numbers"><text class="sample-number">3</text><text class="sample-number">8</text></view><text class="instruction-title">判断奇数和偶数</text><text class="instruction-copy">上方规则会多次交换左右轨道。先看规则，再发送数字。</text><button class="tap-target primary" @click="begin">开始发车</button></view>
+      <view v-if="!started" class="instruction"><view class="sample-numbers"><text class="sample-number">3</text><text class="sample-number">8</text></view><button class="tap-target primary" @click="begin">开始</button></view>
       <view v-else class="challenge"><text class="number">{{ currentNumber }}</text><text class="number-kind">判断后选择轨道</text><text class="feedback" :class="feedback == '轨道正确' ? 'good' : 'again'">{{ feedback }}</text></view>
     </view>
-    <view v-if="started" class="tracks"><button class="tap-target track left" :disabled="!accepting" @click="answer('left')"><text class="track-label tap-content">左轨</text><text class="track-rule tap-content">{{ reversed ? '偶数' : '奇数' }}</text></button><button class="tap-target track right" :disabled="!accepting" @click="answer('right')"><text class="track-label tap-content">右轨</text><text class="track-rule tap-content">{{ reversed ? '奇数' : '偶数' }}</text></button></view>
+    <view v-if="started" class="tracks"><ActionSurface class="tap-target track left" :disabled="!accepting" @click="answer('left')"><text class="track-label tap-content">左轨</text><text class="track-rule tap-content">{{ reversed ? '偶数' : '奇数' }}</text></ActionSurface><ActionSurface class="tap-target track right" :disabled="!accepting" @click="answer('right')"><text class="track-label tap-content">右轨</text><text class="track-rule tap-content">{{ reversed ? '奇数' : '偶数' }}</text></ActionSurface></view>
     <view class="footer-stats"><view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view><view class="footer-stat"><text class="footer-value">{{ errors }}</text><text class="footer-label">错误</text></view><view class="footer-stat"><text class="footer-value">{{ switchErrors }}</text><text class="footer-label">切换错误</text></view></view>
   </view>
+</TrainingFrame>
 </template>
 
 <script setup lang="uts">
+import { timedRoundScore, scoreQuery, searchTargetMs } from '../../utils/game-scoring.uts'
+const roundScores: number[] = []
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
+import ActionSurface from '../../components/ActionSurface.uvue'
 import { ref, computed } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import { getGameTuningAge } from '../../utils/difficulty.uts'
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+
 const started = ref(false), accepting = ref(false), reversed = ref(false), justSwitched = ref(false), useTwoDigits = ref(false)
 const totalRounds = ref(14), blockSize = ref(4), roundIndex = ref(0), currentNumber = ref(1)
 const correct = ref(0), errors = ref(0), switchErrors = ref(0), feedback = ref(''), reactions = ref([] as number[])
@@ -23,13 +34,15 @@ let appearedAt = 0, gameStartedAt = 0, nextTimer = 0
 const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
 const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
 function configure() { const age = getGameTuningAge('number-track'); if (age <= 6) { totalRounds.value = 10; blockSize.value = 5 } else if (age <= 9) { totalRounds.value = 14; blockSize.value = 4 } else if (age <= 12) { totalRounds.value = 18; blockSize.value = 3; useTwoDigits.value = true } else { totalRounds.value = 22; blockSize.value = 2; useTwoDigits.value = true } }
-function clearTimer() { if (nextTimer > 0) clearTimeout(nextTimer) }
-function finish() { clearTimer(); const accuracy = Math.round((correct.value / totalRounds.value) * 100); const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((Date.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=number-track&dimensionId=alternating&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&switchErrors=' + switchErrors.value.toString() }) }
-function prepare() { if (roundIndex.value >= totalRounds.value) { finish(); return }; justSwitched.value = roundIndex.value > 0 && roundIndex.value % blockSize.value == 0; if (justSwitched.value) reversed.value = !reversed.value; currentNumber.value = useTwoDigits.value ? 10 + Math.floor(Math.random() * 90) : 1 + Math.floor(Math.random() * 9); feedback.value = ''; accepting.value = true; appearedAt = Date.now() }
-function begin() { started.value = true; gameStartedAt = Date.now(); prepare() }
+function clearTimer() { if (nextTimer > 0) trainingClock.clearTimeout(nextTimer) }
+function finish() { clearTimer(); const accuracy = Math.round((correct.value / totalRounds.value) * 100); const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=number-track&dimensionId=alternating&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&switchErrors=' + switchErrors.value.toString() + scoreQuery(roundScores) }) }
+function prepare() { if (roundIndex.value >= totalRounds.value) { finish(); return }; justSwitched.value = roundIndex.value > 0 && roundIndex.value % blockSize.value == 0; if (justSwitched.value) reversed.value = !reversed.value; currentNumber.value = useTwoDigits.value ? 10 + Math.floor(Math.random() * 90) : 1 + Math.floor(Math.random() * 9); feedback.value = ''; accepting.value = true; appearedAt = trainingClock.now() }
+function begin() { if (trainingPaused.value) return; started.value = true; gameStartedAt = trainingClock.now(); prepare() }
 function expected(): string { const odd = currentNumber.value % 2 == 1; const goesLeft = reversed.value ? !odd : odd; return goesLeft ? 'left' : 'right' }
-function answer(side: string) { if (!accepting.value) return; accepting.value = false; reactions.value.push(Date.now() - appearedAt); if (side == expected()) { correct.value += 1; feedback.value = '轨道正确' } else { errors.value += 1; if (justSwitched.value) switchErrors.value += 1; feedback.value = '先看颜色规则' }; nextTimer = setTimeout(() => { roundIndex.value += 1; prepare() }, 520) }
+function answer(side: string) { if (trainingPaused.value) return; if (!accepting.value) return; accepting.value = false; roundScores.push(timedRoundScore(side == expected(), trainingClock.now() - appearedAt, searchTargetMs('number-track', getGameTuningAge('number-track') - 4))); reactions.value.push(trainingClock.now() - appearedAt); if (side == expected()) { { correct.value += 1; training.playFeedback('correct') } feedback.value = '轨道正确' } else { { errors.value += 1; training.playFeedback('wrong') } if (justSwitched.value) switchErrors.value += 1; feedback.value = '先看颜色规则' }; nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepare() }, 520) }
 onLoad((_options: OnLoadOptions) => configure()); onUnload(() => clearTimer())
+// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>

@@ -1,27 +1,26 @@
 <template>
-  <scroll-view class="page" scroll-y="true">
+  <scroll-view class="page" direction="vertical" show-scrollbar="false" :scroll-into-view="targetSection" scroll-with-animation="true">
     <view class="intro">
-      <view class="intro-copy"><text class="title">五维专注力训练</text><text class="subtitle">年龄只决定首次默认难度，之后会根据每天的最佳表现自动调整。</text></view>
-      <image class="intro-mascot" src="/static/images/runtime/game-objects/bunny-blue-card-v1.png" mode="aspectFit"></image>
+      <view class="intro-copy"><text class="title">五维专注力训练</text></view>
+      <image class="intro-mascot" src="/static/images/runtime/brand/duo-star-v1.webp" mode="aspectFit"></image>
     </view>
 
-    <view v-for="dimension in dimensions" :key="dimension.id" class="dimension-block">
+    <view v-for="dimension in dimensions" :id="'dimension-' + dimension.id" :key="dimension.id" class="dimension-block">
       <view class="dimension-head">
         <view class="color-mark" :style="{ backgroundColor: dimension.color }"></view>
         <view class="dimension-copy">
           <text class="dimension-title">{{ dimension.name }}</text>
-          <text class="dimension-description">{{ dimension.description }}</text>
         </view>
       </view>
       <view class="game-list">
         <view v-for="game in gameList(dimension.id)" :key="game.id" class="game-row" @click="openGame(game.id, game.status)">
-          <view class="game-index tap-content"><text class="game-index-value">{{ game.name.substring(0, 1) }}</text></view>
+          <image class="game-cover tap-content" :src="thumbnailFor(game.id)" mode="aspectFill"></image>
           <view class="game-copy tap-content">
             <text class="game-name">{{ game.name }}</text>
-            <text class="game-summary">{{ game.summary }} · 难度 {{ difficultyFor(game.id) }}/10</text>
+            <view class="game-action" :style="{ backgroundColor: dimension.color }">
+              <text class="game-action-icon">›</text>
+            </view>
           </view>
-          <text v-if="game.status == 'ready'" class="ready tap-content">开始</text>
-          <text v-else class="planned tap-content">待开发</text>
         </view>
       </view>
     </view>
@@ -30,17 +29,31 @@
 </template>
 
 <script setup lang="uts">
-import { DIMENSIONS, gamesForDimension, getGameRoute, TrainingGame } from '../../utils/catalog.uts'
-import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+import { DIMENSIONS, gamesForDimension, getGameRoute, getGameThumbnail, TrainingGame } from '../../utils/catalog.uts'
+import { requireLogin } from '../../utils/auth.uts'
+import { getProfile } from '../../utils/storage.uts'
 
 const dimensions = DIMENSIONS
+const targetSection = ref('')
 function gameList(id: string): TrainingGame[] { return gamesForDimension(id) }
-function difficultyFor(id: string): number { return getGameDifficulty(id) }
+function thumbnailFor(id: string): string { return getGameThumbnail(id) }
+onLoad((options: UTSJSONObject) => {
+  const value = options['dimensionId']
+  if (value == null) return
+  const dimensionId = value as string
+  const exists = DIMENSIONS.find((item): boolean => item.id == dimensionId)
+  if (exists == null) return
+  setTimeout(() => { targetSection.value = 'dimension-' + dimensionId }, 120)
+})
 function openGame(id: string, status: string) {
   if (status != 'ready') {
     uni.showToast({ title: '该训练将在后续版本开放', icon: 'none' })
     return
   }
+  if (!requireLogin()) return
+  if (getProfile() == null) { uni.navigateTo({ url: '/pages/profile/profile' }); return }
   uni.navigateTo({ url: getGameRoute(id) })
 }
 </script>
@@ -49,23 +62,21 @@ function openGame(id: string, status: string) {
 .page { height: 100%; }
 .intro { margin: 18px 16px 8px; padding: 18px 14px 12px 20px; border-radius: 22px; background-color: #eaf0ff; flex-direction: row; align-items: center; }
 .intro-copy { flex: 1; }
-.intro-mascot { width: 92px; height: 104px; border-radius: 46px; }
+.intro-mascot { width: 92px; height: 92px; border-radius: 24px; }
 .title { color: #1f2a44; font-size: 24px; font-weight: 700; }
 .subtitle { margin-top: 8px; color: #6f7a91; font-size: 13px; line-height: 20px; }
-.dimension-block { margin: 14px 16px; padding: 18px; border-radius: 22px; background-color: #ffffff; }
+.dimension-block { margin: 14px 16px; padding: 16px 12px 12px; border-radius: 22px; background-color: #ffffff; }
 .dimension-head { flex-direction: row; align-items: center; }
 .color-mark { width: 13px; height: 46px; border-radius: 7px; }
 .dimension-copy { margin-left: 12px; }
 .dimension-title { color: #25314b; font-size: 18px; font-weight: 700; }
 .dimension-description { margin-top: 4px; color: #7a8499; font-size: 12px; }
-.game-list { margin-top: 14px; }
-.game-row { min-height: 72px; padding: 12px 0; border-top: 1px solid #edf0f5; flex-direction: row; align-items: center; }
-.game-index { width: 44px; height: 44px; border-radius: 12px; background-color: #f1f5fb; align-items: center; justify-content: center; }
-.game-index-value { color: #53617c; font-weight: 700; }
-.game-copy { margin-left: 11px; flex: 1; }
-.game-name { color: #2b3650; font-size: 14px; font-weight: 600; }
-.game-summary { margin-top: 4px; color: #8a93a6; font-size: 11px; }
-.ready { color: #5b8def; font-size: 12px; font-weight: 700; }
-.planned { color: #a3aaba; font-size: 11px; }
+.game-list { margin-top: 12px; }
+.game-row { min-height: 92px; margin-top: 8px; padding: 8px; border-radius: 17px; background-color: #f7f9fd; flex-direction: row; align-items: center; }
+.game-cover { width: 126px; height: 76px; border-radius: 13px; background-color: #eaf0fb; }
+.game-copy { margin-left: 14px; flex: 1; flex-direction: row; align-items: center; justify-content: space-between; }
+.game-name { flex: 1; color: #2b3650; font-size: 15px; font-weight: 700; }
+.game-action { width: 30px; height: 30px; margin-left: 8px; border-radius: 15px; align-items: center; justify-content: center; }
+.game-action-icon { margin-top: -2px; color: #ffffff; font-size: 25px; font-weight: 500; }
 .bottom-space { height: 30px; }
 </style>

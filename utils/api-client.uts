@@ -1,0 +1,143 @@
+import { LOCAL_TEST_MODE } from './local-test.uts'
+export const API_BASE_URL = 'http://192.168.3.71:8002/api/v1'
+
+export type ApiSuccess = (data: UTSJSONObject) => void
+export type ApiFailure = (message: string, code: string) => void
+export type HttpMethod = 'POST'
+
+const DEVICE_ID_KEY = 'focus_planet_device_id'
+const ACCESS_TOKEN_KEY = 'focus_planet_access_token'
+const REFRESH_TOKEN_KEY = 'focus_planet_refresh_token'
+
+export function getDeviceId(): string {
+  const stored = uni.getStorageSync(DEVICE_ID_KEY)
+  if (stored != null && stored != '') return stored as string
+  const value = 'focus-' + Date.now().toString() + '-' + Math.round(Math.random() * 1000000).toString()
+  uni.setStorageSync(DEVICE_ID_KEY, value)
+  return value
+}
+
+export function getPlatformName(): string {
+  let platform = 'web'
+  // #ifdef APP-ANDROID
+  platform = 'android'
+  // #endif
+  // #ifdef APP-IOS
+  platform = 'ios'
+  // #endif
+  // #ifdef APP-HARMONY
+  platform = 'harmony'
+  // #endif
+  return platform
+}
+
+export function saveTokens(accessToken: string, refreshToken: string) {
+  uni.setStorageSync(ACCESS_TOKEN_KEY, accessToken)
+  uni.setStorageSync(REFRESH_TOKEN_KEY, refreshToken)
+}
+
+export function getAccessToken(): string {
+  if (LOCAL_TEST_MODE) return ''
+  const value = uni.getStorageSync(ACCESS_TOKEN_KEY)
+  return value == null || value == '' ? '' : value as string
+}
+
+export function getRefreshToken(): string {
+  if (LOCAL_TEST_MODE) return ''
+  const value = uni.getStorageSync(REFRESH_TOKEN_KEY)
+  return value == null || value == '' ? '' : value as string
+}
+
+export function clearTokens() {
+  uni.removeStorageSync(ACCESS_TOKEN_KEY)
+  uni.removeStorageSync(REFRESH_TOKEN_KEY)
+}
+
+function responseObject(value: any): UTSJSONObject {
+  return JSON.parse<UTSJSONObject>(JSON.stringify(value))!
+}
+
+function errorValues(payload: UTSJSONObject): string[] {
+  const errorValue = payload['error']
+  if (errorValue == null) return ['网络请求失败', 'NETWORK_ERROR']
+  const error = responseObject(errorValue)
+  const messageValue = error['message']
+  const codeValue = error['code']
+  const detailsValue = error['details']
+  if (detailsValue != null) {
+    const fieldsValue = responseObject(detailsValue)['fields']
+    if (fieldsValue != null) {
+      const fields = JSON.parse<UTSJSONObject[]>(JSON.stringify(fieldsValue))
+      if (fields != null && fields.length > 0) {
+        const locationValue = fields[0]['loc']
+        const location = locationValue == null ? null : JSON.parse<string[]>(JSON.stringify(locationValue))
+        if (location != null && location.length > 0) {
+          const field = location[location.length - 1]
+          const labels: UTSJSONObject = { profileId: '档案标识', nickname: '昵称', birthYear: '出生年份', birthMonth: '出生月份', gender: '性别', avatarId: '头像', timezone: '时区' }
+          const label = labels[field]
+          return [(label == null ? field : label as string) + '参数不合法，请检查后重试', codeValue == null ? 'INVALID_ARGUMENT' : codeValue as string]
+        }
+      }
+    }
+  }
+  return [messageValue == null ? '网络请求失败' : messageValue as string, codeValue == null ? 'UNKNOWN_ERROR' : codeValue as string]
+}
+
+function performRequest(path: string, method: HttpMethod, body: UTSJSONObject, authenticated: boolean, idempotencyKey: string, retried: boolean, success: ApiSuccess, failure: ApiFailure) {
+  const headers: UTSJSONObject = { 'Content-Type': 'application/json', 'X-Device-Id': getDeviceId() }
+  const platform = getPlatformName()
+  const version = uni.getAppBaseInfo().appVersionCode
+  if (version != null && version != '') {
+    headers['X-App-Platform'] = platform
+    headers['X-App-Channel'] = platform == 'ios' ? 'appstore' : 'android_official'
+    headers['X-App-Version-Code'] = version
+  }
+  const token = getAccessToken()
+  if (authenticated && token != '') headers['Authorization'] = 'Bearer ' + token
+  if (idempotencyKey != '') headers['Idempotency-Key'] = idempotencyKey
+  uni.request({
+    url: API_BASE_URL + path,
+    method: method,
+    data: body,
+    header: headers,
+    success: (result) => {
+      const payload = responseObject(result.data!)
+      if (result.statusCode >= 200 && result.statusCode < 300) {
+        const dataValue = payload['data']
+        success(dataValue == null ? {} : responseObject(dataValue))
+        return
+      }
+      if (result.statusCode == 426) {
+        uni.$emit('focus-app-update-required')
+        failure('请检查 App 更新后重试', 'APP_UPDATE_REQUIRED')
+        return
+      }
+      if (result.statusCode == 401 && authenticated && !retried && getRefreshToken() != '') {
+        refreshAccessToken(() => performRequest(path, method, body, authenticated, idempotencyKey, true, success, failure), failure)
+        return
+      }
+      const values = errorValues(payload)
+      failure(values[0], values[1])
+    },
+    fail: (_error) => failure('无法连接服务，请检查网络和服务器地址', 'NETWORK_ERROR')
+  })
+}
+
+export function apiRequest(path: string, method: HttpMethod, body: UTSJSONObject, authenticated: boolean, success: ApiSuccess, failure: ApiFailure, idempotencyKey: string = '') {
+  if (LOCAL_TEST_MODE) { failure('本地测试模式暂不连接服务器', 'LOCAL_TEST_MODE'); return }
+  performRequest(path, method, body, authenticated, idempotencyKey, false, success, failure)
+}
+
+export function refreshAccessToken(success: () => void, failure: ApiFailure) {
+  const refreshToken = getRefreshToken()
+  if (refreshToken == '') { failure('登录已过期，请重新登录', 'UNAUTHORIZED'); return }
+  performRequest('/auth/token/refresh', 'POST', { refreshToken: refreshToken }, false, '', true, (data: UTSJSONObject) => {
+    const access = data['accessToken'] as string
+    const refresh = data['refreshToken'] as string
+    saveTokens(access, refresh)
+    success()
+  }, (message: string, code: string) => {
+    if (code == 'UNAUTHORIZED' || code == 'INVALID_TOKEN' || code == 'TOKEN_EXPIRED') clearTokens()
+    failure(message, code)
+  })
+}

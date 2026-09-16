@@ -1,15 +1,23 @@
-<template><view class="page">
+<template>
+<TrainingFrame title="规律小侦探" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()"><view class="page">
   <view class="header"><view><text class="dimension">转换注意训练</text><text class="title">规律小侦探</text></view><view class="counter"><text class="counter-value">{{ roundIndex + 1 }}/{{ rounds.length }}</text></view></view>
   <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
   <view class="sequence"><image v-for="(item,index) in current.sequence" :key="index" class="sequence-image" :src="path(item)" mode="aspectFit"></image><view class="question"><text class="question-mark">?</text></view></view>
-  <text class="hint">选择下一个图案</text>
-  <view class="options"><button v-for="item in current.options" :key="item" class="tap-target option" @click="answer(item)"><image class="option-image tap-content" :src="path(item)" mode="aspectFit"></image></button></view>
+  <view class="options"><ActionSurface v-for="item in current.options" :key="item" class="tap-target option" @click="answer(item)"><image class="option-image tap-content" :src="path(item)" mode="aspectFit"></image></ActionSurface></view>
   <view class="feedback"><text :class="feedback == '找到规律' ? 'good' : 'again'">{{ feedback }}</text></view>
   <view class="stats"><view class="stat"><text class="value">{{ correct }}</text><text class="label">正确</text></view><view class="stat"><text class="value">{{ errors }}</text><text class="label">错误</text></view></view>
-</view></template>
+</view></TrainingFrame>
+</template>
 <script setup lang="uts">
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
+import ActionSurface from '../../components/ActionSurface.uvue'
 import { ref, computed } from 'vue'
 import { getGameObjectPath } from '../../utils/game-assets.uts'
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+
 type PatternRound = { sequence: string[], options: string[], answer: string }
 const rounds: PatternRound[] = [
   { sequence:['bunny','car','bunny','car'], options:['boat','bunny','kitten'], answer:'bunny' },
@@ -18,11 +26,14 @@ const rounds: PatternRound[] = [
   { sequence:['kitten','car','car','kitten','car'], options:['bunny','car','boat'], answer:'car' }
 ]
 const roundIndex = ref(0), correct = ref(0), errors = ref(0), feedback = ref('')
+const gameStartedAt = trainingClock.now()
 const current = computed((): PatternRound => rounds[Math.min(roundIndex.value, rounds.length - 1)])
 const progressWidth = computed((): string => Math.round((roundIndex.value / rounds.length) * 100).toString() + '%')
 function path(id: string): string { return getGameObjectPath(id) }
-function finish() { const accuracy = Math.round((correct.value / rounds.length) * 100); uni.redirectTo({ url: '/pages/result/result?gameId=pattern-find&dimensionId=alternating&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=1&switchErrors=' + errors.value.toString() }) }
-function answer(id: string) { if (feedback.value != '') return; if (id == current.value.answer) { correct.value += 1; feedback.value = '找到规律' } else { errors.value += 1; feedback.value = '再看一遍' }; setTimeout(() => { roundIndex.value += 1; feedback.value = ''; if (roundIndex.value >= rounds.length) finish() }, 650) }
+function finish() { const accuracy = Math.round((correct.value / rounds.length) * 100), duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=pattern-find&dimensionId=alternating&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + duration.toString() + '&switchErrors=' + errors.value.toString() }) }
+function answer(id: string) { if (trainingPaused.value) return; if (feedback.value != '') return; if (id == current.value.answer) { { correct.value += 1; training.playFeedback('correct') } feedback.value = '找到规律' } else { { errors.value += 1; training.playFeedback('wrong') } feedback.value = '再看一遍' }; trainingClock.setTimeout(() => { roundIndex.value += 1; feedback.value = ''; if (roundIndex.value >= rounds.length) finish() }, 650) }
+// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => true)
 </script>
 <style>
 .page { flex: 1; padding: 20px; }.header { flex-direction: row; justify-content: space-between; align-items: center; }.dimension { color: #8062bf; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #eee9fa; align-items: center; justify-content: center; }.counter-value { color: #785bb7; font-size: 13px; font-weight: 700; }.progress { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; background-color: #9b7ede; }.sequence { margin-top: 18px; padding: 14px 8px; min-height: 142px; border-radius: 23px; background-color: #ffffff; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; }.sequence-image, .question { margin: 4px; width: 62px; height: 62px; border-radius: 14px; }.question { background-color: #eee9fa; align-items: center; justify-content: center; }.question-mark { color: #785bb7; font-size: 29px; font-weight: 800; }.hint { margin-top: 18px; color: #69758d; font-size: 13px; text-align: center; }.options { margin-top: 12px; flex-direction: row; }.option { flex: 1; margin: 0 5px; padding: 0; height: 130px; border-radius: 20px; background-color: #ffffff; align-items: center; justify-content: center; }.option-image { width: 92px; height: 92px; border-radius: 18px; }.feedback { height: 45px; align-items: center; justify-content: center; }.good { color: #338e72; font-size: 13px; font-weight: 700; }.again { color: #c65b66; font-size: 13px; font-weight: 700; }.stats { flex-direction: row; }.stat { flex: 1; align-items: center; }.value { color: #25314a; font-size: 18px; font-weight: 700; }.label { color: #8a93a7; font-size: 10px; }

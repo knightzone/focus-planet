@@ -1,0 +1,108 @@
+import { LOCAL_TEST_MODE } from './local-test.uts'
+import { getAccessToken } from './api-client.uts'
+import { submitTrainingResult, getOverviewReport, getDailyReport } from './server-api.uts'
+import { getLocalDayKey } from './storage.uts'
+
+export type PendingResult = { id: string, planId: string, itemId: string, payload: UTSJSONObject, error: string }
+const TTL = 48 * 60 * 60 * 1000
+let uploading = false
+let initialized = false
+
+export function syncOwner(): string {
+  if (LOCAL_TEST_MODE) return ''
+  const raw = uni.getStorageSync('focus_planet_auth_session')
+  if (raw == null || raw == '') return ''
+  const session = JSON.parse<UTSJSONObject>(JSON.stringify(raw))!
+  const id = session['userId']
+  return id == null ? '' : id as string
+}
+
+function queueKey(owner: string): string { return 'focus_pending_results_' + owner }
+function readQueue(owner: string): PendingResult[] {
+  const raw = uni.getStorageSync(queueKey(owner))
+  return raw == null || raw == '' ? [] as PendingResult[] : JSON.parse<PendingResult[]>(JSON.stringify(raw))!
+}
+
+export function pendingResultCount(): number { return readQueue(syncOwner()).length }
+
+// Persist before requesting; the original submission ID and play token survive restarts.
+export function enqueueResult(planId: string, itemId: string, payload: UTSJSONObject) {
+  const owner = syncOwner()
+  if (owner == '') return
+  const queue = readQueue(owner)
+  const id = payload['submissionId'] as string
+  if (queue.find((item: PendingResult): boolean => item.id == id) == null) {
+    queue.push({ id: id, planId: planId, itemId: itemId, payload: payload, error: '' })
+    uni.setStorageSync(queueKey(owner), queue)
+  }
+  flushResults()
+}
+
+export function cachedReport(kind: string): UTSJSONObject | null {
+  if (LOCAL_TEST_MODE) return null
+  const key = 'focus_report_' + syncOwner() + '_' + kind
+  const raw = uni.getStorageSync(key)
+  if (raw == null || raw == '') return null
+  const cache = JSON.parse<UTSJSONObject>(JSON.stringify(raw))!
+  if (Date.now() - (cache['savedAt'] as number) > TTL) { uni.removeStorageSync(key); return null }
+  return JSON.parse<UTSJSONObject>(JSON.stringify(cache['data']))
+}
+
+function saveReport(owner: string, kind: string, data: UTSJSONObject) {
+  uni.setStorageSync('focus_report_' + owner + '_' + kind, { savedAt: Date.now(), data: data })
+}
+
+export function refreshReports() {
+  const owner = syncOwner()
+  if (owner == '' || getAccessToken() == '') return
+  const today = getLocalDayKey(Date.now())
+  getOverviewReport(today, (data: UTSJSONObject) => {
+    saveReport(owner, 'overview', data)
+    if (syncOwner() == owner) uni.$emit('focus-reports-updated')
+  }, (_message: string, _code: string) => {})
+  getDailyReport(getLocalDayKey(Date.now() - 24 * 60 * 60 * 1000), today, (data: UTSJSONObject) => {
+    saveReport(owner, 'daily', data)
+    if (syncOwner() == owner) uni.$emit('focus-reports-updated')
+  }, (_message: string, _code: string) => {})
+}
+
+export function flushResults() {
+  if (uploading || getAccessToken() == '') return
+  const owner = syncOwner()
+  if (owner == '') return
+  const batch = readQueue(owner)
+  if (batch.length == 0) return
+  uploading = true
+  uploadNext(owner, batch, 0)
+}
+
+function uploadNext(owner: string, batch: PendingResult[], index: number) {
+  if (syncOwner() != owner || getAccessToken() == '') { uploading = false; return }
+  if (index >= batch.length) { uploading = false; refreshReports(); return }
+  const item = batch[index]
+  if (item.planId == '' || item.itemId == '') { uploadNext(owner, batch, index + 1); return }
+  submitTrainingResult(item.planId, item.itemId, item.payload, (_data: UTSJSONObject) => {
+    const remaining = readQueue(owner).filter((entry: PendingResult): boolean => entry.id != item.id)
+    uni.setStorageSync(queueKey(owner), remaining)
+    if (syncOwner() == owner) uni.$emit('focus-results-synced')
+    uploadNext(owner, batch, index + 1)
+  }, (_message: string, code: string) => {
+    const queue = readQueue(owner)
+    const entry = queue.find((value: PendingResult): boolean => value.id == item.id)
+    if (entry != null) entry.error = code
+    uni.setStorageSync(queueKey(owner), queue)
+    if (code == 'NETWORK_ERROR' || code == 'UNAUTHORIZED') { uploading = false; return }
+    // One rejected/expired token must not block other valid records; retain it locally.
+    uploadNext(owner, batch, index + 1)
+  })
+}
+
+export function initializeOfflineSync() {
+  if (initialized) return
+  initialized = true
+  uni.$on('focus-auth-ready', () => { flushResults(); refreshReports() })
+  uni.onNetworkStatusChange((result) => {
+    if (result.isConnected) { flushResults(); refreshReports() }
+  })
+  setInterval(() => flushResults(), 30000)
+}

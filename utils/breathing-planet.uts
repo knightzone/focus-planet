@@ -1,0 +1,11 @@
+export type BreathingConfig = { cycles: number, toleranceMs: number, guidedCycles: number }
+export function getBreathingConfig(level: number): BreathingConfig {
+  const i = Math.max(0, Math.min(9, Math.round(level) - 1))
+  return { cycles: [8,9,10,12,14,15,15,15,18,20][i], toleranceMs: [1500,1400,1300,1200,1100,1000,1000,950,850,750][i], guidedCycles: [8,9,10,12,14,15,5,3,3,2][i] }
+}
+// 只评价触屏节奏；各档统一3秒扩张、4秒收缩、1秒反馈，不设置憋气阶段。
+export function breathingCycleQuality(pressedAt: number, releasedAt: number, tolerance: number): number {
+  if (pressedAt < 0 || releasedAt < 0 || releasedAt - pressedAt < 300) return 0
+  if (pressedAt <= tolerance && releasedAt - pressedAt >= 1200 && Math.abs(releasedAt - 3000) <= tolerance) return 2
+  return 1
+}

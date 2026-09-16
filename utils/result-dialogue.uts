@@ -1,0 +1,29 @@
+export type ResultDialogue = { role: string, band: string, clip: string, line: string }
+export const RESULT_DIALOGUES: ResultDialogue[] = [
+  { role: 'yueyue', band: 'praise', clip: 'finish-yueyue-praise-1', line: '哇，太厉害啦！跃跃给你一个大大的击掌！' },
+  { role: 'yueyue', band: 'praise', clip: 'finish-yueyue-praise-2', line: '漂亮！这次挑战，你就是闪亮的小高手！' },
+  { role: 'nuannuan', band: 'praise', clip: 'finish-nuannuan-praise-1', line: '你完成得真棒，暖暖为你鼓掌！' },
+  { role: 'nuannuan', band: 'praise', clip: 'finish-nuannuan-praise-2', line: '这次表现真漂亮！送你一个暖暖的拥抱。' },
+  { role: 'yueyue', band: 'normal', clip: 'finish-yueyue-normal-1', line: '这一关探索完啦！和跃跃一起看看收集的星光！' },
+  { role: 'yueyue', band: 'normal', clip: 'finish-yueyue-normal-2', line: '挑战完成！把这次的收获装进口袋吧！' },
+  { role: 'nuannuan', band: 'normal', clip: 'finish-nuannuan-normal-1', line: '这一轮完成了，和暖暖一起看看收获吧。' },
+  { role: 'nuannuan', band: 'normal', clip: 'finish-nuannuan-normal-2', line: '谢谢你和我一起完成挑战，收好这份星光吧。' },
+  { role: 'yueyue', band: 'encourage', clip: 'finish-yueyue-encourage-1', line: '别着急，跃跃和你一起想办法！' },
+  { role: 'yueyue', band: 'encourage', clip: 'finish-yueyue-encourage-2', line: '嘿，没关系！小探险家也会遇到难题，我们慢慢来！' },
+  { role: 'nuannuan', band: 'encourage', clip: 'finish-nuannuan-encourage-1', line: '没关系呀，不用一下子就做好，暖暖陪着你。' },
+  { role: 'nuannuan', band: 'encourage', clip: 'finish-nuannuan-encourage-2', line: '谢谢你愿意尝试。我们不着急，一点一点来。' }
+]
+export function resultVoiceBand(score: number): string { return score >= 90 ? 'praise' : score >= 60 ? 'normal' : 'encourage' }
+let lastDialogue = -1
+export function selectResultDialogue(score: number): number {
+  const band = resultVoiceBand(score), choices: number[] = []
+  for (let i = 0; i < RESULT_DIALOGUES.length; i++) { if (RESULT_DIALOGUES[i].band == band && i != lastDialogue) choices.push(i) }
+  lastDialogue = choices[Math.floor(Math.random() * choices.length)]
+  return lastDialogue
+}
+export function resultCharacter(role: string, band: string): string {
+  const character = role == 'yueyue' ? 'yueyue' : 'nuannuan'
+  const expression = band == 'praise' ? 'praise' : band == 'normal' ? 'normal' : 'encourage'
+  return '/static/images/runtime/result-characters/' + character + '-' + expression + '-v1.webp'
+}
+export function resultCharacterName(role: string): string { return role == 'yueyue' ? '跃跃' : '暖暖' }

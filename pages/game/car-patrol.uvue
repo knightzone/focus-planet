@@ -1,0 +1,236 @@
+<template>
+<TrainingFrame title="小车巡逻" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+  <view class="patrol-page">
+    <view id="patrol-scene" class="scene">
+      <image class="scene-art tap-content" src="/static/images/runtime/backgrounds/car-patrol-town-v1.webp" mode="scaleToFill" @load="backgroundReady = true" @error="assetFailed = true"></image>
+      <view class="hud">
+        <view class="hud-chip"><text class="hud-label">{{ state == 'ready' ? '小车巡逻' : state == 'demo' || state == 'demo-done' ? '试玩' : '难度 ' + level + ' · ' + config.lanes + ' 车道' }}</text></view>
+      </view>
+      <view v-if="state == 'running' || state == 'paused'" class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+      <view v-for="dash in dashes" :key="dash.id" class="road-dash tap-content" :style="{ left: dash.x + '%', top: dash.y + '%', width: dash.width + 'px', height: dash.height + 'px', opacity: dash.opacity, transform: 'translate(-50%, -100%) rotate(' + dash.angle + 'deg)' }"></view>
+      <view v-for="post in posts" :key="post.id" class="road-post tap-content" :style="{ left: post.x + '%', top: post.y + '%', width: post.width + 'px', height: post.height + 'px' }"><view class="post-band"></view></view>
+      <image v-for="cone in cones" :key="cone.id" class="cone tap-content" src="/static/images/runtime/car-patrol/cone-v1.svg" mode="aspectFit" :style="{ left: cone.x + '%', top: cone.y + '%', width: cone.size + 'px', height: cone.size + 'px', opacity: cone.opacity * (cone.hit ? 0.4 : 1) }"></image>
+      <image class="player-car tap-content" :class="elapsed < flashUntil ? 'car-bump' : ''" src="/static/images/runtime/car-patrol/car-rear-v1.webp" mode="aspectFit" :style="{ left: carLeft + '%', width: carSize + 'px', height: carSize + 'px' }" @load="carReady = true" @error="assetFailed = true"></image>
+      <text v-if="state == 'running' && elapsed < flashUntil" class="bump-feedback">碰到路锥啦</text>
+      <view v-if="state == 'ready' || state == 'demo-done'" class="scene-message">
+        <text class="message-title">{{ state == 'demo-done' ? '躲开啦！' : '换条车道，躲开路锥' }}</text>
+        <text v-if="assetFailed" class="message-note">图片未加载，请返回后重试</text>
+        <button class="primary" :disabled="!assetsReady" @click="begin">{{ assetsReady ? '开始巡逻' : '准备中…' }}</button>
+        <text v-if="assetsReady" class="replay" @click="startDemo">{{ state == 'demo-done' ? '再试一次' : '先试玩' }}</text>
+      </view>
+      <view v-if="state == 'demo'" class="demo-skip"><button class="demo-skip-button" @click="begin">开始巡逻</button></view>
+    </view>
+    <view class="controls">
+      <text class="control-hint">{{ state == 'demo' ? demoHint : state == 'running' ? '点车道换位置' : '跃跃和暖暖，出发！' }}</text>
+      <view class="lane-buttons">
+        <view v-for="lane in config.lanes" :key="lane" class="lane-button" :class="targetLane == lane - 1 ? 'lane-selected' : ''" @click="moveTo(lane - 1)">
+          <text class="lane-arrow" :class="targetLane == lane - 1 ? 'arrow-selected' : ''">{{ targetLane == lane - 1 ? '●' : lane - 1 < targetLane ? '‹' : '›' }}</text>
+        </view>
+      </view>
+      <text v-if="state == 'running' || state == 'paused'" class="session-stat">已通过 {{ passed }} / {{ config.waves }}　·　碰撞 {{ hits }}</text>
+    </view>
+  </view>
+</TrainingFrame>
+</template>
+
+<script setup lang="uts">
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
+import { ref, computed, nextTick } from 'vue'
+import { onLoad, onHide, onUnload, onReady, onResize } from '@dcloudio/uni-app'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { PatrolConfig, PatrolWave, getPatrolConfig, makePatrolWave, patrolDepth, patrolX, patrolY, patrolRoadWidth, patrolOverlaps, patrolConeSize, patrolConeOpacity, patrolDividerAngle } from '../../utils/car-patrol.uts'
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+
+
+type RoadDash = { id: number, x: number, y: number, width: number, height: number, opacity: number, angle: number }
+type RoadPost = { id: number, x: number, y: number, width: number, height: number }
+type ConeVisual = { id: string, x: number, y: number, size: number, hit: boolean, opacity: number }
+const state = ref('ready'), level = ref(1), config = ref<PatrolConfig>(getPatrolConfig(1))
+const backgroundReady = ref(false), carReady = ref(false), assetFailed = ref(false)
+const assetsReady = computed((): boolean => backgroundReady.value && carReady.value && !assetFailed.value)
+const targetLane = ref(0), carLane = ref(0), elapsed = ref(0), flashUntil = ref(0)
+const passed = ref(0), hits = ref(0), demoHint = ref('点右边车道 →')
+const dashes = ref([] as RoadDash[]), posts = ref([] as RoadPost[]), cones = ref([] as ConeVisual[])
+const progressWidth = computed((): string => Math.round(passed.value / config.value.waves * 100).toString() + '%')
+const carLeft = computed((): number => patrolX(carLane.value, config.value.lanes, 1))
+const carSize = computed((): number => config.value.lanes == 2 ? 106 : config.value.lanes == 3 ? 92 : 78)
+let timer = 0, lastTick = 0, nextSpawn = 0, spawned = 0, previousSafe = 0
+let waves = [] as PatrolWave[], reactions = [] as number[]
+let resumeState = 'running', demoBlocked = 0
+let sceneWidth = 390, sceneHeight = 550
+
+function stopTimer() { if (timer != 0) trainingClock.clearInterval(timer); timer = 0 }
+function finish() {
+  if (state.value != 'running') return
+  state.value = 'finished'; stopTimer()
+  const correct = Math.max(0, passed.value - hits.value)
+  const accuracy = Math.round(correct / Math.max(1, passed.value) * 100)
+  const sum = reactions.reduce((a: number, b: number): number => a + b, 0)
+  const reaction = reactions.length == 0 ? 0 : Math.round(sum / reactions.length)
+  uni.redirectTo({ url: '/pages/result/result?gameId=car-patrol&dimensionId=sustained&score=' + accuracy + '&accuracy=' + accuracy + '&reaction=' + reaction + '&duration=' + Math.max(1, Math.round(elapsed.value / 1000)) + '&completed=' + correct + '&total=' + passed.value + '&falseAlarms=' + hits.value })
+}
+
+function renderRoad() {
+  const marks = [] as RoadDash[], edges = [] as RoadPost[], objects = [] as ConeVisual[]
+  const shift = elapsed.value / config.value.travelMs * 0.82
+  // 长线少段：降低标线掠过频次，保持原有道路/障碍推进速度。
+  for (let index = 0; index < 2; index++) {
+    const depth = ((index * 1.12 / 2 + shift) % 1.12)
+    const edgeFade = Math.min(1, depth / 0.12, Math.max(0, (1.12 - depth) / 0.14))
+    for (let divider = 1; divider < config.value.lanes; divider++) {
+      const angle = patrolDividerAngle(divider, config.value.lanes, sceneWidth, sceneHeight)
+      marks.push({ id: index * 10 + divider, x: 50 + (divider / config.value.lanes - 0.5) * patrolRoadWidth(depth), y: patrolY(depth), width: 1 + 2 * depth, height: (12 + 78 * depth * depth) / Math.cos(angle * Math.PI / 180), opacity: 0.4 * edgeFade, angle: angle })
+    }
+  }
+  // 路边参照物固定，去掉视野两侧快速掠过的装饰性运动。
+  for (let index = 0; index < 4; index++) {
+    const depth = 0.18 + index * 0.2
+    for (let side = 0; side < 2; side++) {
+      edges.push({ id: index * 2 + side, x: 50 + (side == 0 ? -1 : 1) * (patrolRoadWidth(depth) / 2 + 3), y: patrolY(depth), width: 2 + 5 * depth, height: 4 + 20 * depth })
+    }
+  }
+  for (let index = 0; index < waves.length; index++) {
+    const wave = waves[index], depth = patrolDepth(elapsed.value, wave.bornAt, config.value.travelMs)
+    if (depth > 1.16) continue
+    for (let item = 0; item < wave.lanes.length; item++) {
+      objects.push({ id: wave.id.toString() + '-' + item, x: patrolX(wave.lanes[item], config.value.lanes, depth), y: patrolY(depth), size: patrolConeSize(depth), hit: wave.hit, opacity: patrolConeOpacity(depth) })
+    }
+  }
+  // 远处先绘制，近处后绘制，确保透视遮挡正确。
+  objects.sort((a: ConeVisual, b: ConeVisual): number => a.y - b.y)
+  dashes.value = marks; posts.value = edges; cones.value = objects
+}
+
+function spawnWave() {
+  const wave = makePatrolWave(spawned, elapsed.value, config.value, previousSafe)
+  waves.push(wave); previousSafe = wave.safeLane; spawned += 1
+}
+
+function updateGame(delta: number) {
+  if (state.value != 'running' && state.value != 'demo') return
+  elapsed.value += delta
+  const distance = targetLane.value - carLane.value
+  const step = delta / 190
+  carLane.value += Math.abs(distance) <= step ? distance : distance > 0 ? step : -step
+  if (state.value == 'demo') {
+    const depth = patrolDepth(elapsed.value, 0, config.value.travelMs)
+    if (depth >= 0.75 && patrolOverlaps(carLane.value, demoBlocked)) {
+      // 试玩在碰撞前等待操作，不惩罚、不自动替孩子换道。
+      elapsed.value = (0.75 - 0.08) / 0.82 * config.value.travelMs
+      demoHint.value = demoBlocked == 0 ? '点右边车道 →' : '← 点左边车道'
+    } else if (depth >= 1.12) {
+      state.value = 'demo-done'; stopTimer()
+    }
+    renderRoad(); return
+  }
+  if (spawned < config.value.waves && elapsed.value >= nextSpawn) { spawnWave(); nextSpawn = elapsed.value + config.value.gapMs }
+  for (let index = 0; index < waves.length; index++) {
+    const wave = waves[index], depth = patrolDepth(elapsed.value, wave.bornAt, config.value.travelMs)
+    if (wave.scored) continue
+    if (depth >= 0.84 && depth <= 1.06 && !wave.hit) {
+      for (let lane = 0; lane < wave.lanes.length; lane++) {
+        if (patrolOverlaps(carLane.value, wave.lanes[lane])) {
+          wave.hit = true; { hits.value += 1; training.playFeedback('wrong') } flashUntil.value = elapsed.value + 500; break
+        }
+      }
+    }
+    if (depth > 1.06) {
+      wave.scored = true; passed.value += 1
+      if (!wave.hit) training.playFeedback('correct')
+      if (!wave.hit && wave.reactedAt >= 0) reactions.push(wave.reactedAt)
+    }
+  }
+  waves = waves.filter((wave: PatrolWave): boolean => patrolDepth(elapsed.value, wave.bornAt, config.value.travelMs) <= 1.16)
+  renderRoad()
+  if (passed.value >= config.value.waves) finish()
+}
+
+function tick() {
+  const now = trainingClock.now(), delta = now - lastTick; lastTick = now
+  // 系统卡顿/挂起不偷偷推进整段路程；暂停时间也不计入成绩时长。
+  if (delta > 250) { training.pause(); return }
+  updateGame(Math.max(0, delta))
+}
+function measureRoad() {
+  const scene = uni.getElementById('patrol-scene')
+  if (scene != null) {
+    const bounds = scene.getBoundingClientRect()
+    if (bounds.width > 0 && bounds.height > 0) { sceneWidth = bounds.width; sceneHeight = bounds.height }
+  }
+  renderRoad()
+}
+function startTimer() { stopTimer(); nextTick(() => measureRoad()); lastTick = trainingClock.now(); timer = trainingClock.setInterval(() => tick(), 33) }
+function resetRun() {
+  stopTimer(); elapsed.value = 0; flashUntil.value = 0; passed.value = 0; hits.value = 0
+  spawned = 0; nextSpawn = 700; waves = [] as PatrolWave[]; reactions = [] as number[]
+  targetLane.value = 0; carLane.value = 0; previousSafe = 0
+}
+function startDemo() { if (trainingPaused.value) return;
+  if (!assetsReady.value) return
+  resetRun(); config.value = getPatrolConfig(1); state.value = 'demo'; demoBlocked = 0
+  demoHint.value = '点右边车道 →'
+  waves.push({ id: 0, bornAt: 0, lanes: [0], safeLane: 1, hit: false, scored: false, reactedAt: -1 })
+  renderRoad(); startTimer()
+}
+function begin() { if (trainingPaused.value) return;
+  if ((state.value != 'ready' && state.value != 'demo' && state.value != 'demo-done') || !assetsReady.value) return
+  resetRun(); config.value = getPatrolConfig(level.value); state.value = 'running'; renderRoad(); startTimer()
+}
+function moveTo(lane: number) { if (trainingPaused.value) return;
+  if ((state.value != 'running' && state.value != 'demo') || lane < 0 || lane >= config.value.lanes || targetLane.value == lane) return
+  targetLane.value = lane
+  if (state.value == 'running') {
+    for (let index = 0; index < waves.length; index++) {
+      const wave = waves[index]
+      if (!wave.scored && !wave.hit && wave.reactedAt < 0 && wave.lanes.indexOf(lane) < 0 && wave.lanes.indexOf(Math.round(carLane.value)) >= 0) wave.reactedAt = elapsed.value - wave.bornAt
+    }
+  }
+}
+function pauseGame() { training.pause() }
+function resumeGame() { training.resume() }
+function exitGame() { stopTimer(); state.value = 'finished'; uni.navigateBack() }
+onLoad(() => { level.value = getGameDifficulty('car-patrol'); renderRoad() })
+onReady(() => measureRoad())
+onResize(() => nextTick(() => measureRoad()))
+onUnload(() => stopTimer())
+// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => state.value == 'running' || state.value == 'finished')
+</script>
+
+<style>
+.patrol-page { flex: 1; background-color: #ecf7ea; }
+.scene { flex: 1; min-height: 340px; position: relative; overflow: hidden; }
+.scene-art { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.hud { position: absolute; left: 16px; right: 16px; top: 14px; flex-direction: row; justify-content: space-between; z-index: 12; }
+.hud-chip { padding: 10px 14px; border-radius: 20px; background-color: rgba(255,255,255,0.92); }
+.hud-label { color: #34586a; font-size: 13px; font-weight: 700; }
+.progress { position: absolute; left: 20px; right: 20px; top: 64px; height: 5px; background-color: rgba(255,255,255,0.5); border-radius: 3px; z-index: 12; overflow: hidden; }
+.progress-fill { height: 5px; background-color: #4ab68b; border-radius: 3px; }
+.road-dash { position: absolute; background-color: #fff9dd; border-radius: 2px; transform-origin: 50% 100%; }
+.road-post { position: absolute; background-color: #fffce8; border-radius: 3px; transform: translate(-50%, -100%); overflow: hidden; }
+.post-band { height: 35%; margin-top: 20%; background-color: #f38276; }
+.cone { position: absolute; transform: translate(-50%, -100%); }
+.player-car { position: absolute; top: 88%; transform: translate(-50%, -100%); z-index: 8; }
+.car-bump { opacity: 0.55; }
+.bump-feedback { position: absolute; top: 49%; left: 20%; width: 60%; text-align: center; color: #963f32; background-color: #fff1dc; padding: 10px; border-radius: 16px; font-size: 16px; font-weight: 700; z-index: 10; }
+.scene-message { position: absolute; top: 30%; left: 8%; right: 8%; padding: 24px 14px; border-radius: 26px; background-color: rgba(255,255,255,0.94); align-items: center; z-index: 15; }
+.message-title { color: #2c5063; font-size: 21px; font-weight: 700; }
+.message-note { margin-top: 12px; color: #a3594c; font-size: 13px; }
+.primary { width: 190px; height: 50px; line-height: 50px; margin-top: 20px; border-radius: 25px; background-color: #46b589; color: #ffffff; font-size: 17px; font-weight: 700; }
+.replay { color: #648384; padding: 16px; font-size: 14px; }
+.demo-skip { position: absolute; right: 16px; top: 14px; z-index: 15; }
+.demo-skip-button { margin: 0; padding: 0 14px; height: 40px; line-height: 40px; border-radius: 20px; background-color: #46b589; color: #ffffff; font-size: 14px; font-weight: 700; }
+.pause-cover { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(29,57,62,0.3); align-items: center; justify-content: center; z-index: 20; }
+.pause-card { width: 80%; padding: 26px; background-color: #ffffff; border-radius: 26px; align-items: center; }
+.controls { padding: 12px 20px 22px; background-color: #f5fbef; }
+.control-hint { text-align: center; color: #53786b; font-size: 13px; }
+.lane-buttons { flex-direction: row; margin-top: 10px; }
+.lane-button { flex: 1; height: 56px; margin: 0 4px; border-radius: 18px; background-color: #dbece0; align-items: center; justify-content: center; border-width: 2px; border-color: #c7dfce; }
+.lane-selected { background-color: #fce6a2; border-color: #e7c66c; }
+.lane-arrow { color: #518b73; font-size: 36px; font-weight: 700; }
+.arrow-selected { color: #c09b36; font-size: 21px; }
+.session-stat { margin-top: 9px; color: #6c897d; text-align: center; font-size: 12px; }
+</style>

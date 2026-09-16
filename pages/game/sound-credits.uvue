@@ -1,0 +1,45 @@
+<template><view class="page"><scroll-view class="scroll" direction="vertical"><view class="content"><text class="title">音效来源</text><text class="note">音效经过裁剪、音色与响度处理。原作者不代表对本产品的认可或背书。</text><view v-for="item in credits" :key="item.source" class="item"><text class="name">{{ item.title }}</text><text class="note">{{ item.author }}</text><text class="note">{{ item.license }}</text><text class="link" @click="copy(item.source)">复制来源链接</text><text class="link" @click="copy(item.licenseUrl)">复制许可链接</text></view></view></scroll-view></view></template>
+<script setup lang="uts">
+type Credit = { title: string, author: string, license: string, source: string, licenseUrl: string }
+const credits = [
+{"title":"cat meow","author":"tuberatanka","license":"CC0-1.0","source":"https://freesound.org/people/tuberatanka/sounds/110011/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Kitten meows","author":"Luke100000","license":"CC0-1.0","source":"https://freesound.org/people/Luke100000/sounds/476918/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"cat meowing","author":"nekoninja","license":"CC0-1.0","source":"https://freesound.org/people/nekoninja/sounds/414042/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Chihuahua Puppy Bark","author":"AustinXYZ","license":"CC0-1.0","source":"https://freesound.org/people/AustinXYZ/sounds/350591/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Dog barking and making noises.wav","author":"dtmendes","license":"CC0-1.0","source":"https://freesound.org/people/dtmendes/sounds/591137/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Cow moo #7","author":"spurioustransients","license":"CC0-1.0","source":"https://freesound.org/people/spurioustransients/sounds/513561/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Cow moos","author":"JosephSardin","license":"CC0-1.0","source":"https://freesound.org/people/JosephSardin/sounds/177253/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Sheep bleat.wav","author":"mikewest","license":"CC0-1.0","source":"https://freesound.org/people/mikewest/sounds/414342/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"sheep bleat","author":"Yuval","license":"CC0-1.0","source":"https://freesound.org/people/Yuval/sounds/210511/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"horse.mp3","author":"3bagbrew","license":"CC0-1.0","source":"https://freesound.org/people/3bagbrew/sounds/59569/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Horse","author":"madklown","license":"CC0-1.0","source":"https://freesound.org/people/madklown/sounds/184503/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"pig grunting and foraging.wav","author":"odilonmarcenaro","license":"CC0-1.0","source":"https://freesound.org/people/odilonmarcenaro/sounds/121949/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"A pig grunting, grumbling and falling asleep (France, Limousin)","author":"felix.blume","license":"CC0-1.0","source":"https://freesound.org/people/felix.blume/sounds/158746/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Chicken clucking","author":"Breviceps","license":"CC0-1.0","source":"https://freesound.org/people/Breviceps/sounds/456803/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Feeding chickens","author":"Breviceps","license":"CC0-1.0","source":"https://freesound.org/people/Breviceps/sounds/484722/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Duck Quack","author":"OwennewO","license":"CC0-1.0","source":"https://freesound.org/people/OwennewO/sounds/719111/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Duck Quacking Twice","author":"OwennewO","license":"CC0-1.0","source":"https://freesound.org/people/OwennewO/sounds/719109/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Bird Chirp","author":"swiftoid","license":"CC0-1.0","source":"https://freesound.org/people/swiftoid/sounds/182507/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Bird Chirp.wav","author":"hmoosher","license":"CC0-1.0","source":"https://freesound.org/people/hmoosher/sounds/393655/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Car Honking","author":"MicktheMicGuy","license":"CC0-1.0","source":"https://freesound.org/people/MicktheMicGuy/sounds/434878/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"honkhonk.wav","author":"Mihacappy","license":"CC0-1.0","source":"https://freesound.org/people/Mihacappy/sounds/827215/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Train.wav","author":"foxen10","license":"CC0-1.0","source":"https://freesound.org/people/foxen10/sounds/149022/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Steam-Train Molli - with whistle and arrival","author":"7z7","license":"CC0-1.0","source":"https://freesound.org/people/7z7/sounds/277496/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Propeller plane","author":"Breviceps","license":"CC0-1.0","source":"https://freesound.org/people/Breviceps/sounds/515293/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Propeller Plane","author":"clif_creates","license":"CC0-1.0","source":"https://freesound.org/people/clif_creates/sounds/251971/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Acoustic Guitar Chords","author":"eqavox","license":"CC0-1.0","source":"https://freesound.org/people/eqavox/sounds/683953/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"guitar pluck.wav","author":"FenrirFangs","license":"CC0-1.0","source":"https://freesound.org/people/FenrirFangs/sounds/234739/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"SD1.wav","author":"Tristan","license":"CC0-1.0","source":"https://freesound.org/people/Tristan/sounds/16789/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Single drum hits 17inch dry","author":"wolfdoctor","license":"CC0-1.0","source":"https://freesound.org/people/wolfdoctor/sounds/553876/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"maracas","author":"nathanmanaker","license":"CC0-1.0","source":"https://freesound.org/people/nathanmanaker/sounds/486950/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"maracas","author":"emapuree","license":"CC0-1.0","source":"https://freesound.org/people/emapuree/sounds/848750/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Piano Single Note.wav","author":"owstu","license":"CC0-1.0","source":"https://freesound.org/people/owstu/sounds/508800/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Upright Piano Remeau 12 E4","author":"Sadiquecat","license":"CC0-1.0","source":"https://freesound.org/people/Sadiquecat/sounds/794370/","licenseUrl":"https://creativecommons.org/publicdomain/zero/1.0/"},
+{"title":"Violin - A4","author":"MTG / Music Technology Group, Universitat Pompeu Fabra · Good-sounds","license":"CC-BY-3.0","source":"https://freesound.org/people/MTG/sounds/356180/","licenseUrl":"https://creativecommons.org/licenses/by/3.0/"},
+{"title":"Violin - E5","author":"MTG / Music Technology Group, Universitat Pompeu Fabra · Good-sounds","license":"CC-BY-3.0","source":"https://freesound.org/people/MTG/sounds/356026/","licenseUrl":"https://creativecommons.org/licenses/by/3.0/"},
+{"title":"Trumpet - Fsharp4","author":"MTG / Music Technology Group, Universitat Pompeu Fabra · Good-sounds","license":"CC-BY-3.0","source":"https://freesound.org/people/MTG/sounds/357545/","licenseUrl":"https://creativecommons.org/licenses/by/3.0/"},
+{"title":"Trumpet - Asharp3","author":"MTG / Music Technology Group, Universitat Pompeu Fabra · Good-sounds","license":"CC-BY-3.0","source":"https://freesound.org/people/MTG/sounds/357589/","licenseUrl":"https://creativecommons.org/licenses/by/3.0/"},
+] as Credit[]
+function copy(value: string) { uni.setClipboardData({data:value}) }
+</script>
+<style>.page{flex:1;background-color:#eef4ff}.scroll{flex:1}.content{padding:22px}.title{font-size:23px;font-weight:700;color:#263650}.note{font-size:12px;line-height:20px;color:#63748e;margin-top:6px}.item{background-color:white;border-radius:16px;margin-top:14px;padding:16px}.name{font-size:14px;font-weight:700;color:#324563}.link{font-size:13px;color:#4c76c1;margin-top:12px;padding:8px 0}</style>

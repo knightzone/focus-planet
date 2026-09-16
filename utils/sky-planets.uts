@@ -1,0 +1,42 @@
+// 前 4 款是金色目标候选，4–7 为暖色相似干扰，8–19 为明显不同的冷色等干扰。
+export const skyPlanetSources = [
+  '/static/images/runtime/sky-planets/gold-ring.webp',
+  '/static/images/runtime/sky-planets/gold-purple-ring.webp',
+  '/static/images/runtime/sky-planets/gold-crater.webp',
+  '/static/images/runtime/sky-planets/gold-bands.webp',
+  '/static/images/runtime/sky-planets/amber-ring.webp',
+  '/static/images/runtime/sky-planets/lemon-ring.webp',
+  '/static/images/runtime/sky-planets/peach-ring.webp',
+  '/static/images/runtime/sky-planets/orange-crater.webp',
+  '/static/images/runtime/sky-planets/blue-ring.webp',
+  '/static/images/runtime/sky-planets/teal-crater.webp',
+  '/static/images/runtime/sky-planets/violet-bands.webp',
+  '/static/images/runtime/sky-planets/pink-ring.webp',
+  '/static/images/runtime/sky-planets/earth.webp',
+  '/static/images/runtime/sky-planets/mint-cloud.webp',
+  '/static/images/runtime/sky-planets/red-lava.webp',
+  '/static/images/runtime/sky-planets/ice-blue.webp',
+  '/static/images/runtime/sky-planets/indigo-moons.webp',
+  '/static/images/runtime/sky-planets/lavender-ring.webp',
+  '/static/images/runtime/sky-planets/green-dots.webp',
+  '/static/images/runtime/sky-planets/silver-crater.webp'
+] as string[]
+
+export type SkyTiming = { rounds: number, showMs: number, gapMs: number }
+export function getSkyTiming(level: number): SkyTiming {
+  const index = Math.max(1, Math.min(10, level)) - 1
+  const shows = [2800, 2500, 2200, 1900, 1650, 1400, 1200, 1050, 900, 780] as number[]
+  const gaps = [1100, 1000, 900, 820, 740, 660, 580, 520, 460, 400] as number[]
+  return { rounds: 12 + Math.floor(index / 3) * 4, showMs: shows[index], gapMs: gaps[index] }
+}
+
+export function pickSkyDistractor(level: number, target: number): number {
+  // 低级完全不同；中级逐步加入暖色；高级加入其他金色星球，但永远排除本次目标。
+  const nearChance = level <= 3 ? 0 : Math.min(0.9, (level - 3) * 0.13)
+  if (Math.random() >= nearChance) return 8 + Math.floor(Math.random() * 12)
+  const pool = [] as number[]
+  for (let index = level >= 7 ? 0 : 4; index < 8; index++) {
+    if (index != target) pool.push(index)
+  }
+  return pool[Math.floor(Math.random() * pool.length)]
+}
