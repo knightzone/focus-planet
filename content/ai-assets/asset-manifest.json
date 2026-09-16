@@ -40,6 +40,36 @@
       "gameTags": ["visual_search", "memory", "sorting"]
     },
     {
+      "id": "star-training-tab-v1",
+      "type": "tab_icon",
+      "status": "approved",
+      "candidatePath": "",
+      "runtimePath": "/static/images/runtime/tabbar/star-training-v1.png",
+      "ageBands": ["starter", "growth", "advanced", "teen"],
+      "gameTags": ["navigation", "training"],
+      "reviewNotes": "Blue bunny and star medallion; 81x81 PNG on the native white tab-bar background."
+    },
+    {
+      "id": "star-companion-tab-v1",
+      "type": "tab_icon",
+      "status": "approved",
+      "candidatePath": "",
+      "runtimePath": "/static/images/runtime/tabbar/star-companion-v1.png",
+      "ageBands": ["starter", "growth", "advanced", "teen"],
+      "gameTags": ["navigation", "companion"],
+      "reviewNotes": "Yellow kitten and timer medallion; 81x81 PNG on the native white tab-bar background."
+    },
+    {
+      "id": "star-home-tab-v1",
+      "type": "tab_icon",
+      "status": "approved",
+      "candidatePath": "",
+      "runtimePath": "/static/images/runtime/tabbar/star-home-v1.png",
+      "ageBands": ["starter", "growth", "advanced", "teen"],
+      "gameTags": ["navigation", "profile"],
+      "reviewNotes": "Lavender star house with both mascot characters; 81x81 PNG on the native white tab-bar background."
+    },
+    {
       "id": "mascot-space-fox-v1",
       "type": "mascot",
       "status": "needs_background_fix",

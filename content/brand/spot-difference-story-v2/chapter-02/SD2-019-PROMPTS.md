@@ -1,0 +1,9 @@
+# SD2-019 · 内置 image_gen
+
+## A
+
+Use case illustration-story SD2-019 A. ONE wide 16:9 new polished 3D storybook cartoon. Reference only blue bunny Yueyue identity, blue nose, blue fur, small cream muzzle and belly, blue eyes, brown footpads. Bunny reclines comfortably on soft coral cushion beside large pumpkin leaves on level garden grass, both short paws resting on belly, two bare feet visible, ears relaxed, content gently amused eyes half open. Pair of EMPTY tan walking shoes neatly side by side and blue water bottle with white daisy placed nearby. Packed low teal garden wagon behind holding rolled green blanket with cream edge, tan bag round clasp, wicker basket yellow checked cloth. Warm peaceful sunny garden, pumpkin patch and simple gate behind, full bunny readable medium-wide. Other separated natural details: cushion small cream embroidered leaf, small terracotta pot with cream band and red dots, wooden stool with straw hat blue ribbon. No additional characters no text UI numbers watermark or panels. Clear tranquil scene and natural anatomy, no sleeping distress.
+
+## B
+
+Precise-object-edit SD2-019 B from exact A. Preserve canvas camera lighting all unlisted areas. Ten natural local differences: 1 cushion cream leaf embroidery becomes cream butterfly embroidery; 2 blue bottle daisy becomes cream crescent; 3 straw hat blue ribbon becomes coral ribbon; 4 basket yellow checked cloth becomes yellow striped cloth; 5 tan bag round button becomes square wooden button; 6 foremost green rolled blanket cream edge becomes pale blue edge, keep shape; 7 cart front center panel gains small cream flower emblem; 8 left visible cart wheel center becomes teal; 9 far left pot red drop motifs on band become red circles; 10 left shoe toe gains a small stitched cream star patch. Keep bunny unchanged and all limbs natural; preserve right shoe, garden and background. No text labels circles arrows panels watermark.

@@ -1,0 +1,11 @@
+# SD2-022 树后的小向导
+
+内置 image_gen，A/B目检，区域QA待做。
+
+## A
+
+Use case illustration-story. One independent wide16:9 polished soft3D cartoon children's story picture SD2-022 A 'little guide behind tree'. Reference1 squirrel identity only, reference2 bunny identity only, new composition. Cinnamon squirrel Lili with cream cheeks/chest and fluffy curved tail peeks around right edge of a broad oak trunk on left, one natural short arm pointing toward a low stone wall at right background. Brightblue bunny Yueyue blue nose cream muzzle/belly, short arms, two bare cream feet, stands center-right turning back smiling at squirrel. Warm sunny forest floor. At tree base a green travel bag with round gold button and little white leaf emblem; wicker basket with several fallen leaves and blue ribbon tied to handle. Separate simple readable props around frame: red spotted mushroom bottom left, yellow enamel cup by bag, orange maple leaf bottom center, pair of acorns near basket, a white daisy bottom right, blue butterfly on rock wall upper right. Wide open cheerful woodland path between tree and wall, coherent natural scene, not crowded. No kitten, text, letters, watermark, grids or UI. Healthy natural anatomy. Reference style, not previous composition.
+
+## B
+
+Use case precise-object-edit. This exact picture is edit target SD2-022 A. Produce B same canvas, framing, character poses, forest, lighting and all unrelated details unchanged. Exactly ten distinct local changes: 1 blue bow on basket becomes pink; 2 green bag white leaf emblem becomes white five-point star; 3 bag round gold clasp becomes square gold clasp; 4 yellow cup becomes turquoise; 5 two acorns on ground by basket become one removing right acorn; 6 orange maple leaf bottom center becomes green same shape; 7 large mushroom bottom left red cap becomes yellow with spots retained; 8 small red mushroom under it disappears; 9 butterfly upper right blue areas become orange retaining black pattern; 10 large white daisy at far right foreground becomes pink petals, other daisies unchanged. Keep recognizable bunny and squirrel anatomy, short arms, blue bunny nose. No new props, text, grid, watermark. Preserve original geometry and textures outside edits.

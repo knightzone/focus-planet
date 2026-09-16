@@ -1,0 +1,21 @@
+{
+  "objectId": "dog",
+  "label": "狗",
+  "image": "static/images/runtime/illustrations/shadow-match/medium-puppies/puppy-1.webp",
+  "objectNotes": "选择普通短吠，不选低吼或连续狂吠；前两条是同一作者的不同录音文件。",
+  "id": "dog-350591",
+  "author": "AustinXYZ",
+  "sourceId": 350591,
+  "title": "Chihuahua Puppy Bark",
+  "sourceUrl": "https://freesound.org/people/AustinXYZ/sounds/350591/",
+  "license": "CC0-1.0",
+  "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "downloaded": true,
+  "downloadedUrl": "https://cdn.freesound.org/previews/350/350591_6433555-hq.mp3",
+  "downloadedDate": "2026-09-11",
+  "sourceFormat": "public HQ MP3 preview; not original download",
+  "downloadedDurationSeconds": 0.679184,
+  "sha256": "d868ea0c990a20c91b347ca9cc765fe8aaba2c4d655a29e1c57ea343c2d170f1",
+  "pageLicenseVerified": true,
+  "audioFile": "sources/350591-hq.mp3"
+}

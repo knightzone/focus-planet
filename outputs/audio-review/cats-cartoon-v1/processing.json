@@ -1,0 +1,50 @@
+[
+  {
+    "original": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/outputs/audio-review/cats-v1/clips/cat-01.wav",
+    "cartoon": "cat-01-cartoon.wav",
+    "pitchSemitones": 1.2,
+    "filter": "rubberband=tempo=1:pitch=1.07177346,equalizer=f=850:t=q:w=0.8:g=1.2,equalizer=f=3200:t=q:w=0.7:g=-1.5,lowpass=f=6000",
+    "finalGainDb": 1.5,
+    "originalLevelsDbfs": {
+      "mean": -24.0,
+      "max": -11.3
+    },
+    "cartoonLevelsDbfs": {
+      "mean": -24.0,
+      "max": -11.7
+    },
+    "status": "awaiting_user_AB_listening_review"
+  },
+  {
+    "original": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/outputs/audio-review/cats-v1/clips/cat-04.wav",
+    "cartoon": "cat-04-cartoon.wav",
+    "pitchSemitones": 0.7,
+    "filter": "rubberband=tempo=1:pitch=1.04126215,equalizer=f=850:t=q:w=0.8:g=1.2,equalizer=f=3200:t=q:w=0.7:g=-1.5,lowpass=f=6000",
+    "finalGainDb": 1.8,
+    "originalLevelsDbfs": {
+      "mean": -32.9,
+      "max": -14.7
+    },
+    "cartoonLevelsDbfs": {
+      "mean": -32.9,
+      "max": -18.7
+    },
+    "status": "awaiting_user_AB_listening_review"
+  },
+  {
+    "original": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/outputs/audio-review/cats-v1/clips/cat-05.wav",
+    "cartoon": "cat-05-cartoon.wav",
+    "pitchSemitones": 1.2,
+    "filter": "rubberband=tempo=1:pitch=1.07177346,equalizer=f=850:t=q:w=0.8:g=1.2,equalizer=f=3200:t=q:w=0.7:g=-1.5,lowpass=f=6000",
+    "finalGainDb": 1.5,
+    "originalLevelsDbfs": {
+      "mean": -24.0,
+      "max": -10.6
+    },
+    "cartoonLevelsDbfs": {
+      "mean": -24.0,
+      "max": -10.3
+    },
+    "status": "awaiting_user_AB_listening_review"
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "objectId": "dog",
+  "label": "狗",
+  "image": "static/images/runtime/illustrations/shadow-match/medium-puppies/puppy-1.webp",
+  "objectNotes": "选择普通短吠，不选低吼或连续狂吠；前两条是同一作者的不同录音文件。",
+  "id": "dog-591137",
+  "author": "dtmendes",
+  "sourceId": 591137,
+  "title": "Dog barking and making noises.wav",
+  "sourceUrl": "https://freesound.org/people/dtmendes/sounds/591137/",
+  "license": "CC0-1.0",
+  "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "downloaded": true,
+  "downloadedUrl": "https://cdn.freesound.org/previews/591/591137_11199495-hq.mp3",
+  "downloadedDate": "2026-09-11",
+  "sourceFormat": "public HQ MP3 preview; not original download",
+  "downloadedDurationSeconds": 17.397551,
+  "sha256": "daced6cae8741dd9d681e112aa72351b03aea90e58e05054fe7e1405a7b62264",
+  "pageLicenseVerified": true,
+  "audioFile": "sources/591137-hq.mp3"
+}

@@ -2,10 +2,14 @@
     "version" : "1.0",
     "configurations" : [
         {
+            "customPlaygroundType" : "device",
             "playground" : "standard",
             "type" : "uni-app:app-android"
         },
         {
+            "iOSProjectStandardBaseHistory" : {
+                "current" : "Pandora_simulator_debug_5.24.app"
+            },
             "playground" : "standard",
             "type" : "uni-app:app-ios_simulator"
         },

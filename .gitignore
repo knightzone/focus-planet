@@ -10,6 +10,20 @@ unpackage/
 node_modules/
 *.log
 
+# iOS local-packaging dependencies and generated products
+ios/SDK
+ios/TemporarySampleFramework
+ios/CustomFrameworks
+ios/ExtAPI/DCloudUTSExtAPI.xcodeproj
+ios/.derived/
+ios/Plugins/unimoduleFocusFaceDetector.framework/
+ios/FocusPlanet/FocusPlanet/uni-app-x/apps/*
+!ios/FocusPlanet/FocusPlanet/uni-app-x/apps/.gitkeep
+build/ios/
+*.xcarchive
+*.ipa
+xcuserdata/
+
 # Local asset-review artifacts (not used by the app at runtime)
 content/ai-assets/rejected/
 static/images/drafts/

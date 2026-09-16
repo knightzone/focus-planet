@@ -1,0 +1,13 @@
+# SD2-017 · 内置 image_gen
+
+## A初版
+
+Use case illustration-story. SD2-017 A. ONE wide 16:9 new storybook scene in sunny vegetable garden. Reference only cinnamon squirrel Lili identity with cream cheeks and big bushy curled tail and premium rounded 3D cartoon rendering, NOT kitten or old composition. A small blue bunny Yueyue with cream belly, long blue ears pink inside, bright blue eyes wears a straw sunhat fitted naturally between ears with a coral band. Bunny sits on low garden bench, eyes looking up amused toward brim. Cinnamon squirrel stands beside bench at same head height, one short paw gently pulls a single fallen bean leaf caught in hat band, other paw at own side. Natural short arms no extra limbs. Full two characters framed medium-wide with clear space, playful gentle mood. Gardening objects naturally separated: wicker basket with yellow checked cloth, blue bottle with white daisy, terracotta pot with cream leaf pattern, small wooden seed box round brass knob, teal rounded garden scoop wooden handle, green twine spool, little wooden marker with pea-pod icon, bench backrest simple heart cutout. Bean trellis and low stone garden wall behind, soft warm sunlight, rich but calm details. No other characters words numbers labels UI watermark borders or collage.
+
+## A配色修正
+
+Precise-object-edit. Image1 is edit target garden bench bunny and squirrel, image2 ONLY correct blue bunny character color reference. Correct ONLY bunny identity coloring in image1: saturated sky/cobalt blue short plush fur, BLUE nose not pink, cream small muzzle area not entire broad white cheeks, blue paws and tan brown foot pads matching reference2. Keep current seated pose, upward gaze, relaxed ears under hat, hat, leaf, squirrel and entire garden scene unchanged. Natural cute rounded face, preserve canvas camera and objects. No other edits. Output single 16:9 corrected A image.
+
+## B
+
+Precise-object-edit SD2-017 B from exact supplied corrected A. Preserve canvas camera all unlisted details and both characters anatomy. Exactly ten local changes: 1 bunny open smile becomes closed smile; 2 coral hat band gains cream dots, same shape; 3 leaf held by squirrel becomes yellow, same position; 4 bench heart cutout becomes round cutout; 5 bottle white flower becomes white crescent; 6 basket yellow checks become yellow stripes; 7 pot cream leaf motifs become cream daisies; 8 wooden box round knob becomes square brass knob; 9 scoop teal metal becomes coral metal; 10 green twine on spool becomes blue twine. Keep squirrel and bunny colors, all objects and background aligned. No text labels outlines panels or difference markers, natural polished cartoon.

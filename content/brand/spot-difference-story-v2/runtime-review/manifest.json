@@ -1,0 +1,2535 @@
+{
+  "generatedAt": "2026-09-14T03:11:37.189Z",
+  "width": 768,
+  "height": 432,
+  "quality": 30,
+  "sourceCount": 34,
+  "regionCount": 239,
+  "scenes": [
+    {
+      "id": "SD2-001",
+      "tier": "low",
+      "title": "广场里的空椅子",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-001-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-001-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 28,
+          "y": 62,
+          "w": 14,
+          "h": 8,
+          "label": "蓝坐垫",
+          "changedRatio": 0.19444444444444445
+        },
+        {
+          "id": "d2",
+          "x": 57,
+          "y": 62,
+          "w": 14,
+          "h": 9,
+          "label": "粉坐垫",
+          "changedRatio": 0.22362385321100917
+        },
+        {
+          "id": "d3",
+          "x": 63,
+          "y": 48,
+          "w": 7,
+          "h": 8,
+          "label": "椅背花",
+          "changedRatio": 0.13194805194805195
+        },
+        {
+          "id": "d4",
+          "x": 30,
+          "y": 49,
+          "w": 5,
+          "h": 7,
+          "label": "椅背心",
+          "changedRatio": 0.1761786600496278
+        },
+        {
+          "id": "d5",
+          "x": 91,
+          "y": 48,
+          "w": 8,
+          "h": 10,
+          "label": "水壶图案",
+          "changedRatio": 0.12301587301587301
+        },
+        {
+          "id": "d6",
+          "x": 91,
+          "y": 60,
+          "w": 5,
+          "h": 7,
+          "label": "篮扣",
+          "changedRatio": 0.175
+        },
+        {
+          "id": "d7",
+          "x": 43,
+          "y": 85,
+          "w": 10,
+          "h": 11,
+          "label": "地砖菱形",
+          "changedRatio": 0.19417735042735043
+        },
+        {
+          "id": "d8",
+          "x": 3,
+          "y": 9,
+          "w": 5,
+          "h": 14,
+          "label": "窗格",
+          "changedRatio": 0.13564929693961952
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-001-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-001-b.png"
+    },
+    {
+      "id": "SD2-002",
+      "tier": "medium",
+      "title": "气派过头的门牌",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-002-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-002-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 48,
+          "y": 34,
+          "w": 11,
+          "h": 22,
+          "label": "牌上花",
+          "changedRatio": 0.2744670542635659
+        },
+        {
+          "id": "d2",
+          "x": 64,
+          "y": 65,
+          "w": 6,
+          "h": 7,
+          "label": "包扣",
+          "changedRatio": 0.13763297872340424
+        },
+        {
+          "id": "d3",
+          "x": 41,
+          "y": 79,
+          "w": 5,
+          "h": 7,
+          "label": "左轮",
+          "changedRatio": 0.16451612903225807
+        },
+        {
+          "id": "d4",
+          "x": 58,
+          "y": 83,
+          "w": 5,
+          "h": 6,
+          "label": "右轮",
+          "changedRatio": 0.11965811965811966
+        },
+        {
+          "id": "d5",
+          "x": 84,
+          "y": 61,
+          "w": 8,
+          "h": 10,
+          "label": "壶叶",
+          "changedRatio": 0.07514662756598241
+        },
+        {
+          "id": "d6",
+          "x": 77,
+          "y": 85,
+          "w": 7,
+          "h": 8,
+          "label": "车把",
+          "changedRatio": 0.2753246753246753
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-002-a-pose-v2.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-002-b.png"
+    },
+    {
+      "id": "SD2-003",
+      "tier": "high",
+      "title": "椅子也能搭火车",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-003-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-003-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 49,
+          "y": 54,
+          "w": 15,
+          "h": 13,
+          "label": "粉坐垫",
+          "changedRatio": 0.4807924984875983
+        },
+        {
+          "id": "d2",
+          "x": 86,
+          "y": 51,
+          "w": 14,
+          "h": 14,
+          "label": "卷垫",
+          "changedRatio": 0.17122040072859745
+        },
+        {
+          "id": "d3",
+          "x": 67,
+          "y": 42,
+          "w": 6,
+          "h": 9,
+          "label": "盆纹",
+          "changedRatio": 0.2877659574468085
+        },
+        {
+          "id": "d4",
+          "x": 51,
+          "y": 14,
+          "w": 4,
+          "h": 8,
+          "label": "窗心",
+          "changedRatio": 0.0876736111111111
+        },
+        {
+          "id": "d5",
+          "x": 65,
+          "y": 52,
+          "w": 17,
+          "h": 13,
+          "label": "绿坐垫",
+          "changedRatio": 0.313244944422124
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-003-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-003-b.png"
+    },
+    {
+      "id": "SD2-004",
+      "tier": "low",
+      "title": "灯还没亮天先亮",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-004-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-004-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 24,
+          "y": 81,
+          "w": 6,
+          "h": 10,
+          "label": "夹子",
+          "changedRatio": 0.45721040189125295
+        },
+        {
+          "id": "d2",
+          "x": 38,
+          "y": 91,
+          "w": 10,
+          "h": 8,
+          "label": "纸心",
+          "changedRatio": 0.1695970695970696
+        },
+        {
+          "id": "d3",
+          "x": 70,
+          "y": 65,
+          "w": 9,
+          "h": 18,
+          "label": "杯纹",
+          "changedRatio": 0.21338155515370705
+        },
+        {
+          "id": "d4",
+          "x": 85,
+          "y": 17,
+          "w": 12,
+          "h": 14,
+          "label": "盆叶",
+          "changedRatio": 0.07438744932134674
+        },
+        {
+          "id": "d5",
+          "x": 86,
+          "y": 65,
+          "w": 6,
+          "h": 9,
+          "label": "盒扣",
+          "changedRatio": 0.251063829787234
+        },
+        {
+          "id": "d6",
+          "x": 42,
+          "y": 55,
+          "w": 5,
+          "h": 11,
+          "label": "罩月",
+          "changedRatio": 0.1119832548403977
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-004-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-004-b.png"
+    },
+    {
+      "id": "SD2-005",
+      "tier": "medium",
+      "title": "两个完全不同的点子",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-005-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-005-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 16,
+          "y": 66,
+          "w": 8,
+          "h": 19,
+          "label": "凳彩带",
+          "changedRatio": 0.3534136546184739
+        },
+        {
+          "id": "d2",
+          "x": 90,
+          "y": 71,
+          "w": 8,
+          "h": 11,
+          "label": "瓶花",
+          "changedRatio": 0.13396971691902568
+        },
+        {
+          "id": "d3",
+          "x": 84,
+          "y": 66,
+          "w": 5,
+          "h": 8,
+          "label": "篮扣",
+          "changedRatio": 0.15384615384615385
+        },
+        {
+          "id": "d4",
+          "x": 41,
+          "y": 46,
+          "w": 7,
+          "h": 9,
+          "label": "风筝色",
+          "changedRatio": 0.16227272727272726
+        },
+        {
+          "id": "d5",
+          "x": 60,
+          "y": 59,
+          "w": 9,
+          "h": 10,
+          "label": "卡片坐垫",
+          "changedRatio": 0.13746031746031745
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-005-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-005-b.png"
+    },
+    {
+      "id": "SD2-006",
+      "tier": "high",
+      "title": "推车不是搬家车",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-006-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-006-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 37,
+          "y": 34,
+          "w": 28,
+          "h": 23,
+          "label": "靠垫星",
+          "changedRatio": 0.09625962596259625
+        },
+        {
+          "id": "d2",
+          "x": 3,
+          "y": 43,
+          "w": 9,
+          "h": 17,
+          "label": "椅布",
+          "changedRatio": 0.19180952380952382
+        },
+        {
+          "id": "d3",
+          "x": 36,
+          "y": 57,
+          "w": 6,
+          "h": 10,
+          "label": "卷毯",
+          "changedRatio": 0.3302707930367505
+        },
+        {
+          "id": "d4",
+          "x": 45,
+          "y": 61,
+          "w": 5,
+          "h": 7,
+          "label": "包扣",
+          "changedRatio": 0.44086021505376344
+        },
+        {
+          "id": "d5",
+          "x": 50,
+          "y": 59,
+          "w": 5,
+          "h": 9,
+          "label": "瓶叶",
+          "changedRatio": 0.11025641025641025
+        },
+        {
+          "id": "d6",
+          "x": 30,
+          "y": 79,
+          "w": 5,
+          "h": 7,
+          "label": "左轮",
+          "changedRatio": 0.7022332506203474
+        },
+        {
+          "id": "d7",
+          "x": 47,
+          "y": 82,
+          "w": 5,
+          "h": 7,
+          "label": "右轮",
+          "changedRatio": 0.06532258064516129
+        },
+        {
+          "id": "d8",
+          "x": 12,
+          "y": 12,
+          "w": 5,
+          "h": 9,
+          "label": "门心",
+          "changedRatio": 0.0685897435897436
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-006-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-006-b.png"
+    },
+    {
+      "id": "SD2-007",
+      "tier": "low",
+      "title": "邀请卡的小尾巴",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-007-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-007-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 0,
+          "y": 73,
+          "w": 9,
+          "h": 19,
+          "label": "盆月",
+          "changedRatio": 0.15542168674698795
+        },
+        {
+          "id": "d2",
+          "x": 25,
+          "y": 68,
+          "w": 13,
+          "h": 10,
+          "label": "剪刀",
+          "changedRatio": 0.43568181818181817
+        },
+        {
+          "id": "d3",
+          "x": 50,
+          "y": 80,
+          "w": 8,
+          "h": 14,
+          "label": "夹子",
+          "changedRatio": 0.42611862643080123
+        },
+        {
+          "id": "d4",
+          "x": 84,
+          "y": 71,
+          "w": 9,
+          "h": 9,
+          "label": "包扣",
+          "changedRatio": 0.0325
+        },
+        {
+          "id": "d5",
+          "x": 62,
+          "y": 81,
+          "w": 15,
+          "h": 13,
+          "label": "盒图案",
+          "changedRatio": 0.2859690844233056
+        },
+        {
+          "id": "d6",
+          "x": 56,
+          "y": 63,
+          "w": 6,
+          "h": 6,
+          "label": "手持卡风筝",
+          "changedRatio": 0.0851063829787234
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-007-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-007-b.png"
+    },
+    {
+      "id": "SD2-008",
+      "tier": "medium",
+      "title": "路线先转个方向",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-008-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-008-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 5,
+          "y": 14,
+          "w": 7,
+          "h": 10,
+          "label": "树路标",
+          "changedRatio": 0.14917355371900826
+        },
+        {
+          "id": "d2",
+          "x": 83,
+          "y": 16,
+          "w": 7,
+          "h": 9,
+          "label": "鱼路标",
+          "changedRatio": 0.0773892773892774
+        },
+        {
+          "id": "d3",
+          "x": 8,
+          "y": 51,
+          "w": 5,
+          "h": 9,
+          "label": "水瓶花",
+          "changedRatio": 0.13846153846153847
+        },
+        {
+          "id": "d4",
+          "x": 13,
+          "y": 74,
+          "w": 5,
+          "h": 9,
+          "label": "车轮",
+          "changedRatio": 0.16125
+        },
+        {
+          "id": "d5",
+          "x": 50,
+          "y": 62,
+          "w": 10,
+          "h": 9,
+          "label": "地图树",
+          "changedRatio": 0.26006493506493505
+        },
+        {
+          "id": "d6",
+          "x": 79,
+          "y": 61,
+          "w": 12,
+          "h": 16,
+          "label": "卷垫",
+          "changedRatio": 0.15591397849462366
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-008-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-008-b.png"
+    },
+    {
+      "id": "SD2-009",
+      "tier": "high",
+      "title": "留给大家的位置",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-009-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-009-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 30,
+          "y": 30,
+          "w": 8,
+          "h": 9,
+          "label": "星伴笑脸",
+          "changedRatio": 0.11693548387096774
+        },
+        {
+          "id": "d2",
+          "x": 0,
+          "y": 30,
+          "w": 14,
+          "h": 27,
+          "label": "椅垫",
+          "changedRatio": 0.2975517890772128
+        },
+        {
+          "id": "d3",
+          "x": 36,
+          "y": 43,
+          "w": 11,
+          "h": 11,
+          "label": "蓝棚",
+          "changedRatio": 0.21800720288115247
+        },
+        {
+          "id": "d4",
+          "x": 65,
+          "y": 42,
+          "w": 10,
+          "h": 10,
+          "label": "粉棚",
+          "changedRatio": 0.23140495867768596
+        },
+        {
+          "id": "d5",
+          "x": 1,
+          "y": 80,
+          "w": 22,
+          "h": 18,
+          "label": "彩带",
+          "changedRatio": 0.06351451973194341
+        },
+        {
+          "id": "d6",
+          "x": 91,
+          "y": 65,
+          "w": 9,
+          "h": 20,
+          "label": "杯蝶",
+          "changedRatio": 0.11103896103896103
+        },
+        {
+          "id": "d7",
+          "x": 29,
+          "y": 76,
+          "w": 10,
+          "h": 9,
+          "label": "卡片船星",
+          "changedRatio": 0.01955128205128205
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-009-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-009-b.png"
+    },
+    {
+      "id": "SD2-010",
+      "tier": "low",
+      "title": "周末在这里见",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-010-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-010-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 75,
+          "y": 39,
+          "w": 6,
+          "h": 11,
+          "label": "暖暖蝴蝶结",
+          "changedRatio": 0.20966312056737588
+        },
+        {
+          "id": "d2",
+          "x": 48,
+          "y": 51,
+          "w": 7,
+          "h": 8,
+          "label": "点点围巾",
+          "changedRatio": 0.09402597402597403
+        },
+        {
+          "id": "d3",
+          "x": 8,
+          "y": 56,
+          "w": 5,
+          "h": 9,
+          "label": "水瓶叶",
+          "changedRatio": 0.09615384615384616
+        },
+        {
+          "id": "d4",
+          "x": 55,
+          "y": 59,
+          "w": 5,
+          "h": 7,
+          "label": "卡片星",
+          "changedRatio": 0.11458333333333333
+        },
+        {
+          "id": "d5",
+          "x": 5,
+          "y": 75,
+          "w": 4,
+          "h": 9,
+          "label": "左轮",
+          "changedRatio": 0.017628205128205128
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-010-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-010-b.png"
+    },
+    {
+      "id": "SD2-011",
+      "tier": "medium",
+      "title": "近路的第一脚",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-011-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-011-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 3,
+          "y": 71,
+          "w": 6,
+          "h": 10,
+          "label": "水壶月",
+          "changedRatio": 0.29642166344294
+        },
+        {
+          "id": "d2",
+          "x": 14,
+          "y": 54,
+          "w": 7,
+          "h": 10,
+          "label": "菜牌",
+          "changedRatio": 0.2268595041322314
+        },
+        {
+          "id": "d3",
+          "x": 37,
+          "y": 49,
+          "w": 7,
+          "h": 8,
+          "label": "跃跃笑脸",
+          "changedRatio": 0.1779835390946502
+        },
+        {
+          "id": "d4",
+          "x": 64,
+          "y": 28,
+          "w": 7,
+          "h": 9,
+          "label": "暖暖蝴蝶结",
+          "changedRatio": 0.2581818181818182
+        },
+        {
+          "id": "d5",
+          "x": 77,
+          "y": 82,
+          "w": 12,
+          "h": 15,
+          "label": "篮布",
+          "changedRatio": 0.2222222222222222
+        },
+        {
+          "id": "d6",
+          "x": 93,
+          "y": 74,
+          "w": 7,
+          "h": 8,
+          "label": "花盆纹",
+          "changedRatio": 0.12191358024691358
+        },
+        {
+          "id": "d7",
+          "x": 88,
+          "y": 45,
+          "w": 4,
+          "h": 6,
+          "label": "包扣",
+          "changedRatio": 0.28125
+        },
+        {
+          "id": "d8",
+          "x": 94,
+          "y": 47,
+          "w": 3,
+          "h": 7,
+          "label": "瓶星",
+          "changedRatio": 0.21370967741935484
+        },
+        {
+          "id": "d9",
+          "x": 79,
+          "y": 62,
+          "w": 3,
+          "h": 6,
+          "label": "车轮",
+          "changedRatio": 0.2824074074074074
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-011-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-011-b.png"
+    },
+    {
+      "id": "SD2-012",
+      "tier": "high",
+      "title": "叶子小雨伞",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-012-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-012-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 5,
+          "y": 76,
+          "w": 10,
+          "h": 15,
+          "label": "盆花",
+          "changedRatio": 0.20998445998446
+        },
+        {
+          "id": "d2",
+          "x": 23,
+          "y": 69,
+          "w": 7,
+          "h": 10,
+          "label": "杯纹",
+          "changedRatio": 0.05578512396694215
+        },
+        {
+          "id": "d3",
+          "x": 20,
+          "y": 43,
+          "w": 9,
+          "h": 14,
+          "label": "凳布",
+          "changedRatio": 0.18387096774193548
+        },
+        {
+          "id": "d4",
+          "x": 45,
+          "y": 44,
+          "w": 6,
+          "h": 10,
+          "label": "暖暖笑脸",
+          "changedRatio": 0.11073500967117988
+        },
+        {
+          "id": "d5",
+          "x": 78,
+          "y": 69,
+          "w": 6,
+          "h": 9,
+          "label": "箱扣",
+          "changedRatio": 0.1407528641571195
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-012-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-012-b.png"
+    },
+    {
+      "id": "SD2-013",
+      "tier": "low",
+      "title": "拔出来的是小个子",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-013-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-013-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 1,
+          "y": 61,
+          "w": 9,
+          "h": 9,
+          "label": "盆纹",
+          "changedRatio": 0.2642857142857143
+        },
+        {
+          "id": "d2",
+          "x": 13,
+          "y": 58,
+          "w": 5,
+          "h": 16,
+          "label": "菜牌",
+          "changedRatio": 0.2810714285714286
+        },
+        {
+          "id": "d3",
+          "x": 18,
+          "y": 79,
+          "w": 20,
+          "h": 18,
+          "label": "铲子",
+          "changedRatio": 0.3356896268288673
+        },
+        {
+          "id": "d4",
+          "x": 43,
+          "y": 45,
+          "w": 7,
+          "h": 13,
+          "label": "笑脸",
+          "changedRatio": 0.2664067576348278
+        },
+        {
+          "id": "d5",
+          "x": 34,
+          "y": 10,
+          "w": 9,
+          "h": 11,
+          "label": "耳贴",
+          "changedRatio": 0.11398809523809524
+        },
+        {
+          "id": "d6",
+          "x": 81,
+          "y": 44,
+          "w": 19,
+          "h": 16,
+          "label": "帽带",
+          "changedRatio": 0.23160469667318984
+        },
+        {
+          "id": "d7",
+          "x": 91,
+          "y": 70,
+          "w": 7,
+          "h": 13,
+          "label": "瓶纹",
+          "changedRatio": 0.21371610845295055
+        },
+        {
+          "id": "d8",
+          "x": 69,
+          "y": 68,
+          "w": 17,
+          "h": 20,
+          "label": "篮布",
+          "changedRatio": 0.08014807162534435
+        },
+        {
+          "id": "d9",
+          "x": 71,
+          "y": 54,
+          "w": 5,
+          "h": 7,
+          "label": "箱扣",
+          "changedRatio": 0.09429280397022333
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-013-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-013-b.png"
+    },
+    {
+      "id": "SD2-014",
+      "tier": "medium",
+      "title": "南瓜请坐稳",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-014-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-014-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 28,
+          "y": 25,
+          "w": 10,
+          "h": 12,
+          "label": "团团笑脸",
+          "changedRatio": 0.13836163836163837
+        },
+        {
+          "id": "d2",
+          "x": 0,
+          "y": 46,
+          "w": 10,
+          "h": 6,
+          "label": "帽带",
+          "changedRatio": 0.34583934583934584
+        },
+        {
+          "id": "d3",
+          "x": 11,
+          "y": 44,
+          "w": 4,
+          "h": 8,
+          "label": "瓶纹",
+          "changedRatio": 0.17946428571428572
+        },
+        {
+          "id": "d4",
+          "x": 44,
+          "y": 30,
+          "w": 8,
+          "h": 10,
+          "label": "南瓜叶",
+          "changedRatio": 0.41883116883116883
+        },
+        {
+          "id": "d5",
+          "x": 41,
+          "y": 61,
+          "w": 7,
+          "h": 13,
+          "label": "车花",
+          "changedRatio": 0.261244019138756
+        },
+        {
+          "id": "d6",
+          "x": 31,
+          "y": 72,
+          "w": 8,
+          "h": 17,
+          "label": "左轮",
+          "changedRatio": 0.23496076721883175
+        },
+        {
+          "id": "d7",
+          "x": 48,
+          "y": 78,
+          "w": 6,
+          "h": 10,
+          "label": "右轮",
+          "changedRatio": 0.1314420803782506
+        },
+        {
+          "id": "d8",
+          "x": 70,
+          "y": 85,
+          "w": 10,
+          "h": 8,
+          "label": "车把",
+          "changedRatio": 0.08754578754578754
+        },
+        {
+          "id": "d9",
+          "x": 91,
+          "y": 49,
+          "w": 5,
+          "h": 8,
+          "label": "菜牌",
+          "changedRatio": 0.23333333333333334
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-014-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-014-b.png"
+    },
+    {
+      "id": "SD2-015",
+      "tier": "high",
+      "title": "水渠开个小门",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-015-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-015-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 4,
+          "y": 20,
+          "w": 4,
+          "h": 6,
+          "label": "盆纹",
+          "changedRatio": 0.2881944444444444
+        },
+        {
+          "id": "d2",
+          "x": 12,
+          "y": 20,
+          "w": 4,
+          "h": 6,
+          "label": "杯纹",
+          "changedRatio": 0.15053763440860216
+        },
+        {
+          "id": "d3",
+          "x": 30,
+          "y": 37,
+          "w": 11,
+          "h": 13,
+          "label": "鸭围巾",
+          "changedRatio": 0.05572755417956656
+        },
+        {
+          "id": "d4",
+          "x": 45,
+          "y": 48,
+          "w": 5,
+          "h": 7,
+          "label": "水闸图案",
+          "changedRatio": 0.17204301075268819
+        },
+        {
+          "id": "d5",
+          "x": 83,
+          "y": 31,
+          "w": 7,
+          "h": 15,
+          "label": "壶纹",
+          "changedRatio": 0.08898071625344353
+        },
+        {
+          "id": "d6",
+          "x": 92,
+          "y": 38,
+          "w": 5,
+          "h": 8,
+          "label": "箱扣",
+          "changedRatio": 0.10989010989010989
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-015-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-015-b.png"
+    },
+    {
+      "id": "SD2-016",
+      "tier": "low",
+      "title": "露珠里的胖星星",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-016-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-016-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 6,
+          "y": 38,
+          "w": 7,
+          "h": 10,
+          "label": "盆纹",
+          "changedRatio": 0.3164983164983165
+        },
+        {
+          "id": "d2",
+          "x": 0,
+          "y": 67,
+          "w": 11,
+          "h": 24,
+          "label": "杯纹",
+          "changedRatio": 0.05030812324929972
+        },
+        {
+          "id": "d3",
+          "x": 16,
+          "y": 62,
+          "w": 5,
+          "h": 8,
+          "label": "箱扣",
+          "changedRatio": 0.1423611111111111
+        },
+        {
+          "id": "d4",
+          "x": 30,
+          "y": 75,
+          "w": 25,
+          "h": 22,
+          "label": "铲子",
+          "changedRatio": 0.44581174438687393
+        },
+        {
+          "id": "d5",
+          "x": 63,
+          "y": 71,
+          "w": 19,
+          "h": 22,
+          "label": "线团蝴蝶结",
+          "changedRatio": 0.33758503401360546
+        },
+        {
+          "id": "d6",
+          "x": 86,
+          "y": 64,
+          "w": 14,
+          "h": 34,
+          "label": "篮彩带",
+          "changedRatio": 0.3927677677677678
+        },
+        {
+          "id": "d7",
+          "x": 91,
+          "y": 40,
+          "w": 9,
+          "h": 13,
+          "label": "壶纹",
+          "changedRatio": 0.26090225563909775
+        },
+        {
+          "id": "d8",
+          "x": 74,
+          "y": 33,
+          "w": 6,
+          "h": 14,
+          "label": "菜牌",
+          "changedRatio": 0.1595744680851064
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-016-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-016-b.png"
+    },
+    {
+      "id": "SD2-017",
+      "tier": "medium",
+      "title": "谁的帽子长叶子",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-017-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-017-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 23,
+          "y": 19,
+          "w": 21,
+          "h": 17,
+          "label": "帽带",
+          "changedRatio": 0.11628294961628295
+        },
+        {
+          "id": "d2",
+          "x": 1,
+          "y": 58,
+          "w": 13,
+          "h": 20,
+          "label": "篮布",
+          "changedRatio": 0.22009787185615112
+        },
+        {
+          "id": "d3",
+          "x": 16,
+          "y": 59,
+          "w": 4,
+          "h": 9,
+          "label": "瓶纹",
+          "changedRatio": 0.24375
+        },
+        {
+          "id": "d4",
+          "x": 64,
+          "y": 77,
+          "w": 10,
+          "h": 15,
+          "label": "盆纹",
+          "changedRatio": 0.37665112665112666
+        },
+        {
+          "id": "d5",
+          "x": 79,
+          "y": 80,
+          "w": 5,
+          "h": 7,
+          "label": "箱扣",
+          "changedRatio": 0.17983870967741936
+        },
+        {
+          "id": "d6",
+          "x": 89,
+          "y": 80,
+          "w": 8,
+          "h": 16,
+          "label": "线卷",
+          "changedRatio": 0.41566820276497696
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-017-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-017-b.png"
+    },
+    {
+      "id": "SD2-018",
+      "tier": "high",
+      "title": "歪歪菜的合影",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-018-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-018-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 0,
+          "y": 44,
+          "w": 17,
+          "h": 6,
+          "label": "帽带",
+          "changedRatio": 0.2568995889606577
+        },
+        {
+          "id": "d2",
+          "x": 10,
+          "y": 71,
+          "w": 10,
+          "h": 16,
+          "label": "篮布",
+          "changedRatio": 0.2108058608058608
+        },
+        {
+          "id": "d3",
+          "x": 33,
+          "y": 64,
+          "w": 34,
+          "h": 16,
+          "label": "桌布",
+          "changedRatio": 0.33309705561613956
+        },
+        {
+          "id": "d4",
+          "x": 68,
+          "y": 60,
+          "w": 6,
+          "h": 8,
+          "label": "杯纹",
+          "changedRatio": 0.1276595744680851
+        },
+        {
+          "id": "d5",
+          "x": 60,
+          "y": 54,
+          "w": 7,
+          "h": 10,
+          "label": "茄子圆点",
+          "changedRatio": 0.2318181818181818
+        },
+        {
+          "id": "d6",
+          "x": 71,
+          "y": 36,
+          "w": 12,
+          "h": 7,
+          "label": "熊围巾",
+          "changedRatio": 0.08810267082899757
+        },
+        {
+          "id": "d7",
+          "x": 94,
+          "y": 74,
+          "w": 5,
+          "h": 12,
+          "label": "箱扣",
+          "changedRatio": 0.0669811320754717
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-018-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-018-b.png"
+    },
+    {
+      "id": "SD2-019",
+      "tier": "low",
+      "title": "舍不得起身的近路",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-019-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-019-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 0,
+          "y": 76,
+          "w": 10,
+          "h": 9,
+          "label": "盆纹",
+          "changedRatio": 0.16655844155844157
+        },
+        {
+          "id": "d2",
+          "x": 28,
+          "y": 65,
+          "w": 11,
+          "h": 14,
+          "label": "垫绣花",
+          "changedRatio": 0.3939278937381404
+        },
+        {
+          "id": "d3",
+          "x": 80,
+          "y": 57,
+          "w": 9,
+          "h": 28,
+          "label": "水瓶",
+          "changedRatio": 0.6081967213114754
+        },
+        {
+          "id": "d4",
+          "x": 64,
+          "y": 37,
+          "w": 6,
+          "h": 10,
+          "label": "卷垫",
+          "changedRatio": 0.15555555555555556
+        },
+        {
+          "id": "d5",
+          "x": 61,
+          "y": 59,
+          "w": 5,
+          "h": 8,
+          "label": "左轮",
+          "changedRatio": 0.349002849002849
+        },
+        {
+          "id": "d6",
+          "x": 64,
+          "y": 72,
+          "w": 7,
+          "h": 10,
+          "label": "鞋星",
+          "changedRatio": 0.07727272727272727
+        },
+        {
+          "id": "d7",
+          "x": 78,
+          "y": 37,
+          "w": 9,
+          "h": 11,
+          "label": "篮布",
+          "changedRatio": 0.25743440233236153
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-019-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-019-b.png"
+    },
+    {
+      "id": "SD2-020",
+      "tier": "medium",
+      "title": "你不是说要快吗",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-020-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-020-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 2,
+          "y": 65,
+          "w": 6,
+          "h": 9,
+          "label": "壶星",
+          "changedRatio": 0.20957446808510638
+        },
+        {
+          "id": "d2",
+          "x": 25,
+          "y": 55,
+          "w": 11,
+          "h": 8,
+          "label": "盆纹",
+          "changedRatio": 0.29248366013071897
+        },
+        {
+          "id": "d3",
+          "x": 4,
+          "y": 85,
+          "w": 10,
+          "h": 14,
+          "label": "篮布",
+          "changedRatio": 0.28247162673392184
+        },
+        {
+          "id": "d4",
+          "x": 92,
+          "y": 34,
+          "w": 4,
+          "h": 11,
+          "label": "门环",
+          "changedRatio": 0.2729591836734694
+        },
+        {
+          "id": "d5",
+          "x": 81,
+          "y": 38,
+          "w": 6,
+          "h": 9,
+          "label": "暖暖蝴蝶结",
+          "changedRatio": 0.20957446808510638
+        },
+        {
+          "id": "d6",
+          "x": 57,
+          "y": 28,
+          "w": 7,
+          "h": 8,
+          "label": "路标",
+          "changedRatio": 0.16767676767676767
+        },
+        {
+          "id": "d7",
+          "x": 18,
+          "y": 48,
+          "w": 3,
+          "h": 7,
+          "label": "瓶纹",
+          "changedRatio": 0.5645161290322581
+        },
+        {
+          "id": "d8",
+          "x": 14,
+          "y": 64,
+          "w": 5,
+          "h": 7,
+          "label": "车轮",
+          "changedRatio": 0.20430107526881722
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-020-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-02/sd2-020-b.png"
+    },
+    {
+      "id": "SD2-021",
+      "tier": "high",
+      "title": "谁在说“喂”",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-021-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-021-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 14,
+          "y": 21,
+          "w": 5,
+          "h": 8,
+          "label": "路标",
+          "changedRatio": 0.30626780626780625
+        },
+        {
+          "id": "d2",
+          "x": 88,
+          "y": 4,
+          "w": 7,
+          "h": 12,
+          "label": "蝴蝶",
+          "changedRatio": 0.3584905660377358
+        },
+        {
+          "id": "d3",
+          "x": 1,
+          "y": 56,
+          "w": 9,
+          "h": 13,
+          "label": "卷垫",
+          "changedRatio": 0.4963054187192118
+        },
+        {
+          "id": "d4",
+          "x": 15,
+          "y": 65,
+          "w": 5,
+          "h": 8,
+          "label": "包扣",
+          "changedRatio": 0.2207977207977208
+        },
+        {
+          "id": "d5",
+          "x": 22,
+          "y": 68,
+          "w": 4,
+          "h": 9,
+          "label": "瓶纹",
+          "changedRatio": 0.2609375
+        },
+        {
+          "id": "d6",
+          "x": 7,
+          "y": 71,
+          "w": 8,
+          "h": 12,
+          "label": "松果橡果",
+          "changedRatio": 0.42527702905061393
+        },
+        {
+          "id": "d7",
+          "x": 58,
+          "y": 86,
+          "w": 13,
+          "h": 9,
+          "label": "地叶",
+          "changedRatio": 0.5047029702970297
+        },
+        {
+          "id": "d8",
+          "x": 85,
+          "y": 60,
+          "w": 14,
+          "h": 12,
+          "label": "蘑菇",
+          "changedRatio": 0.398822918469794
+        },
+        {
+          "id": "d9",
+          "x": 26,
+          "y": 77,
+          "w": 7,
+          "h": 11,
+          "label": "前景花",
+          "changedRatio": 0.2820037105751391
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-021-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-021-b.png"
+    },
+    {
+      "id": "SD2-022",
+      "tier": "low",
+      "title": "树后的小向导",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-022-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-022-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 89,
+          "y": 10,
+          "w": 6,
+          "h": 13,
+          "label": "蝴蝶",
+          "changedRatio": 0.3150429264650989
+        },
+        {
+          "id": "d2",
+          "x": 16,
+          "y": 59,
+          "w": 5,
+          "h": 8,
+          "label": "背包图案",
+          "changedRatio": 0.31180555555555556
+        },
+        {
+          "id": "d3",
+          "x": 17,
+          "y": 68,
+          "w": 5,
+          "h": 7,
+          "label": "包扣",
+          "changedRatio": 0.33664185277088504
+        },
+        {
+          "id": "d4",
+          "x": 15,
+          "y": 77,
+          "w": 11,
+          "h": 14,
+          "label": "杯子",
+          "changedRatio": 0.45616698292220115
+        },
+        {
+          "id": "d5",
+          "x": 33,
+          "y": 61,
+          "w": 8,
+          "h": 19,
+          "label": "篮带",
+          "changedRatio": 0.31500194325689856
+        },
+        {
+          "id": "d6",
+          "x": 40,
+          "y": 84,
+          "w": 14,
+          "h": 13,
+          "label": "地叶",
+          "changedRatio": 0.4792464878671775
+        },
+        {
+          "id": "d7",
+          "x": 0,
+          "y": 71,
+          "w": 11,
+          "h": 13,
+          "label": "蘑菇",
+          "changedRatio": 0.4891640866873065
+        },
+        {
+          "id": "d8",
+          "x": 88,
+          "y": 69,
+          "w": 12,
+          "h": 16,
+          "label": "前景花",
+          "changedRatio": 0.27926267281105993
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-022-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-022-b.png"
+    },
+    {
+      "id": "SD2-023",
+      "tier": "medium",
+      "title": "悄悄话试验",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-023-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-023-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 5,
+          "y": 6,
+          "w": 6,
+          "h": 12,
+          "label": "蝴蝶",
+          "changedRatio": 0.2625451625853071
+        },
+        {
+          "id": "d2",
+          "x": 0,
+          "y": 41,
+          "w": 24,
+          "h": 14,
+          "label": "毛毯",
+          "changedRatio": 0.5595037660611432
+        },
+        {
+          "id": "d3",
+          "x": 1,
+          "y": 62,
+          "w": 10,
+          "h": 14,
+          "label": "篮中水果",
+          "changedRatio": 0.4317617866004963
+        },
+        {
+          "id": "d4",
+          "x": 23,
+          "y": 69,
+          "w": 6,
+          "h": 10,
+          "label": "盒纹",
+          "changedRatio": 0.29497098646034814
+        },
+        {
+          "id": "d5",
+          "x": 21,
+          "y": 61,
+          "w": 7,
+          "h": 4,
+          "label": "盒把",
+          "changedRatio": 0.3434343434343434
+        },
+        {
+          "id": "d6",
+          "x": 53,
+          "y": 76,
+          "w": 23,
+          "h": 18,
+          "label": "坐垫",
+          "changedRatio": 0.6046628048344418
+        },
+        {
+          "id": "d7",
+          "x": 76,
+          "y": 77,
+          "w": 12,
+          "h": 17,
+          "label": "杯子",
+          "changedRatio": 0.5407885304659498
+        },
+        {
+          "id": "d8",
+          "x": 37,
+          "y": 88,
+          "w": 12,
+          "h": 10,
+          "label": "地叶",
+          "changedRatio": 0.3101173020527859
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-023-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-023-b.png"
+    },
+    {
+      "id": "SD2-024",
+      "tier": "high",
+      "title": "咚的一下很像谁",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-024-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-024-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 19,
+          "y": 37,
+          "w": 19,
+          "h": 12,
+          "label": "熊围巾",
+          "changedRatio": 0.2540110383776152
+        },
+        {
+          "id": "d2",
+          "x": 3,
+          "y": 61,
+          "w": 7,
+          "h": 14,
+          "label": "瓶纹",
+          "changedRatio": 0.14663023679417123
+        },
+        {
+          "id": "d3",
+          "x": 8,
+          "y": 49,
+          "w": 4,
+          "h": 7,
+          "label": "包扣",
+          "changedRatio": 0.15625
+        },
+        {
+          "id": "d4",
+          "x": 40,
+          "y": 73,
+          "w": 26,
+          "h": 17,
+          "label": "槌与垫布",
+          "changedRatio": 0.28385135135135137
+        },
+        {
+          "id": "d5",
+          "x": 26,
+          "y": 83,
+          "w": 14,
+          "h": 13,
+          "label": "地叶",
+          "changedRatio": 0.39755351681957185
+        },
+        {
+          "id": "d6",
+          "x": 90,
+          "y": 75,
+          "w": 10,
+          "h": 13,
+          "label": "蘑菇",
+          "changedRatio": 0.44907723855092274
+        },
+        {
+          "id": "d7",
+          "x": 89,
+          "y": 54,
+          "w": 7,
+          "h": 8,
+          "label": "篮水果",
+          "changedRatio": 0.42753246753246754
+        },
+        {
+          "id": "d8",
+          "x": 81,
+          "y": 64,
+          "w": 9,
+          "h": 13,
+          "label": "前景花",
+          "changedRatio": 0.3047619047619048
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-024-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-024-b.png"
+    },
+    {
+      "id": "SD2-025",
+      "tier": "low",
+      "title": "大树叶的小演员",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-025-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-025-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 3,
+          "y": 68,
+          "w": 15,
+          "h": 17,
+          "label": "杯子",
+          "changedRatio": 0.5133333333333333
+        },
+        {
+          "id": "d2",
+          "x": 6,
+          "y": 56,
+          "w": 4,
+          "h": 9,
+          "label": "包扣",
+          "changedRatio": 0.1629032258064516
+        },
+        {
+          "id": "d3",
+          "x": 26,
+          "y": 75,
+          "w": 21,
+          "h": 14,
+          "label": "篮叶",
+          "changedRatio": 0.3368751264926128
+        },
+        {
+          "id": "d4",
+          "x": 63,
+          "y": 74,
+          "w": 27,
+          "h": 20,
+          "label": "坐垫",
+          "changedRatio": 0.600587211831231
+        },
+        {
+          "id": "d5",
+          "x": 89,
+          "y": 10,
+          "w": 9,
+          "h": 30,
+          "label": "屏彩带",
+          "changedRatio": 0.270989010989011
+        },
+        {
+          "id": "d6",
+          "x": 60,
+          "y": 9,
+          "w": 3,
+          "h": 10,
+          "label": "屏夹",
+          "changedRatio": 0.24444444444444444
+        },
+        {
+          "id": "d7",
+          "x": 90,
+          "y": 71,
+          "w": 10,
+          "h": 13,
+          "label": "前景花",
+          "changedRatio": 0.3182957393483709
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-025-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-025-b.png"
+    },
+    {
+      "id": "SD2-026",
+      "tier": "medium",
+      "title": "松果不肯排直线",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-026-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-026-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 5,
+          "y": 44,
+          "w": 7,
+          "h": 8,
+          "label": "包纹",
+          "changedRatio": 0.2753246753246753
+        },
+        {
+          "id": "d2",
+          "x": 29,
+          "y": 64,
+          "w": 12,
+          "h": 13,
+          "label": "支架",
+          "changedRatio": 0.2659875495189587
+        },
+        {
+          "id": "d3",
+          "x": 87,
+          "y": 48,
+          "w": 12,
+          "h": 12,
+          "label": "篮叶",
+          "changedRatio": 0.2852505579224995
+        },
+        {
+          "id": "d4",
+          "x": 92,
+          "y": 64,
+          "w": 8,
+          "h": 9,
+          "label": "蘑菇",
+          "changedRatio": 0.27741935483870966
+        },
+        {
+          "id": "d5",
+          "x": 8,
+          "y": 54,
+          "w": 4,
+          "h": 6,
+          "label": "包扣",
+          "changedRatio": 0.3715277777777778
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-026-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-026-b.png"
+    },
+    {
+      "id": "SD2-027",
+      "tier": "high",
+      "title": "尾巴露馅了",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-027-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-027-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 9,
+          "y": 14,
+          "w": 8,
+          "h": 10,
+          "label": "尾巴蝴蝶结",
+          "changedRatio": 0.40175953079178883
+        },
+        {
+          "id": "d2",
+          "x": 85,
+          "y": 5,
+          "w": 10,
+          "h": 17,
+          "label": "蝴蝶",
+          "changedRatio": 0.18957264957264958
+        },
+        {
+          "id": "d3",
+          "x": 90,
+          "y": 41,
+          "w": 6,
+          "h": 10,
+          "label": "包纹",
+          "changedRatio": 0.2828820116054159
+        },
+        {
+          "id": "d4",
+          "x": 35,
+          "y": 81,
+          "w": 20,
+          "h": 11,
+          "label": "落叶",
+          "changedRatio": 0.5614219881500987
+        },
+        {
+          "id": "d5",
+          "x": 32,
+          "y": 66,
+          "w": 10,
+          "h": 12,
+          "label": "橡果",
+          "changedRatio": 0.5821005917159763
+        },
+        {
+          "id": "d6",
+          "x": 89,
+          "y": 61,
+          "w": 11,
+          "h": 13,
+          "label": "篮果",
+          "changedRatio": 0.4297213622291022
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-027-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-027-b.png"
+    },
+    {
+      "id": "SD2-028",
+      "tier": "low",
+      "title": "一前一后的节拍",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-028-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-028-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 67,
+          "y": 36,
+          "w": 16,
+          "h": 11,
+          "label": "熊围巾",
+          "changedRatio": 0.2552666227781435
+        },
+        {
+          "id": "d2",
+          "x": 5,
+          "y": 59,
+          "w": 4,
+          "h": 9,
+          "label": "瓶纹",
+          "changedRatio": 0.19140625
+        },
+        {
+          "id": "d3",
+          "x": 28,
+          "y": 57,
+          "w": 4,
+          "h": 7,
+          "label": "槌柄",
+          "changedRatio": 0.3173777315296566
+        },
+        {
+          "id": "d4",
+          "x": 9,
+          "y": 72,
+          "w": 18,
+          "h": 13,
+          "label": "坐垫",
+          "changedRatio": 0.4894610627287644
+        },
+        {
+          "id": "d5",
+          "x": 57,
+          "y": 86,
+          "w": 8,
+          "h": 11,
+          "label": "橡果",
+          "changedRatio": 0.31357304826692584
+        },
+        {
+          "id": "d6",
+          "x": 90,
+          "y": 53,
+          "w": 3,
+          "h": 7,
+          "label": "包扣",
+          "changedRatio": 0.13411458333333334
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-028-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-028-b.png"
+    },
+    {
+      "id": "SD2-029",
+      "tier": "medium",
+      "title": "不用买票的影子戏",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-029-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-029-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 82,
+          "y": 1,
+          "w": 11,
+          "h": 25,
+          "label": "屏彩带",
+          "changedRatio": 0.35374439940260294
+        },
+        {
+          "id": "d2",
+          "x": 83,
+          "y": 39,
+          "w": 11,
+          "h": 13,
+          "label": "鸟剪影",
+          "changedRatio": 0.30113519091847263
+        },
+        {
+          "id": "d3",
+          "x": 83,
+          "y": 53,
+          "w": 8,
+          "h": 17,
+          "label": "兔剪影",
+          "changedRatio": 0.19698924731182796
+        },
+        {
+          "id": "d4",
+          "x": 12,
+          "y": 72,
+          "w": 7,
+          "h": 12,
+          "label": "杯纹",
+          "changedRatio": 0.2881054131054131
+        },
+        {
+          "id": "d5",
+          "x": 19,
+          "y": 69,
+          "w": 32,
+          "h": 25,
+          "label": "大坐垫",
+          "changedRatio": 0.6783419381198232
+        },
+        {
+          "id": "d6",
+          "x": 51,
+          "y": 84,
+          "w": 9,
+          "h": 15,
+          "label": "松果",
+          "changedRatio": 0.40194805194805194
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-029-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-029-b.png"
+    },
+    {
+      "id": "SD2-030",
+      "tier": "high",
+      "title": "回声也说再见",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-030-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-030-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 8,
+          "y": 10,
+          "w": 6,
+          "h": 13,
+          "label": "蝴蝶",
+          "changedRatio": 0.2721164613661814
+        },
+        {
+          "id": "d2",
+          "x": 6,
+          "y": 63,
+          "w": 6,
+          "h": 8,
+          "label": "包纹",
+          "changedRatio": 0.3617021276595745
+        },
+        {
+          "id": "d3",
+          "x": 16,
+          "y": 66,
+          "w": 4,
+          "h": 8,
+          "label": "瓶纹",
+          "changedRatio": 0.2526785714285714
+        },
+        {
+          "id": "d4",
+          "x": 34,
+          "y": 81,
+          "w": 10,
+          "h": 10,
+          "label": "橡果",
+          "changedRatio": 0.3113997113997114
+        },
+        {
+          "id": "d5",
+          "x": 85,
+          "y": 64,
+          "w": 15,
+          "h": 30,
+          "label": "果篮与彩带",
+          "changedRatio": 0.3014609107659911
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-030-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-03/sd2-030-b.png"
+    },
+    {
+      "id": "SD2-031",
+      "tier": "low",
+      "title": "桥上先看一看",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-031-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-031-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 4,
+          "y": 17,
+          "w": 9,
+          "h": 9,
+          "label": "路标",
+          "changedRatio": 0.4725
+        },
+        {
+          "id": "d2",
+          "x": 10,
+          "y": 5,
+          "w": 7,
+          "h": 10,
+          "label": "蝴蝶",
+          "changedRatio": 0.17272727272727273
+        },
+        {
+          "id": "d3",
+          "x": 36,
+          "y": 42,
+          "w": 5,
+          "h": 7,
+          "label": "鸭围巾",
+          "changedRatio": 0.456575682382134
+        },
+        {
+          "id": "d4",
+          "x": 5,
+          "y": 44,
+          "w": 8,
+          "h": 8,
+          "label": "卷垫",
+          "changedRatio": 0.46589861751152073
+        },
+        {
+          "id": "d5",
+          "x": 8,
+          "y": 53,
+          "w": 4,
+          "h": 5,
+          "label": "包扣",
+          "changedRatio": 0.26222826086956524
+        },
+        {
+          "id": "d6",
+          "x": 13,
+          "y": 49,
+          "w": 4,
+          "h": 7,
+          "label": "瓶纹",
+          "changedRatio": 0.13407258064516128
+        },
+        {
+          "id": "d7",
+          "x": 9,
+          "y": 69,
+          "w": 7,
+          "h": 10,
+          "label": "松果",
+          "changedRatio": 0.41708754208754206
+        },
+        {
+          "id": "d8",
+          "x": 1,
+          "y": 73,
+          "w": 7,
+          "h": 9,
+          "label": "落叶",
+          "changedRatio": 0.2781818181818182
+        },
+        {
+          "id": "d9",
+          "x": 82,
+          "y": 75,
+          "w": 12,
+          "h": 14,
+          "label": "前景花",
+          "changedRatio": 0.36012691697514543
+        },
+        {
+          "id": "d10",
+          "x": 6,
+          "y": 65,
+          "w": 3,
+          "h": 6,
+          "label": "车轮",
+          "changedRatio": 0.24074074074074073
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-04/sd2-031-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-04/sd2-031-b.png"
+    },
+    {
+      "id": "SD2-032",
+      "tier": "medium",
+      "title": "船头还是帽子",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-032-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-032-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 40,
+          "y": 43,
+          "w": 14,
+          "h": 15,
+          "label": "手持纸船",
+          "changedRatio": 0.4332210998877666
+        },
+        {
+          "id": "d2",
+          "x": 27,
+          "y": 61,
+          "w": 5,
+          "h": 11,
+          "label": "船旗",
+          "changedRatio": 0.2119309262166405
+        },
+        {
+          "id": "d3",
+          "x": 45,
+          "y": 64,
+          "w": 25,
+          "h": 14,
+          "label": "纸堆",
+          "changedRatio": 0.43514822050454427
+        },
+        {
+          "id": "d4",
+          "x": 41,
+          "y": 79,
+          "w": 20,
+          "h": 8,
+          "label": "铅笔",
+          "changedRatio": 0.26746543778801846
+        },
+        {
+          "id": "d5",
+          "x": 71,
+          "y": 61,
+          "w": 11,
+          "h": 13,
+          "label": "杯纹",
+          "changedRatio": 0.09391124871001032
+        },
+        {
+          "id": "d6",
+          "x": 71,
+          "y": 84,
+          "w": 5,
+          "h": 10,
+          "label": "盒纹",
+          "changedRatio": 0.23532763532763531
+        },
+        {
+          "id": "d7",
+          "x": 79,
+          "y": 74,
+          "w": 5,
+          "h": 12,
+          "label": "木偶",
+          "changedRatio": 0.419811320754717
+        },
+        {
+          "id": "d8",
+          "x": 1,
+          "y": 11,
+          "w": 4,
+          "h": 9,
+          "label": "旗纹",
+          "changedRatio": 0.19453125
+        },
+        {
+          "id": "d9",
+          "x": 82,
+          "y": 3,
+          "w": 7,
+          "h": 16,
+          "label": "铃铛",
+          "changedRatio": 0.4204865556978233
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-04/sd2-032-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-04/sd2-032-b.png"
+    },
+    {
+      "id": "SD2-033",
+      "tier": "high",
+      "title": "第一艘绕圈圈",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-033-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-033-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 58,
+          "y": 64,
+          "w": 16,
+          "h": 19,
+          "label": "船和倒影",
+          "changedRatio": 0.17955693742712786
+        },
+        {
+          "id": "d2",
+          "x": 69,
+          "y": 41,
+          "w": 9,
+          "h": 13,
+          "label": "扇面",
+          "changedRatio": 0.39609587348653325
+        },
+        {
+          "id": "d3",
+          "x": 59,
+          "y": 50,
+          "w": 10,
+          "h": 8,
+          "label": "围巾",
+          "changedRatio": 0.3172541743970315
+        },
+        {
+          "id": "d4",
+          "x": 3,
+          "y": 55,
+          "w": 6,
+          "h": 10,
+          "label": "杯纹",
+          "changedRatio": 0.2765957446808511
+        },
+        {
+          "id": "d5",
+          "x": 85,
+          "y": 77,
+          "w": 5,
+          "h": 7,
+          "label": "盒纹",
+          "changedRatio": 0.13951612903225807
+        },
+        {
+          "id": "d6",
+          "x": 75,
+          "y": 86,
+          "w": 9,
+          "h": 13,
+          "label": "松果",
+          "changedRatio": 0.3050125313283208
+        },
+        {
+          "id": "d7",
+          "x": 28,
+          "y": 59,
+          "w": 4,
+          "h": 6,
+          "label": "码头旗",
+          "changedRatio": 0.3321385902031063
+        },
+        {
+          "id": "d8",
+          "x": 32,
+          "y": 90,
+          "w": 5,
+          "h": 9,
+          "label": "抽屉钮",
+          "changedRatio": 0.3375
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-04/sd2-033-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-04/sd2-033-b.png"
+    },
+    {
+      "id": "SD2-034",
+      "tier": "low",
+      "title": "金色的靠岸灯",
+      "imageA": "/static/images/runtime/spot-difference/story-v2/sd2-034-a.webp",
+      "imageB": "/static/images/runtime/spot-difference/story-v2/sd2-034-b.webp",
+      "regions": [
+        {
+          "id": "d1",
+          "x": 58,
+          "y": 41,
+          "w": 6,
+          "h": 8,
+          "label": "码头旗",
+          "changedRatio": 0.3458966565349544
+        },
+        {
+          "id": "d2",
+          "x": 28,
+          "y": 49,
+          "w": 21,
+          "h": 31,
+          "label": "船和倒影",
+          "changedRatio": 0.26909007773205307
+        },
+        {
+          "id": "d3",
+          "x": 0,
+          "y": 48,
+          "w": 18,
+          "h": 31,
+          "label": "毛巾",
+          "changedRatio": 0.2418864908073541
+        },
+        {
+          "id": "d4",
+          "x": 90,
+          "y": 60,
+          "w": 10,
+          "h": 22,
+          "label": "杯纹",
+          "changedRatio": 0.20292207792207792
+        },
+        {
+          "id": "d5",
+          "x": 80,
+          "y": 40,
+          "w": 15,
+          "h": 13,
+          "label": "纸张",
+          "changedRatio": 0.6811857229280097
+        },
+        {
+          "id": "d6",
+          "x": 64,
+          "y": 67,
+          "w": 8,
+          "h": 21,
+          "label": "夹子",
+          "changedRatio": 0.40830995792426367
+        },
+        {
+          "id": "d7",
+          "x": 1,
+          "y": 79,
+          "w": 21,
+          "h": 16,
+          "label": "落叶",
+          "changedRatio": 0.3548500881834215
+        },
+        {
+          "id": "d8",
+          "x": 90,
+          "y": 26,
+          "w": 5,
+          "h": 9,
+          "label": "抽屉钮",
+          "changedRatio": 0.42628205128205127
+        }
+      ],
+      "sourceA": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-04/sd2-034-a.png",
+      "sourceB": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-04/sd2-034-b.png"
+    }
+  ]
+}

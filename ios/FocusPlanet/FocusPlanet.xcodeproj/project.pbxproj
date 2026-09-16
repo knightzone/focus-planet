@@ -1,0 +1,625 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		930BFEBA2CE48A12006333FB /* DCloudDebugServe.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 930BFEB92CE48A11006333FB /* DCloudDebugServe.xcframework */; };
+		9338345B2C3B9DAA00C4DE06 /* DCloudPermissionCamera.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 933834552C3B9DAA00C4DE06 /* DCloudPermissionCamera.xcframework */; };
+		933834822C3B9EED00C4DE06 /* QuartzCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 933834812C3B9EED00C4DE06 /* QuartzCore.framework */; };
+		933834842C3B9EF300C4DE06 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 933834832C3B9EF300C4DE06 /* SystemConfiguration.framework */; };
+		933834882C3B9F0000C4DE06 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 933834872C3B9F0000C4DE06 /* Security.framework */; };
+		9338348A2C3B9F0500C4DE06 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 933834892C3B9F0500C4DE06 /* AVFoundation.framework */; };
+		9338348C2C3B9F0A00C4DE06 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9338348B2C3B9F0A00C4DE06 /* WebKit.framework */; };
+		9338348E2C3B9F1600C4DE06 /* libz.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 9338348D2C3B9F1500C4DE06 /* libz.tbd */; };
+		933834902C3B9F1A00C4DE06 /* libxml2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 9338348F2C3B9F1A00C4DE06 /* libxml2.tbd */; };
+		933834922C3B9F2100C4DE06 /* libsqlite3.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 933834912C3B9F2100C4DE06 /* libsqlite3.tbd */; };
+		9376596B2C2D602200D52792 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 9376596A2C2D602200D52792 /* AppDelegate.m */; };
+		937659712C2D602200D52792 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 937659702C2D602200D52792 /* ViewController.m */; };
+		937659762C2D602300D52792 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 937659752C2D602300D52792 /* Assets.xcassets */; };
+		9376597C2C2D602300D52792 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 9376597B2C2D602300D52792 /* main.m */; };
+		937659862C2D608600D52792 /* UniAppBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 937659852C2D608600D52792 /* UniAppBridge.swift */; };
+		F0C05FACE000000000000021 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000023 /* SceneDelegate.swift */; };
+		F0C05FACE000000000000031 /* DCloudUniExtComponent.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000033 /* DCloudUniExtComponent.xcframework */; };
+		F0C05FACE000000000000032 /* DCloudUniExtComponent.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000033 /* DCloudUniExtComponent.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		937659882C2D60A900D52792 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 937659872C2D60A900D52792 /* PrivacyInfo.xcprivacy */; };
+		937659972C2D623D00D52792 /* DCloudUTSFoundation.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9376598A2C2D623400D52792 /* DCloudUTSFoundation.xcframework */; };
+		937659982C2D623D00D52792 /* DCloudUTSFoundation.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 9376598A2C2D623400D52792 /* DCloudUTSFoundation.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		937659F42C2D7A7900D52792 /* libc++.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 937659F32C2D7A7900D52792 /* libc++.tbd */; };
+		937659F62C2D7A7E00D52792 /* JavaScriptCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 937659F52C2D7A7E00D52792 /* JavaScriptCore.framework */; };
+		937BFD542E7E8CE7005019C5 /* CustomAnimationDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 937BFD532E7E8CE7005019C5 /* CustomAnimationDelegate.swift */; };
+		9381A5452CDE1B9D002872E0 /* DCloudUniappRuntime.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9381A5432CDE1B93002872E0 /* DCloudUniappRuntime.xcframework */; };
+		9381A5462CDE1B9D002872E0 /* DCloudUniappRuntime.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 9381A5432CDE1B93002872E0 /* DCloudUniappRuntime.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		9383B4472D0C255D00CAD42A /* uni-prompt.bundle in Resources */ = {isa = PBXBuildFile; fileRef = 9383B4452D0C255D00CAD42A /* uni-prompt.bundle */; };
+		93DFF8832D2E7A8D002D459D /* uni-app-x in Resources */ = {isa = PBXBuildFile; fileRef = 93DFF8822D2E7A8D002D459D /* uni-app-x */; };
+		93EA3E462C78423800D811ED /* DCloudUTSExtAPI.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 93EA3E3D2C78422D00D811ED /* DCloudUTSExtAPI.xcframework */; };
+		93EA3E472C78423900D811ED /* DCloudUTSExtAPI.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 93EA3E3D2C78422D00D811ED /* DCloudUTSExtAPI.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		93EA3E6B2C784A0D00D811ED /* DCloudUniCanvas.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 93EA3E692C784A0500D811ED /* DCloudUniCanvas.xcframework */; };
+		93EA3E6C2C784A0D00D811ED /* DCloudUniCanvas.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 93EA3E692C784A0500D811ED /* DCloudUniCanvas.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		B6F1FBCC2FC6A4C700053D64 /* SDWebImage.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 937BFD552E7E8DF0005019C5 /* SDWebImage.xcframework */; };
+		B6F1FBCD2FC6A4C700053D64 /* SDWebImage.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 937BFD552E7E8DF0005019C5 /* SDWebImage.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		F0C05FACE000000000000001 /* unimoduleFocusFaceDetector.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000003 /* unimoduleFocusFaceDetector.framework */; };
+		F0C05FACE000000000000002 /* unimoduleFocusFaceDetector.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000003 /* unimoduleFocusFaceDetector.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		F0C05FACE000000000000011 /* KSCrash.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000013 /* KSCrash.xcframework */; };
+		F0C05FACE000000000000012 /* KSCrash.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000013 /* KSCrash.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		937659942C2D623B00D52792 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				F0C05FACE000000000000032 /* DCloudUniExtComponent.xcframework in Embed Frameworks */,
+				F0C05FACE000000000000012 /* KSCrash.xcframework in Embed Frameworks */,
+				F0C05FACE000000000000002 /* unimoduleFocusFaceDetector.framework in Embed Frameworks */,
+				9381A5462CDE1B9D002872E0 /* DCloudUniappRuntime.xcframework in Embed Frameworks */,
+				93EA3E6C2C784A0D00D811ED /* DCloudUniCanvas.xcframework in Embed Frameworks */,
+				93EA3E472C78423900D811ED /* DCloudUTSExtAPI.xcframework in Embed Frameworks */,
+				937659982C2D623D00D52792 /* DCloudUTSFoundation.xcframework in Embed Frameworks */,
+				B6F1FBCD2FC6A4C700053D64 /* SDWebImage.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		930BFEB92CE48A11006333FB /* DCloudDebugServe.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DCloudDebugServe.xcframework; path = ../SDK/Libs/DCloudDebugServe.xcframework; sourceTree = "<group>"; };
+		933834552C3B9DAA00C4DE06 /* DCloudPermissionCamera.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DCloudPermissionCamera.xcframework; path = ../SDK/Libs/DCloudPermissionCamera.xcframework; sourceTree = "<group>"; };
+		933834812C3B9EED00C4DE06 /* QuartzCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = QuartzCore.framework; path = System/Library/Frameworks/QuartzCore.framework; sourceTree = SDKROOT; };
+		933834832C3B9EF300C4DE06 /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
+		933834872C3B9F0000C4DE06 /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		933834892C3B9F0500C4DE06 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		9338348B2C3B9F0A00C4DE06 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		9338348D2C3B9F1500C4DE06 /* libz.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libz.tbd; path = usr/lib/libz.tbd; sourceTree = SDKROOT; };
+		9338348F2C3B9F1A00C4DE06 /* libxml2.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libxml2.tbd; path = usr/lib/libxml2.tbd; sourceTree = SDKROOT; };
+		933834912C3B9F2100C4DE06 /* libsqlite3.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libsqlite3.tbd; path = usr/lib/libsqlite3.tbd; sourceTree = SDKROOT; };
+		937659662C2D602200D52792 /* FocusPlanet.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FocusPlanet.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		937659692C2D602200D52792 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
+		9376596A2C2D602200D52792 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
+		9376596F2C2D602200D52792 /* ViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViewController.h; sourceTree = "<group>"; };
+		937659702C2D602200D52792 /* ViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ViewController.m; sourceTree = "<group>"; };
+		937659752C2D602300D52792 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		9376597A2C2D602300D52792 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		9376597B2C2D602300D52792 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		937659842C2D608600D52792 /* FocusPlanet-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "FocusPlanet-Bridging-Header.h"; sourceTree = "<group>"; };
+		937659852C2D608600D52792 /* UniAppBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniAppBridge.swift; sourceTree = "<group>"; };
+		F0C05FACE000000000000023 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		F0C05FACE000000000000033 /* DCloudUniExtComponent.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DCloudUniExtComponent.xcframework; path = ../SDK/Libs/DCloudUniExtComponent.xcframework; sourceTree = "<group>"; };
+		937659872C2D60A900D52792 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		9376598A2C2D623400D52792 /* DCloudUTSFoundation.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DCloudUTSFoundation.xcframework; path = ../SDK/Libs/DCloudUTSFoundation.xcframework; sourceTree = "<group>"; };
+		937659F32C2D7A7900D52792 /* libc++.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = "libc++.tbd"; path = "usr/lib/libc++.tbd"; sourceTree = SDKROOT; };
+		937659F52C2D7A7E00D52792 /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		937BFD532E7E8CE7005019C5 /* CustomAnimationDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CustomAnimationDelegate.swift; sourceTree = "<group>"; };
+		937BFD552E7E8DF0005019C5 /* SDWebImage.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = SDWebImage.xcframework; path = ../SDK/Libs/SDWebImage.xcframework; sourceTree = "<group>"; };
+		9381A5432CDE1B93002872E0 /* DCloudUniappRuntime.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DCloudUniappRuntime.xcframework; path = ../SDK/Libs/DCloudUniappRuntime.xcframework; sourceTree = "<group>"; };
+		9383B4452D0C255D00CAD42A /* uni-prompt.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; name = "uni-prompt.bundle"; path = "../SDK/Resources/uni-prompt.bundle"; sourceTree = SOURCE_ROOT; };
+		9394D6B72C32CA5C006EB534 /* FocusPlanetDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FocusPlanetDebug.entitlements; sourceTree = "<group>"; };
+		93DFF8822D2E7A8D002D459D /* uni-app-x */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "uni-app-x"; sourceTree = "<group>"; };
+		93EA3E3D2C78422D00D811ED /* DCloudUTSExtAPI.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DCloudUTSExtAPI.xcframework; path = ../CustomFrameworks/DCloudUTSExtAPI.xcframework; sourceTree = "<group>"; };
+		93EA3E692C784A0500D811ED /* DCloudUniCanvas.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DCloudUniCanvas.xcframework; path = ../SDK/Libs/DCloudUniCanvas.xcframework; sourceTree = "<group>"; };
+		B6884F953004C94400CCF307 /* FocusPlanet.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FocusPlanet.entitlements; sourceTree = "<group>"; };
+		F0C05FACE000000000000003 /* unimoduleFocusFaceDetector.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = unimoduleFocusFaceDetector.framework; path = ../Plugins/unimoduleFocusFaceDetector.framework; sourceTree = "<group>"; };
+		F0C05FACE000000000000013 /* KSCrash.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = KSCrash.xcframework; path = ../SDK/Libs/KSCrash.xcframework; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		937659632C2D602200D52792 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F0C05FACE000000000000031 /* DCloudUniExtComponent.xcframework in Frameworks */,
+				F0C05FACE000000000000011 /* KSCrash.xcframework in Frameworks */,
+				F0C05FACE000000000000001 /* unimoduleFocusFaceDetector.framework in Frameworks */,
+				930BFEBA2CE48A12006333FB /* DCloudDebugServe.xcframework in Frameworks */,
+				9381A5452CDE1B9D002872E0 /* DCloudUniappRuntime.xcframework in Frameworks */,
+				93EA3E462C78423800D811ED /* DCloudUTSExtAPI.xcframework in Frameworks */,
+				933834922C3B9F2100C4DE06 /* libsqlite3.tbd in Frameworks */,
+				933834902C3B9F1A00C4DE06 /* libxml2.tbd in Frameworks */,
+				9338348E2C3B9F1600C4DE06 /* libz.tbd in Frameworks */,
+				9338348C2C3B9F0A00C4DE06 /* WebKit.framework in Frameworks */,
+				9338348A2C3B9F0500C4DE06 /* AVFoundation.framework in Frameworks */,
+				933834882C3B9F0000C4DE06 /* Security.framework in Frameworks */,
+				9338345B2C3B9DAA00C4DE06 /* DCloudPermissionCamera.xcframework in Frameworks */,
+				B6F1FBCC2FC6A4C700053D64 /* SDWebImage.xcframework in Frameworks */,
+				933834822C3B9EED00C4DE06 /* QuartzCore.framework in Frameworks */,
+				93EA3E6B2C784A0D00D811ED /* DCloudUniCanvas.xcframework in Frameworks */,
+				937659F62C2D7A7E00D52792 /* JavaScriptCore.framework in Frameworks */,
+				937659F42C2D7A7900D52792 /* libc++.tbd in Frameworks */,
+				937659972C2D623D00D52792 /* DCloudUTSFoundation.xcframework in Frameworks */,
+				933834842C3B9EF300C4DE06 /* SystemConfiguration.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		9376595D2C2D602200D52792 = {
+			isa = PBXGroup;
+			children = (
+				B6884F953004C94400CCF307 /* FocusPlanet.entitlements */,
+				9383B4452D0C255D00CAD42A /* uni-prompt.bundle */,
+				937659682C2D602200D52792 /* FocusPlanet */,
+				937659672C2D602200D52792 /* Products */,
+				937659892C2D623400D52792 /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		937659672C2D602200D52792 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				937659662C2D602200D52792 /* FocusPlanet.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		937659682C2D602200D52792 /* FocusPlanet */ = {
+			isa = PBXGroup;
+			children = (
+				F0C05FACE000000000000023 /* SceneDelegate.swift */,
+				9394D6B72C32CA5C006EB534 /* FocusPlanetDebug.entitlements */,
+				937659872C2D60A900D52792 /* PrivacyInfo.xcprivacy */,
+				93DFF8822D2E7A8D002D459D /* uni-app-x */,
+				937659692C2D602200D52792 /* AppDelegate.h */,
+				9376596A2C2D602200D52792 /* AppDelegate.m */,
+				9376596F2C2D602200D52792 /* ViewController.h */,
+				937659702C2D602200D52792 /* ViewController.m */,
+				937659752C2D602300D52792 /* Assets.xcassets */,
+				9376597A2C2D602300D52792 /* Info.plist */,
+				9376597B2C2D602300D52792 /* main.m */,
+				937659852C2D608600D52792 /* UniAppBridge.swift */,
+				937659842C2D608600D52792 /* FocusPlanet-Bridging-Header.h */,
+				937BFD532E7E8CE7005019C5 /* CustomAnimationDelegate.swift */,
+			);
+			path = FocusPlanet;
+			sourceTree = "<group>";
+		};
+		937659892C2D623400D52792 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				F0C05FACE000000000000033 /* DCloudUniExtComponent.xcframework */,
+				F0C05FACE000000000000013 /* KSCrash.xcframework */,
+				F0C05FACE000000000000003 /* unimoduleFocusFaceDetector.framework */,
+				937BFD552E7E8DF0005019C5 /* SDWebImage.xcframework */,
+				930BFEB92CE48A11006333FB /* DCloudDebugServe.xcframework */,
+				9381A5432CDE1B93002872E0 /* DCloudUniappRuntime.xcframework */,
+				93EA3E692C784A0500D811ED /* DCloudUniCanvas.xcframework */,
+				93EA3E3D2C78422D00D811ED /* DCloudUTSExtAPI.xcframework */,
+				933834912C3B9F2100C4DE06 /* libsqlite3.tbd */,
+				9338348F2C3B9F1A00C4DE06 /* libxml2.tbd */,
+				9338348D2C3B9F1500C4DE06 /* libz.tbd */,
+				9338348B2C3B9F0A00C4DE06 /* WebKit.framework */,
+				933834892C3B9F0500C4DE06 /* AVFoundation.framework */,
+				933834872C3B9F0000C4DE06 /* Security.framework */,
+				933834832C3B9EF300C4DE06 /* SystemConfiguration.framework */,
+				933834812C3B9EED00C4DE06 /* QuartzCore.framework */,
+				933834552C3B9DAA00C4DE06 /* DCloudPermissionCamera.xcframework */,
+				937659F52C2D7A7E00D52792 /* JavaScriptCore.framework */,
+				937659F32C2D7A7900D52792 /* libc++.tbd */,
+				9376598A2C2D623400D52792 /* DCloudUTSFoundation.xcframework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		937659652C2D602200D52792 /* UniAppX */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 9376597F2C2D602300D52792 /* Build configuration list for PBXNativeTarget "UniAppX" */;
+			buildPhases = (
+				F0C05FACE000000000000041 /* Check uni-app x resources */,
+				937659622C2D602200D52792 /* Sources */,
+				937659632C2D602200D52792 /* Frameworks */,
+				937659642C2D602200D52792 /* Resources */,
+				937659942C2D623B00D52792 /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = UniAppX;
+			productName = FocusPlanet;
+			productReference = 937659662C2D602200D52792 /* FocusPlanet.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		9376595E2C2D602200D52792 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 1530;
+				TargetAttributes = {
+					937659652C2D602200D52792 = {
+						CreatedOnToolsVersion = 15.3;
+						LastSwiftMigration = 1530;
+					};
+				};
+			};
+			buildConfigurationList = 937659612C2D602200D52792 /* Build configuration list for PBXProject "FocusPlanet" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 9376595D2C2D602200D52792;
+			productRefGroup = 937659672C2D602200D52792 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				937659652C2D602200D52792 /* UniAppX */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		937659642C2D602200D52792 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				93DFF8832D2E7A8D002D459D /* uni-app-x in Resources */,
+				9383B4472D0C255D00CAD42A /* uni-prompt.bundle in Resources */,
+				937659762C2D602300D52792 /* Assets.xcassets in Resources */,
+				937659882C2D60A900D52792 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		F0C05FACE000000000000041 /* Check uni-app x resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../scripts/check-resource-freshness.sh",
+				"$(SRCROOT)/../../App.uvue",
+				"$(SRCROOT)/../../pages.json",
+				"$(SRCROOT)/../../manifest.json",
+				"$(SRCROOT)/../../pages",
+				"$(SRCROOT)/../../components",
+				"$(SRCROOT)/../../utils",
+				"$(SRCROOT)/../../uni_modules",
+				"$(SRCROOT)/../../static",
+				"$(SRCROOT)/../../unpackage/resources/app-ios/__UNI__B5780B0",
+				"$(SRCROOT)/../../unpackage/resources/app-ios/__UNI__B5780B0/www/manifest.json",
+				"$(SRCROOT)/../../unpackage/resources/app-ios/__UNI__B5780B0/www/app-service.js",
+				"$(SRCROOT)/FocusPlanet/uni-app-x/apps/__UNI__B5780B0",
+				"$(SRCROOT)/FocusPlanet/uni-app-x/apps/__UNI__B5780B0/www/manifest.json",
+				"$(SRCROOT)/FocusPlanet/uni-app-x/apps/__UNI__B5780B0/www/app-service.js",
+			);
+			name = "Check uni-app x resources";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/bash;
+			shellScript = "\"$SRCROOT/../scripts/check-resource-freshness.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		937659622C2D602200D52792 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F0C05FACE000000000000021 /* SceneDelegate.swift in Sources */,
+				937659712C2D602200D52792 /* ViewController.m in Sources */,
+				937BFD542E7E8CE7005019C5 /* CustomAnimationDelegate.swift in Sources */,
+				9376596B2C2D602200D52792 /* AppDelegate.m in Sources */,
+				9376597C2C2D602300D52792 /* main.m in Sources */,
+				937659862C2D608600D52792 /* UniAppBridge.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		9376597D2C2D602300D52792 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+			};
+			name = Debug;
+		};
+		9376597E2C2D602300D52792 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		937659802C2D602300D52792 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = FocusPlanet/FocusPlanetDebug.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 100;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 4N5RUYQ48R;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+					"$(PROJECT_DIR)/../Plugins",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FocusPlanet/Info.plist;
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "项目真机运行期间访问用户的 Apple Music 库或媒体资料库";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "项目真机运行期间使用蓝牙功能";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "项目真机运行期间共享蓝牙数据";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "项目真机运行期间需要完全访问用户的日历数据（读取、修改、删除和添加）";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "项目真机运行期间访问用户的日历数据";
+				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "项目真机运行期间向日历中添加事件";
+				INFOPLIST_KEY_NSCameraUsageDescription = "项目真机运行期间使用摄像头拍摄照片或视频";
+				INFOPLIST_KEY_NSContactsUsageDescription = "项目真机运行期间访问用户的通讯录";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "项目真机运行期间使用 Face ID 进行身份验证";
+				INFOPLIST_KEY_NSGKFriendListUsageDescription = "项目真机运行期间访问用户在 Game Center 中的好友列表";
+				INFOPLIST_KEY_NSHealthClinicalHealthRecordsShareUsageDescription = "项目真机运行期间访问临床健康记录";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "项目真机运行期间从健康 App 中读取数据";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "项目真机运行期间向健康 App 中写入数据";
+				INFOPLIST_KEY_NSHomeKitUsageDescription = "项目真机运行期间访问用户的 HomeKit 配置";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "项目真机运行期间使用本地网络";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "项目真机运行期间访问位置信息";
+				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "项目真机运行在后台期间访问位置信息";
+				INFOPLIST_KEY_NSLocationTemporaryUsageDescriptionDictionary = "项目真机运行期间请求临时的高精度（精确）位置";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "项目真机运行期间访问位置信息";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "项目真机运行期间使用麦克风录制音频";
+				INFOPLIST_KEY_NSMotionUsageDescription = "项目真机运行期间访问运动与健身数据（如步数、加速度计）";
+				INFOPLIST_KEY_NSNearbyInteractionUsageDescription = "项目真机运行期间使用超宽带（UWB）进行近距离交互";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "项目真机运行期间读写相册";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "项目真机运行期间读取相册";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "项目真机运行期间完全访问用户的提醒事项权限（读、写、修改和删除）";
+				INFOPLIST_KEY_NSRemindersUsageDescription = "项目真机运行期间访问用户的提醒事项";
+				INFOPLIST_KEY_NSSiriUsageDescription = "项目真机运行期间将应用数据发送至 Siri";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "项目真机运行期间使用语音识别功能";
+				INFOPLIST_KEY_NSUserTrackingUsageDescription = "项目真机运行期间跟踪用户活动";
+				INFOPLIST_KEY_NSVideoSubscriberAccountUsageDescription = "项目真机运行期间访问用户的电视提供商账户";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/FocusPlanet",
+				);
+				MARKETING_VERSION = 0.1.0;
+				OTHER_LDFLAGS = "-ObjC";
+				PRODUCT_BUNDLE_IDENTIFIER = com.zhuanzhuapp.mate;
+				PRODUCT_NAME = FocusPlanet;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "专注星伴dev";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "FocusPlanet/FocusPlanet-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+				STRIP_BITCODE_FROM_COPIED_FILES = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		937659812C2D602300D52792 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = FocusPlanet.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
+				CODE_SIGN_STYLE = Manual;
+				CURRENT_PROJECT_VERSION = 100;
+				DEVELOPMENT_TEAM = "";
+				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 4N5RUYQ48R;
+				EXCLUDED_SOURCE_FILE_NAMES = DCloudDebugServe.xcframework;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)",
+					"$(PROJECT_DIR)/../Plugins",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = FocusPlanet/Info.plist;
+				INFOPLIST_KEY_NSAppleMusicUsageDescription = "项目真机运行期间访问用户的 Apple Music 库或媒体资料库";
+				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "项目真机运行期间使用蓝牙功能";
+				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "项目真机运行期间共享蓝牙数据";
+				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "项目真机运行期间需要完全访问用户的日历数据（读取、修改、删除和添加）";
+				INFOPLIST_KEY_NSCalendarsUsageDescription = "项目真机运行期间访问用户的日历数据";
+				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "项目真机运行期间向日历中添加事件";
+				INFOPLIST_KEY_NSCameraUsageDescription = "项目真机运行期间使用摄像头拍摄照片或视频";
+				INFOPLIST_KEY_NSContactsUsageDescription = "项目真机运行期间访问用户的通讯录";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "项目真机运行期间使用 Face ID 进行身份验证";
+				INFOPLIST_KEY_NSGKFriendListUsageDescription = "项目真机运行期间访问用户在 Game Center 中的好友列表";
+				INFOPLIST_KEY_NSHealthClinicalHealthRecordsShareUsageDescription = "项目真机运行期间访问临床健康记录";
+				INFOPLIST_KEY_NSHealthShareUsageDescription = "项目真机运行期间从健康 App 中读取数据";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "项目真机运行期间向健康 App 中写入数据";
+				INFOPLIST_KEY_NSHomeKitUsageDescription = "项目真机运行期间访问用户的 HomeKit 配置";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "项目真机运行期间使用本地网络";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "项目真机运行期间访问位置信息";
+				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "项目真机运行在后台期间访问位置信息";
+				INFOPLIST_KEY_NSLocationTemporaryUsageDescriptionDictionary = "项目真机运行期间请求临时的高精度（精确）位置";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "项目真机运行期间访问位置信息";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "项目真机运行期间使用麦克风录制音频";
+				INFOPLIST_KEY_NSMotionUsageDescription = "项目真机运行期间访问运动与健身数据（如步数、加速度计）";
+				INFOPLIST_KEY_NSNearbyInteractionUsageDescription = "项目真机运行期间使用超宽带（UWB）进行近距离交互";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "项目真机运行期间读写相册";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "项目真机运行期间读取相册";
+				INFOPLIST_KEY_NSRemindersFullAccessUsageDescription = "项目真机运行期间完全访问用户的提醒事项权限（读、写、修改和删除）";
+				INFOPLIST_KEY_NSRemindersUsageDescription = "项目真机运行期间访问用户的提醒事项";
+				INFOPLIST_KEY_NSSiriUsageDescription = "项目真机运行期间将应用数据发送至 Siri";
+				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "项目真机运行期间使用语音识别功能";
+				INFOPLIST_KEY_NSUserTrackingUsageDescription = "项目真机运行期间跟踪用户活动";
+				INFOPLIST_KEY_NSVideoSubscriberAccountUsageDescription = "项目真机运行期间访问用户的电视提供商账户";
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/FocusPlanet",
+				);
+				MARKETING_VERSION = 0.1.0;
+				OTHER_LDFLAGS = "-ObjC";
+				PRODUCT_BUNDLE_IDENTIFIER = com.zhuanzhuapp.mate;
+				PRODUCT_NAME = FocusPlanet;
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "专注星伴dis";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "FocusPlanet/FocusPlanet-Bridging-Header.h";
+				SWIFT_VERSION = 5.0;
+				STRIP_BITCODE_FROM_COPIED_FILES = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		937659612C2D602200D52792 /* Build configuration list for PBXProject "FocusPlanet" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9376597D2C2D602300D52792 /* Debug */,
+				9376597E2C2D602300D52792 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		9376597F2C2D602300D52792 /* Build configuration list for PBXNativeTarget "UniAppX" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				937659802C2D602300D52792 /* Debug */,
+				937659812C2D602300D52792 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 9376595E2C2D602200D52792 /* Project object */;
+}

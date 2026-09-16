@@ -1,0 +1,12 @@
+# SD2-021 谁在说“喂”
+
+内置 image_gen；A/B 已目检，区域QA待做。
+
+## A
+
+Use case: illustration-story. Create one independent 16:9 wide children's story scene SD2-021 A. Reference image is ONLY blue bunny identity and polished soft 3D cartoon style, NOT garden composition. In a sunny forest clearing before a broad low natural grey rock wall, blue bunny Yueyue cups his two short paws around his mouth testing an echo; one long ear turns toward winding woodland path behind him. Curious delighted, not scared. Bright blue fur, blue nose, cream muzzle/belly, anatomically natural two arms/two feet. Full body center-left, rock wall right, trees and winding path left background. Travel satchel with round clasp and rolled green mat at left foreground, blue bottle with white flower by satchel. Natural separated details: red mushroom on right foreground, yellow butterfly on rock, three pebbles at foot of wall, little fern on upper rock ledge, orange fallen leaf foreground, white daisy near bunny foot, small pinecone beside satchel, wooden path marker with leaf emblem behind bunny. Cohesive believable woodland, ample visible scene objects for 10 local differences, rich but readable composition, sunny optimistic humorous mood, no other characters, no captions/text/UI/watermark, no montage. Bunny bare cream feet with brown pads, not oversized arms.
+
+## B
+
+Use case: precise-object-edit. Edit this exact SD2-021 A into B spot-the-difference image, same full canvas and composition. Keep bunny pose/anatomy/blue nose, stonewall, lighting, camera, trees, paths and all unrelated pixels unchanged. Make only these TEN separated local changes, natural storybook rendering: 1 path sign green leaf emblem becomes orange acorn emblem; 2 left rolled sleeping mat green becomes dusty purple; 3 satchel front round gold clasp becomes square gold clasp; 4 blue bottle white flower emblem becomes white crescent moon, bottle stays blue; 5 pinecone beside satchel replaced by single acorn in same small area; 6 foreground daisy immediately left of bunny feet has pink petals instead of white; 7 orange fallen maple leaf near lower center-right becomes green same shape; 8 three pebbles below wall become two by removing middle pale pebble; 9 large right mushroom cap becomes golden yellow retaining white spots, small mushroom remains red; 10 butterfly upper right orange wing areas become sky blue with black edges retained. No other changes, no labels, no grids. Produce single independent B picture.
+
