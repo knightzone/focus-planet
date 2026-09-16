@@ -1,0 +1,392 @@
+// 倒水小实验：纯逻辑，页面只负责渲染与交互。
+// 关卡从预生成的关卡表（water-sort-levels.uts）随机抽取并随机重映射颜色；
+// 每档最少步数固定，目标步数 = 固定最少步数 + 低难度宽限。
+// 求解器与反向打乱仅用于离线生成关卡和回归测试，运行时不再实时求解。
+
+import { WATER_SORT_LEVELS } from './water-sort-levels.uts'
+
+export type WaterSortConfig = {
+  level: number,
+  colors: number,
+  empties: number,
+  tubes: number,
+  capacity: number,
+  rounds: number,
+  allowance: number,
+  scramble: number,
+  minimum: number
+}
+
+export type WaterSortPuzzle = {
+  tubes: number[][],
+  minimum: number,
+  target: number,
+  exact: boolean
+}
+
+export type WaterSortPourResult = {
+  ok: boolean,
+  reason: string,
+  tubes: number[][],
+  moved: number
+}
+
+export type WaterSortSolveResult = { steps: number, exact: boolean, found: boolean }
+
+type WaterSortMove = { from: number, to: number, rank: number }
+type WaterSortReverseStep = { source: number, target: number, count: number }
+type WaterSortMemoEntry = { codes: number[], depth: number }
+
+// 每根试管四格；八进制编码最多需要 4 位，留出足够余量。
+export const WATER_SORT_CAPACITY = 4
+// 由易到难逐级启用，前三种色相差异最大。
+export const WATER_SORT_COLORS: string[] = ['#4b8fe0', '#ef6f6c', '#f7c744', '#4fc08d', '#a97be0', '#45c7d8']
+const WATER_SORT_MEMO_BUCKETS = 4096
+const WATER_SORT_NODE_BUDGET = 20000
+
+export function waterSortConfig(level: number): WaterSortConfig {
+  const index = Math.max(0, Math.min(9, Math.round(level) - 1))
+  const colors = [2, 2, 3, 3, 4, 4, 5, 5, 5, 5][index]
+  // 固定最少步数随档递增；打乱步数按「命中该最少步数的概率最高」标定，
+  // 让固定步数筛选的平均重摇次数最少（5 色封顶后求解精确率高，筛选成本毫秒级）。
+  const minimum = [4, 5, 5, 6, 7, 8, 9, 10, 10, 10][index]
+  const scramble = [7, 7, 6, 10, 18, 22, 14, 18, 24, 26][index]
+  return {
+    level: index + 1,
+    colors: colors,
+    empties: index < 5 ? 1 : 2,
+    tubes: colors + (index < 5 ? 1 : 2),
+    capacity: WATER_SORT_CAPACITY,
+    rounds: index < 3 ? 3 : index < 7 ? 4 : 5,
+    allowance: index < 6 ? 1 : 0,
+    scramble: scramble,
+    minimum: minimum
+  }
+}
+
+// 试玩固定两根试管，倒一次就能让每根瓶子只剩一种颜色。
+export function waterSortDemoTubes(): number[][] {
+  return [[0, 0, 1, 1], []] as number[][]
+}
+
+// 每根瓶子要么空、要么只有一种颜色即为完成。
+// 正式题目每种颜色正好四格，所以这个条件等价于「每根瓶子倒满或倒空」。
+export function waterSortSolved(tubes: number[][]): boolean {
+  for (let i = 0; i < tubes.length; i++) {
+    const tube = tubes[i]
+    for (let j = 1; j < tube.length; j++) {
+      if (tube[j] != tube[0]) return false
+    }
+  }
+  return true
+}
+
+// 达标给满分；超出目标步数每步扣 12 分，保留部分分但不足以过关。
+export function waterSortRoundScore(moves: number, target: number): number {
+  if (moves <= target) return 100
+  return Math.max(0, 100 - 12 * (moves - target))
+}
+
+function waterSortClone(tubes: number[][]): number[][] {
+  const result = [] as number[][]
+  for (let i = 0; i < tubes.length; i++) result.push(tubes[i].slice())
+  return result
+}
+
+function waterSortTopRun(tube: number[]): number {
+  if (tube.length == 0) return 0
+  const color = tube[tube.length - 1]
+  let run = 1
+  while (run < tube.length && tube[tube.length - 1 - run] == color) run += 1
+  return run
+}
+
+// 就地倒水，返回实际倒出的格数，供搜索回滚使用。
+function waterSortApply(tubes: number[][], from: number, to: number): number {
+  const source = tubes[from], target = tubes[to]
+  if (source.length == 0 || target.length >= WATER_SORT_CAPACITY) return 0
+  const color = source[source.length - 1]
+  if (target.length > 0 && target[target.length - 1] != color) return 0
+  let moved = 0
+  while (source.length > 0 && source[source.length - 1] == color && target.length < WATER_SORT_CAPACITY) {
+    const unit = source.pop()
+    if (unit == null) break
+    target.push(unit)
+    moved += 1
+  }
+  return moved
+}
+
+function waterSortUndo(tubes: number[][], from: number, to: number, moved: number) {
+  const source = tubes[from], target = tubes[to]
+  for (let i = 0; i < moved; i++) {
+    const unit = target.pop()
+    if (unit != null) source.push(unit)
+  }
+}
+
+export function waterSortPour(tubes: number[][], from: number, to: number): WaterSortPourResult {
+  const next = waterSortClone(tubes)
+  if (from < 0 || to < 0 || from >= next.length || to >= next.length || from == to) {
+    return { ok: false, reason: '换一个瓶子试试', tubes: next, moved: 0 }
+  }
+  const source = next[from], target = next[to]
+  if (source.length == 0) return { ok: false, reason: '这个瓶子是空的', tubes: next, moved: 0 }
+  if (target.length >= WATER_SORT_CAPACITY) return { ok: false, reason: '这个瓶子已经倒满了', tubes: next, moved: 0 }
+  const moved = waterSortApply(next, from, to)
+  if (moved <= 0) return { ok: false, reason: '颜色不一样，倒不过去', tubes: next, moved: 0 }
+  return { ok: true, reason: '', tubes: next, moved: moved }
+}
+
+// 试管顺序不影响解法：先编码再排序，让等价局面只被搜索一次。
+function waterSortCodes(tubes: number[][]): number[] {
+  const codes = [] as number[]
+  for (let i = 0; i < tubes.length; i++) {
+    const tube = tubes[i]
+    let code = 0, factor = 1
+    for (let j = 0; j < tube.length; j++) {
+      code += (tube[j] + 1) * factor
+      factor = factor * 8
+    }
+    codes.push(code)
+  }
+  codes.sort((left: number, right: number): number => left - right)
+  return codes
+}
+
+function waterSortCodesEqual(left: number[], right: number[]): boolean {
+  if (left.length != right.length) return false
+  for (let i = 0; i < left.length; i++) if (left[i] != right[i]) return false
+  return true
+}
+
+function waterSortCodesHash(codes: number[]): number {
+  let hash = 17
+  for (let i = 0; i < codes.length; i++) hash = (hash * 31 + codes[i]) % WATER_SORT_MEMO_BUCKETS
+  return hash
+}
+
+// 先排「一次倒满并清空」的推进步，最后才试倒进空瓶的腾挪步，让深度优先尽早碰到短解。
+function waterSortMoveRank(tubes: number[][], from: number, to: number, run: number): number {
+  const source = tubes[from], target = tubes[to]
+  const moved = Math.min(run, WATER_SORT_CAPACITY - target.length)
+  if (target.length == 0) return 4
+  if (target.length + moved == WATER_SORT_CAPACITY && source.length == moved) return 0
+  if (target.length + moved == WATER_SORT_CAPACITY) return 1
+  if (source.length == moved) return 2
+  return 3
+}
+
+function waterSortMoves(tubes: number[][]): WaterSortMove[] {
+  const result = [] as WaterSortMove[]
+  for (let from = 0; from < tubes.length; from++) {
+    const source = tubes[from]
+    if (source.length == 0) continue
+    const color = source[source.length - 1]
+    const run = waterSortTopRun(source)
+    const uniform = run == source.length
+    for (let to = 0; to < tubes.length; to++) {
+      if (to == from) continue
+      const target = tubes[to]
+      if (target.length >= WATER_SORT_CAPACITY) continue
+      // 整瓶同色倒进空瓶只是换位置，不推进解法。
+      if (uniform && target.length == 0) continue
+      if (target.length > 0 && target[target.length - 1] != color) continue
+      result.push({ from: from, to: to, rank: waterSortMoveRank(tubes, from, to, run) })
+    }
+  }
+  result.sort((left: WaterSortMove, right: WaterSortMove): number => left.rank - right.rank)
+  return result
+}
+
+let waterSortNodes = 0
+let waterSortBudget = 0
+let waterSortSolution = 0
+let waterSortMemo = [] as WaterSortMemoEntry[][]
+
+function waterSortMemoReset() {
+  if (waterSortMemo.length == 0) {
+    for (let i = 0; i < WATER_SORT_MEMO_BUCKETS; i++) waterSortMemo.push([] as WaterSortMemoEntry[])
+    return
+  }
+  // 每轮步数上限都不同，旧记忆的展开深度不一样，必须整体清空后再搜。
+  for (let i = 0; i < waterSortMemo.length; i++) waterSortMemo[i].splice(0, waterSortMemo[i].length)
+}
+
+function waterSortMemoSeen(codes: number[], depth: number): boolean {
+  const bucket = waterSortMemo[waterSortCodesHash(codes)]
+  for (let i = 0; i < bucket.length; i++) {
+    const entry = bucket[i]
+    if (entry.depth <= depth && waterSortCodesEqual(entry.codes, codes)) return true
+  }
+  return false
+}
+
+function waterSortMemoAdd(codes: number[], depth: number) {
+  waterSortMemo[waterSortCodesHash(codes)].push({ codes: codes, depth: depth })
+}
+
+function waterSortDfs(tubes: number[][], depth: number, limit: number): boolean {
+  if (waterSortSolved(tubes)) {
+    waterSortSolution = depth
+    return true
+  }
+  if (depth >= limit || waterSortNodes >= waterSortBudget) return false
+  waterSortNodes += 1
+  const codes = waterSortCodes(tubes)
+  if (waterSortMemoSeen(codes, depth)) return false
+  waterSortMemoAdd(codes, depth)
+  const moves = waterSortMoves(tubes)
+  for (let i = 0; i < moves.length; i++) {
+    const move = moves[i]
+    const moved = waterSortApply(tubes, move.from, move.to)
+    if (moved > 0) {
+      const found = waterSortDfs(tubes, depth + 1, limit)
+      waterSortUndo(tubes, move.from, move.to, moved)
+      if (found) return true
+    }
+    if (waterSortNodes >= waterSortBudget) return false
+  }
+  return false
+}
+
+// 迭代加深：第一次成功的上限就是最少步数。
+// steps 返回的是「一定有解」的步数：找到解时是搜到的解法步数，
+// 没找到时是调用方给的 upperBound（生成器用反向打乱步数保证它一定可达）。
+export function waterSortSolve(start: number[][], upperBound: number, budget: number): WaterSortSolveResult {
+  waterSortNodes = 0
+  waterSortBudget = Math.max(1, budget)
+  waterSortSolution = 0
+  let best = upperBound
+  let found = false
+  let exact = false
+  while (best > 1) {
+    waterSortMemoReset()
+    waterSortSolution = 0
+    const hit = waterSortDfs(waterSortClone(start), 0, best - 1)
+    // 预算耗尽的搜索结果不完整，只能当上界，不能声称最少步数。
+    if (waterSortNodes >= waterSortBudget) break
+    if (hit) {
+      best = waterSortSolution
+      found = true
+      continue
+    }
+    exact = true
+    break
+  }
+  if (found && best <= 1) exact = true
+  return { steps: best, exact: exact, found: found }
+}
+
+// 早停验证最少步数是否恰好等于 target，两步各用一次受限深度搜索：
+// 先证「target-1 步内无解」（否则更短），再证「target 步内有解」（否则更长）。
+//   1 = 恰好 target 步；0 = 不等于 target 步；-1 = 预算耗尽无法确定。
+function waterSortExactSteps(start: number[][], target: number, budget: number): number {
+  waterSortBudget = Math.max(1, budget)
+  waterSortNodes = 0
+  waterSortSolution = 0
+  waterSortMemoReset()
+  if (waterSortDfs(waterSortClone(start), 0, target - 1)) return 0
+  if (waterSortNodes >= waterSortBudget) return -1
+  waterSortMemoReset()
+  waterSortSolution = 0
+  if (waterSortDfs(waterSortClone(start), 0, target)) return 1
+  if (waterSortNodes >= waterSortBudget) return -1
+  return 0
+}
+
+function waterSortMixedCount(tubes: number[][]): number {
+  let mixed = 0
+  for (let i = 0; i < tubes.length; i++) {
+    const tube = tubes[i]
+    for (let j = 1; j < tube.length; j++) {
+      if (tube[j] != tube[0]) {
+        mixed += 1
+        break
+      }
+    }
+  }
+  return mixed
+}
+
+// 反向候选步：正向倒水会一次带走整段同色水，
+// 所以回滚后的源瓶顶端必须仍是同色（只倒一部分）或已经空了（整瓶搬走）。
+function waterSortReverseSteps(tubes: number[][]): WaterSortReverseStep[] {
+  const result = [] as WaterSortReverseStep[]
+  for (let source = 0; source < tubes.length; source++) {
+    const tube = tubes[source]
+    if (tube.length == 0) continue
+    const color = tube[tube.length - 1]
+    const run = waterSortTopRun(tube)
+    for (let count = 1; count <= run; count++) {
+      if (count < run || run == tube.length) {
+        for (let target = 0; target < tubes.length; target++) {
+          if (target == source) continue
+          const receiver = tubes[target]
+          if (receiver.length + count > WATER_SORT_CAPACITY) continue
+          // 接水方必须先空或顶端是别的颜色，正向才能正好移走这 count 格。
+          if (receiver.length > 0 && receiver[receiver.length - 1] == color) continue
+          result.push({ source: source, target: target, count: count })
+        }
+      }
+    }
+  }
+  return result
+}
+
+function waterSortScatter(config: WaterSortConfig): number[][] {
+  const tubes = [] as number[][]
+  for (let color = 0; color < config.colors; color++) {
+    const tube = [] as number[]
+    for (let slot = 0; slot < WATER_SORT_CAPACITY; slot++) tube.push(color)
+    tubes.push(tube)
+  }
+  for (let i = 0; i < config.empties; i++) tubes.push([] as number[])
+  let lastSource = -1, lastTarget = -1
+  for (let step = 0; step < config.scramble; step++) {
+    const steps = waterSortReverseSteps(tubes)
+    if (steps.length == 0) break
+    const usable = steps.filter((item: WaterSortReverseStep): boolean => !(item.source == lastTarget && item.target == lastSource))
+    const pool = usable.length > 0 ? usable : steps
+    const picked = pool[Math.floor(Math.random() * pool.length)]
+    for (let i = 0; i < picked.count; i++) {
+      const unit = tubes[picked.source].pop()
+      if (unit != null) tubes[picked.target].push(unit)
+    }
+    lastSource = picked.source
+    lastTarget = picked.target
+  }
+  return tubes
+}
+
+// 从预生成关卡表随机抽一关，并随机重映射颜色编号到色相（不影响最少步数）。
+export function waterSortGenerate(level: number): WaterSortPuzzle {
+  const config = waterSortConfig(level)
+  const pool = WATER_SORT_LEVELS[config.level - 1]
+  const picked = pool[Math.floor(Math.random() * pool.length)]
+  return {
+    tubes: waterSortRecolor(picked, config.colors),
+    minimum: config.minimum,
+    target: config.minimum + config.allowance,
+    exact: true
+  }
+}
+
+// 随机置换颜色编号，让同一结构呈现不同色相组合。
+function waterSortRecolor(tubes: number[][], colors: number): number[][] {
+  const perm = [] as number[]
+  for (let i = 0; i < colors; i++) perm.push(i)
+  for (let i = colors - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = perm[i]
+    perm[i] = perm[j]
+    perm[j] = tmp
+  }
+  const result = [] as number[][]
+  for (let i = 0; i < tubes.length; i++) {
+    const tube = [] as number[]
+    for (let j = 0; j < tubes[i].length; j++) tube.push(perm[tubes[i][j]])
+    result.push(tube)
+  }
+  return result
+}
