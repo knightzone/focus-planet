@@ -22,7 +22,8 @@ for(let level=1;level<=10;level++){
  for(const target of t.soundPool(level))for(let i=0;i<40;i++){
   const options=t.soundChoices(target,level);assert.equal(options.length,t.soundChoiceCount(level));assert.equal(new Set(options.map(o=>o.id)).size,options.length);assert.equal(options.filter(o=>o.id===target.id).length,1)
  }
- t.begin();assert.equal(t.started.value,false)
+ // 试玩可以不玩，直接开始（旧实现要求先答对试玩题，已改为可选）
+ {const fresh=harness(level),f=fresh.t;f.begin();assert(f.started.value);assert.equal(f.correct.value,0)}
  t.replay();t.answer('cat');assert.equal(t.demoDone.value,false)
  h.last().ended();t.answer('cat');assert.equal(t.demoDone.value,true);assert.equal(t.correct.value,0)
  t.begin();assert(t.started.value)
@@ -37,5 +38,7 @@ for(let level=1;level<=10;level++){
  h.unload();assert(h.players.every(p=>p.destroyed))
  const f=harness(level);f.t.replay();f.tick(8000);assert(f.t.failed.value);assert(!f.t.playing.value)
 }
-JSON.parse(fs.readFileSync(path.join(root,'pages.json'),'utf8'))
+// pages.json 必须能解析；解析失败要显式报错，而不是丢一个难懂的 SyntaxError。
+try { JSON.parse(fs.readFileSync(path.join(root,'pages.json'),'utf8')) }
+catch(error){ throw new Error('pages.json 解析失败：'+error.message) }
 console.log('PASS: 10 levels, unique image options, asset paths, demo, playback gating, pause/resume, stale callbacks, errors, double taps, completion, active duration')

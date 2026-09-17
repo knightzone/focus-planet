@@ -16,7 +16,7 @@
               <view v-if="answered && item.id == target.id" class="check"><text class="check-text">✓</text></view>
             </view>
           </view>
-          <button v-if="!started" class="primary" :disabled="!demoDone" @click="begin">开始</button>
+          <button v-if="!started" class="primary" @click="begin">开始</button>
         </view>
       </view>
       <view v-if="started" class="stats"><text class="stat">✓ {{ correct }}</text><text class="stat">重听 {{ replays }}</text><text class="stat">难度 {{ level }}</text></view>
@@ -100,7 +100,7 @@ function prepare() {
   playSound()
 }
 function begin() { if (trainingPaused.value) return;
-  if(started.value || !demoDone.value) return
+  if(started.value) return
   stopAudio(); plan=[] as SoundObject[]
   while(plan.length<totalRounds.value) plan=plan.concat(shuffledSounds(soundPool(level.value)))
   started.value=true; elapsed=0; prepare()

@@ -1,40 +1,287 @@
 <template>
-<TrainingFrame title="规律小侦探" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()"><view class="page">
-  <view class="header"><view><text class="dimension">转换注意训练</text><text class="title">规律小侦探</text></view><view class="counter"><text class="counter-value">{{ roundIndex + 1 }}/{{ rounds.length }}</text></view></view>
-  <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-  <view class="sequence"><image v-for="(item,index) in current.sequence" :key="index" class="sequence-image" :src="path(item)" mode="aspectFit"></image><view class="question"><text class="question-mark">?</text></view></view>
-  <view class="options"><ActionSurface v-for="item in current.options" :key="item" class="tap-target option" @click="answer(item)"><image class="option-image tap-content" :src="path(item)" mode="aspectFit"></image></ActionSurface></view>
-  <view class="feedback"><text :class="feedback == '找到规律' ? 'good' : 'again'">{{ feedback }}</text></view>
-  <view class="stats"><view class="stat"><text class="value">{{ correct }}</text><text class="label">正确</text></view><view class="stat"><text class="value">{{ errors }}</text><text class="label">错误</text></view></view>
-</view></TrainingFrame>
+  <TrainingFrame title="规律小侦探" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+    <view class="pf-page">
+      <image class="pf-scene" src="/static/images/runtime/backgrounds/shadow-match-sky-v1.webp" mode="aspectFill"></image>
+      <view class="pf-content">
+        <view class="pf-header">
+          <view><text class="pf-eyebrow">转换注意训练</text><text class="pf-title">规律小侦探</text></view>
+          <view class="pf-header-right">
+            <view class="pf-level"><text class="pf-level-text">难度 {{ level }}</text></view>
+            <view class="pf-counter"><text class="pf-counter-text">{{ started ? (roundIndex + 1).toString() + '/' + rounds.length.toString() : '试玩' }}</text></view>
+          </view>
+        </view>
+        <view class="pf-progress"><view class="pf-progress-fill" :style="{ width: progressWidth }"></view></view>
+
+        <view v-if="!started" class="pf-intro">
+          <text class="pf-demo-title">{{ demoIsShadow ? '认识一下影子队员' : '先试一下' }}</text>
+          <view class="pf-sequence">
+            <view v-for="(cell, index) in demoCells" :key="'demo-' + index" class="pf-cell-holder">
+              <view v-if="cell.path == ''" class="pf-tile pf-question" :style="{ width: tileSize.toString() + 'px', height: tileSize.toString() + 'px' }"><text class="pf-question-mark">?</text></view>
+              <image v-else class="pf-tile" :style="{ width: tileSize.toString() + 'px', height: tileSize.toString() + 'px' }" :src="cell.path" mode="aspectFit"></image>
+            </view>
+          </view>
+          <text class="pf-demo-hint">{{ demoHint }}</text>
+          <view class="pf-options">
+            <ActionSurface v-for="option in demoOptions" :key="option.id" class="pf-option" :style="{ width: optionW.toString() + 'px', height: optionH.toString() + 'px' }" @click="answerDemo(option)">
+              <image class="pf-option-image tap-content" :style="{ width: optionImage.toString() + 'px', height: optionImage.toString() + 'px' }" :src="option.path" mode="aspectFit"></image>
+            </ActionSurface>
+          </view>
+          <text v-if="demoSolved" class="pf-demo-replay" @click="resetDemo">再试一次</text>
+          <button class="pf-start" @click="begin">开始</button>
+        </view>
+
+        <view v-else class="pf-play">
+          <text v-if="shadowNotice != ''" class="pf-shadow-notice">{{ shadowNotice }}</text>
+          <view class="pf-sequence">
+            <view v-for="(group, gi) in unitGroups" :key="'g' + gi" class="pf-unit-group" :class="hintKind == 'BOX' ? (flashGroups && gi % 2 == 1 ? 'pf-unit-flash' : 'pf-unit-boxed') : ''">
+              <view v-for="(cell, ci) in group" :key="'c' + gi + '-' + ci" class="pf-cell-holder">
+                <view v-if="cell.path == ''" class="pf-tile pf-question" :style="{ width: tileSize.toString() + 'px', height: tileSize.toString() + 'px' }"><text class="pf-question-mark">?</text></view>
+                <image v-else class="pf-tile" :style="{ width: tileSize.toString() + 'px', height: tileSize.toString() + 'px' }" :src="cell.path" mode="aspectFit"></image>
+              </view>
+            </view>
+          </view>
+          <text class="pf-play-hint">{{ playHint }}</text>
+          <view class="pf-feedback"><text :class="feedback == '找到规律' ? 'pf-good' : 'pf-again'">{{ feedback }}</text></view>
+          <view class="pf-options">
+            <ActionSurface v-for="option in current.options" :key="option.id" class="pf-option" :style="{ width: optionW.toString() + 'px', height: optionH.toString() + 'px' }" @click="answer(option.id)">
+              <image class="pf-option-image tap-content" :style="{ width: optionImage.toString() + 'px', height: optionImage.toString() + 'px' }" :src="option.path" mode="aspectFit"></image>
+            </ActionSurface>
+          </view>
+          <view class="pf-stats">
+            <view class="pf-stat"><text class="pf-stat-value">{{ correct }}</text><text class="pf-stat-label">正确</text></view>
+            <view class="pf-stat"><text class="pf-stat-value">{{ errors }}</text><text class="pf-stat-label">错误</text></view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </TrainingFrame>
 </template>
 <script setup lang="uts">
 import TrainingFrame from '../../components/TrainingFrame.uvue'
 import { useTrainingSession } from '../../utils/training-session.uts'
 import ActionSurface from '../../components/ActionSurface.uvue'
+import { localTestKey } from '../../utils/local-test.uts'
 import { ref, computed } from 'vue'
-import { getGameObjectPath } from '../../utils/game-assets.uts'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { generatePatternRounds, patternFindScore, PatternCell, PatternOption, PatternRound } from '../../utils/pattern-find-levels.uts'
+
 const training = useTrainingSession()
 const trainingClock = training.clock
 const trainingPaused = training.paused, trainingBusy = training.navigating
 
-type PatternRound = { sequence: string[], options: string[], answer: string }
-const rounds: PatternRound[] = [
-  { sequence:['bunny','car','bunny','car'], options:['boat','bunny','kitten'], answer:'bunny' },
-  { sequence:['boat','boat','kitten','boat','boat'], options:['kitten','car','bunny'], answer:'kitten' },
-  { sequence:['bunny','car','boat','bunny','car'], options:['kitten','boat','car'], answer:'boat' },
-  { sequence:['kitten','car','car','kitten','car'], options:['bunny','car','boat'], answer:'car' }
+const level = ref(1)
+const rounds = ref([] as PatternRound[])
+const roundIndex = ref(0)
+const correct = ref(0), errors = ref(0), feedback = ref('')
+const started = ref(false)
+const flashGroups = ref(false)
+const optionW = ref(104), optionH = ref(118), optionImage = ref(80)
+let gameStartedAt = 0
+let finished = false
+let flashOnTimer = 0, flashOffTimer = 0
+
+const SHADOW_INTRO_KEY = localTestKey('focus_planet_pattern_shadow_intro')
+const SHADOW_NOTICE = '影子也是不一样的队员'
+
+// 试玩：低档用两符号交替题；9 档起首次进入先给一道不计分的影子引导题，把 A 与 A′ 的规则讲清。
+const DEMO_BASIC_CELLS: PatternCell[] = [
+  { path: '/static/images/runtime/illustrations/shadow-match/easy-fruits/apple.webp', isShadow: false },
+  { path: '/static/images/runtime/illustrations/shadow-match/easy-fruits/banana.webp', isShadow: false },
+  { path: '/static/images/runtime/illustrations/shadow-match/easy-fruits/apple.webp', isShadow: false },
+  { path: '/static/images/runtime/illustrations/shadow-match/easy-fruits/banana.webp', isShadow: false },
+  { path: '/static/images/runtime/illustrations/shadow-match/easy-fruits/apple.webp', isShadow: false },
+  { path: '', isShadow: false }
 ]
-const roundIndex = ref(0), correct = ref(0), errors = ref(0), feedback = ref('')
-const gameStartedAt = trainingClock.now()
-const current = computed((): PatternRound => rounds[Math.min(roundIndex.value, rounds.length - 1)])
-const progressWidth = computed((): string => Math.round((roundIndex.value / rounds.length) * 100).toString() + '%')
-function path(id: string): string { return getGameObjectPath(id) }
-function finish() { const accuracy = Math.round((correct.value / rounds.length) * 100), duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=pattern-find&dimensionId=alternating&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + duration.toString() + '&switchErrors=' + errors.value.toString() }) }
-function answer(id: string) { if (trainingPaused.value) return; if (feedback.value != '') return; if (id == current.value.answer) { { correct.value += 1; training.playFeedback('correct') } feedback.value = '找到规律' } else { { errors.value += 1; training.playFeedback('wrong') } feedback.value = '再看一遍' }; trainingClock.setTimeout(() => { roundIndex.value += 1; feedback.value = ''; if (roundIndex.value >= rounds.length) finish() }, 650) }
-// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
-training.setStartedCheck((): boolean => true)
+const DEMO_BASIC_OPTIONS: PatternOption[] = [
+  { id: 'banana', path: '/static/images/runtime/illustrations/shadow-match/easy-fruits/banana.webp', isShadow: false },
+  { id: 'cupcake', path: '/static/images/runtime/illustrations/shadow-match/easy-foods/cupcake.webp', isShadow: false }
+]
+const DEMO_SHADOW_CELLS: PatternCell[] = [
+  { path: '/static/images/runtime/illustrations/shadow-match/easy-fruits/apple-shadow.webp', isShadow: true },
+  { path: '/static/images/runtime/illustrations/shadow-match/easy-fruits/banana.webp', isShadow: false },
+  { path: '/static/images/runtime/illustrations/shadow-match/easy-fruits/apple-shadow.webp', isShadow: true },
+  { path: '/static/images/runtime/illustrations/shadow-match/easy-fruits/banana.webp', isShadow: false },
+  { path: '/static/images/runtime/illustrations/shadow-match/easy-fruits/apple-shadow.webp', isShadow: true },
+  { path: '', isShadow: false }
+]
+const DEMO_SHADOW_OPTIONS: PatternOption[] = [
+  { id: 'banana', path: '/static/images/runtime/illustrations/shadow-match/easy-fruits/banana.webp', isShadow: false },
+  { id: "banana'", path: '/static/images/runtime/illustrations/shadow-match/easy-fruits/banana-shadow.webp', isShadow: true }
+]
+
+const demoSolved = ref(false)
+const demoIsShadow = ref(false)
+const demoHint = ref('')
+const demoCells = ref([] as PatternCell[])
+const demoOptions = ref([] as PatternOption[])
+
+const current = computed((): PatternRound => rounds.value[Math.min(roundIndex.value, Math.max(0, rounds.value.length - 1))])
+const cellCount = computed((): number => current.value.cells.length)
+// 序列最长 10 格，超过 8 格就把格子缩小，保证一行放得下、最多换行一次。
+const tileSize = computed((): number => cellCount.value > 8 ? 44 : 54)
+const progressWidth = computed((): string => Math.round((roundIndex.value / Math.max(1, rounds.value.length)) * 100).toString() + '%')
+const hintKind = computed((): string => current.value.hintKind)
+const shadowNotice = computed((): string => level.value >= 9 ? SHADOW_NOTICE : '')
+// 提示强度按档位走：文字常驻 / 答错 1 次后出现；框出单元由 hintKind=BOX 走单元底色。
+const hintVisible = computed((): boolean => {
+  const kind = current.value.hintKind
+  if (kind == 'TEXT') return true
+  if (kind == 'TEXT_ON_MISS') return errors.value >= 1
+  return false
+})
+const playHint = computed((): string => hintVisible.value && current.value.hintText != '' ? current.value.hintText : '看看它们是怎么排队的？')
+// 单元分组：低档框出重复单元用；递增族没有周期，每格自成一组。
+const unitGroups = computed((): PatternCell[][] => {
+  const round = current.value
+  if (round.cells.length == 0) return [] as PatternCell[][]
+  if (round.unitLength <= 1 || round.unitLength > round.cells.length) {
+    return round.cells.map((cell: PatternCell): PatternCell[] => [cell])
+  }
+  const groups = [] as PatternCell[][]
+  for (let i = 0; i < round.cells.length; i += round.unitLength) {
+    const group = [] as PatternCell[]
+    for (let k = i; k < i + round.unitLength && k < round.cells.length; k++) group.push(round.cells[k])
+    groups.push(group)
+  }
+  return groups
+})
+
+function layoutOptions(count: number) {
+  const info = uni.getWindowInfo()
+  const usable = info.windowWidth - 60
+  const width = Math.max(56, Math.min(108, Math.floor(usable / Math.max(1, count)) - 10))
+  optionW.value = width
+  optionH.value = Math.round(width * 1.14)
+  optionImage.value = Math.round(width * 0.76)
+}
+
+function clearFlashTimers() {
+  if (flashOnTimer > 0) trainingClock.clearTimeout(flashOnTimer)
+  if (flashOffTimer > 0) trainingClock.clearTimeout(flashOffTimer)
+  flashOnTimer = 0
+  flashOffTimer = 0
+}
+
+// 低档的「框出单元」提示：第二遍出现时轻闪一下，用训练时钟计时，暂停时不走。
+function startUnitFlash() {
+  clearFlashTimers()
+  flashGroups.value = false
+  if (hintKind.value != 'BOX') return
+  flashOnTimer = trainingClock.setTimeout(() => {
+    flashGroups.value = true
+    flashOffTimer = trainingClock.setTimeout(() => { flashGroups.value = false }, 420)
+  }, 480)
+}
+
+function answerDemo(option: PatternOption) {
+  if (demoSolved.value) return
+  if (option.id == 'banana') {
+    demoSolved.value = true
+    demoHint.value = demoIsShadow.value ? '真棒！影子是另一个队员，所以这里要选彩色的' : '真棒！你找到规律了'
+    if (demoIsShadow.value) uni.setStorageSync(SHADOW_INTRO_KEY, 1)
+    return
+  }
+  demoHint.value = demoIsShadow.value ? '影子是另一个队员，再找找彩色的那个' : '再看一遍它们怎么排队'
+}
+
+function resetDemo() {
+  const seenShadowIntro = uni.getStorageSync(SHADOW_INTRO_KEY) == 1
+  demoIsShadow.value = level.value >= 9 && !seenShadowIntro
+  demoSolved.value = false
+  demoCells.value = demoIsShadow.value ? DEMO_SHADOW_CELLS : DEMO_BASIC_CELLS
+  demoOptions.value = demoIsShadow.value ? DEMO_SHADOW_OPTIONS : DEMO_BASIC_OPTIONS
+  demoHint.value = demoIsShadow.value ? '影子也来排队了，点出下一个该排队的队员' : '看看图案怎么排队，点一点“?”后面的图案'
+  layoutOptions(demoOptions.value.length)
+}
+
+function begin() {
+  if (started.value) return
+  started.value = true
+  finished = false
+  roundIndex.value = 0
+  correct.value = 0
+  errors.value = 0
+  feedback.value = ''
+  gameStartedAt = trainingClock.now()
+  layoutOptions(current.value.optionCount)
+  startUnitFlash()
+}
+
+function finish() {
+  if (finished) return
+  finished = true
+  const total = rounds.value.length
+  const accuracy = total == 0 ? 0 : Math.round((correct.value / total) * 100)
+  const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
+  // 本游戏按「错 ≤1 题即达标 100 分」计分，与全局「满 100 升档」口径对齐。
+  const score = patternFindScore(correct.value, total)
+  uni.redirectTo({ url: '/pages/result/result?gameId=pattern-find&dimensionId=alternating&score=' + score.toString() + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + duration.toString() + '&switchErrors=' + errors.value.toString() + '&completed=' + correct.value.toString() + '&total=' + total.toString() })
+}
+
+function answer(id: string) {
+  if (trainingPaused.value) return
+  if (!started.value) return
+  if (roundIndex.value >= rounds.value.length) return
+  if (feedback.value != '') return
+  if (id == current.value.answerId) { correct.value += 1; training.playFeedback('correct'); feedback.value = '找到规律' }
+  else { errors.value += 1; training.playFeedback('wrong'); feedback.value = '再看一遍' }
+  trainingClock.setTimeout(() => {
+    roundIndex.value += 1
+    feedback.value = ''
+    if (roundIndex.value >= rounds.value.length) { finish(); return }
+    layoutOptions(current.value.optionCount)
+    startUnitFlash()
+  }, 650)
+}
+
+onLoad(() => {
+  level.value = getGameDifficulty('pattern-find')
+  rounds.value = generatePatternRounds(level.value, Math.random)
+  resetDemo()
+})
+onUnload(() => clearFlashTimers())
+// 试玩/引导阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => started.value)
 </script>
 <style>
-.page { flex: 1; padding: 20px; }.header { flex-direction: row; justify-content: space-between; align-items: center; }.dimension { color: #8062bf; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #eee9fa; align-items: center; justify-content: center; }.counter-value { color: #785bb7; font-size: 13px; font-weight: 700; }.progress { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; background-color: #9b7ede; }.sequence { margin-top: 18px; padding: 14px 8px; min-height: 142px; border-radius: 23px; background-color: #ffffff; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; }.sequence-image, .question { margin: 4px; width: 62px; height: 62px; border-radius: 14px; }.question { background-color: #eee9fa; align-items: center; justify-content: center; }.question-mark { color: #785bb7; font-size: 29px; font-weight: 800; }.hint { margin-top: 18px; color: #69758d; font-size: 13px; text-align: center; }.options { margin-top: 12px; flex-direction: row; }.option { flex: 1; margin: 0 5px; padding: 0; height: 130px; border-radius: 20px; background-color: #ffffff; align-items: center; justify-content: center; }.option-image { width: 92px; height: 92px; border-radius: 18px; }.feedback { height: 45px; align-items: center; justify-content: center; }.good { color: #338e72; font-size: 13px; font-weight: 700; }.again { color: #c65b66; font-size: 13px; font-weight: 700; }.stats { flex-direction: row; }.stat { flex: 1; align-items: center; }.value { color: #25314a; font-size: 18px; font-weight: 700; }.label { color: #8a93a7; font-size: 10px; }
+.pf-page { flex: 1; position: relative; }
+.pf-scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+.pf-content { position: relative; flex: 1; padding: 20px; }
+.pf-header { flex-direction: row; justify-content: space-between; align-items: center; }
+.pf-header-right { flex-direction: row; align-items: center; }
+.pf-level { margin-right: 8px; height: 38px; padding: 0 12px; border-radius: 19px; background-color: rgba(255, 255, 255, 0.92); align-items: center; justify-content: center; }
+.pf-level-text { color: #8062bf; font-size: 12px; font-weight: 700; }
+.pf-eyebrow { color: #8062bf; font-size: 12px; font-weight: 700; }
+.pf-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.pf-counter { width: 62px; height: 38px; border-radius: 19px; background-color: rgba(255, 255, 255, 0.92); align-items: center; justify-content: center; }
+.pf-counter-text { color: #785bb7; font-size: 13px; font-weight: 700; }
+.pf-progress { margin-top: 18px; height: 8px; border-radius: 4px; background-color: rgba(255, 255, 255, 0.65); overflow: hidden; }
+.pf-progress-fill { height: 8px; border-radius: 4px; background-color: #9b7ede; }
+.pf-intro { margin-top: 18px; align-items: center; }
+.pf-demo-title { color: #1f2a44; font-size: 18px; font-weight: 700; }
+.pf-demo-hint { margin-top: 14px; color: #69758d; font-size: 13px; text-align: center; }
+.pf-sequence { margin-top: 16px; padding: 12px 8px; width: 100%; border-radius: 23px; background-color: rgba(255, 255, 255, 0.92); flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; }
+.pf-cell-holder { margin: 4px; flex-direction: row; }
+.pf-unit-group { flex-direction: row; margin: 3px 1px; padding: 3px 4px; border-radius: 16px; }
+.pf-unit-boxed { background-color: rgba(155, 126, 222, 0.16); }
+.pf-unit-flash { background-color: rgba(155, 126, 222, 0.42); transition: background-color 260ms; }
+.pf-tile { border-radius: 14px; background-color: #f4f6fd; align-items: center; justify-content: center; }
+.pf-question { background-color: #eee9fa; }
+.pf-question-mark { color: #785bb7; font-size: 24px; font-weight: 800; }
+.pf-play { margin-top: 16px; align-items: center; }
+.pf-shadow-notice { margin-top: 6px; color: #8062bf; font-size: 12px; font-weight: 700; }
+.pf-play-hint { margin-top: 10px; color: #69758d; font-size: 13px; text-align: center; }
+.pf-options { margin-top: 10px; width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: center; }
+.pf-option { margin: 4px 5px; padding: 0; border-radius: 20px; background-color: rgba(255, 255, 255, 0.95); align-items: center; justify-content: center; }
+.pf-option-image { border-radius: 16px; }
+.pf-feedback { margin-top: 8px; height: 24px; align-items: center; justify-content: center; }
+.pf-good { color: #338e72; font-size: 13px; font-weight: 700; }
+.pf-again { color: #c65b66; font-size: 13px; font-weight: 700; }
+.pf-start { margin-top: 18px; width: 200px; height: 50px; border-radius: 25px; background-color: #9b7ede; color: #ffffff; font-size: 17px; font-weight: 700; }
+.pf-demo-replay { margin-top: 14px; color: #785bb7; font-size: 13px; font-weight: 700; }
+.pf-stats { margin-top: 14px; width: 100%; flex-direction: row; }
+.pf-stat { flex: 1; align-items: center; }
+.pf-stat-value { color: #25314a; font-size: 18px; font-weight: 700; }
+.pf-stat-label { color: #8a93a7; font-size: 10px; }
 </style>

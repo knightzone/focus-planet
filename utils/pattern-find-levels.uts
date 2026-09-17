@@ -1,0 +1,587 @@
+// 规律小侦探题目生成：按 1–10 档难度阶梯设计重做（设计文档见 docs/PATTERN_FIND.md）。
+//
+// 设计原则：档位 = 参数。每档由「素材相似度层级 / 规律族池 / 问号位置 / 选项数 / 形近干扰项数 /
+// 提示强度 / 影子维度」这 7 个旋钮决定，一局固定 5 题，**不再用题量当难度**。
+// 难度指标 D 的公式与逐档取值见文档；本文件只负责按参数出题。
+//
+// 素材：全部来自影子系列插画（每组都有同图影子版）与星球系列（无影子版）。
+// 分组带两个能力标记：s2=可作为「同类别」档的素材（组内同类别、中等相似），
+// s3=可作为「同款只差细节」档的素材（刻意高度相似）。
+
+export type PatternOption = { id: string, path: string, isShadow: boolean }
+
+// path 为空字符串表示这一格是问号（要孩子补的缺项）。
+export type PatternCell = { path: string, isShadow: boolean }
+
+export type PatternRound = {
+  cells: PatternCell[],
+  unitLength: number,
+  answerIndex: number,
+  answerId: string,
+  answerPath: string,
+  answerIsShadow: boolean,
+  options: PatternOption[],
+  optionCount: number,
+  familyId: string,
+  unitLabel: string,
+  hintKind: string,
+  hintText: string,
+  shadowRule: boolean
+}
+
+export type PatternLevelConfig = {
+  level: number,
+  tier: number,
+  families: string[],
+  required: string[],
+  near: number,
+  optionCount: number,
+  task: string,
+  phase: string,
+  hint: string,
+  shadow: string
+}
+
+type PatternAsset = { id: string, groupId: string, path: string, shadowPath: string }
+type PatternGroup = { id: string, s2: boolean, s3: boolean, items: PatternAsset[] }
+type PatternFamily = { id: string, units: string[], special: string, unitMax: number, alphabetMax: number, u: number }
+
+const ILLUSTRATION_BASE = '/static/images/runtime/illustrations/shadow-match/'
+const PLANET_BASE = '/static/images/runtime/sky-planets/'
+
+// 难度指标：设计 §9.2 的公式。参数全部取自本档配置与规律族形态，不另外维护一张表。
+export function patternDifficultyIndex(level: number): number {
+  const config = patternLevelConfig(level)
+  let unitMax = 1, alphabetMax = 1, shape = 0.0
+  for (let i = 0; i < config.families.length; i++) {
+    const family = familyById(config.families[i])
+    if (family.unitMax > unitMax) unitMax = family.unitMax
+    if (family.alphabetMax > alphabetMax) alphabetMax = family.alphabetMax
+    if (family.u > shape) shape = family.u
+  }
+  const taskFactor = config.task == 'FILL_END' ? 1.0 : 2.0
+  const phaseRandom = config.phase == 'FIXED2' ? 0.0 : 1.0
+  const optionFactor = config.optionCount >= 4 ? 1.0 : 0.0
+  const hintStrength = config.hint == 'BOX' ? 3.0 : config.hint == 'TEXT' ? 2.0 : 1.0
+  const shadowLevel = config.shadow == 'NONE' ? 0.0 : config.shadow == 'BIND' ? 1.0 : 2.0
+  return 1.0 * unitMax + 0.8 * alphabetMax + 1.5 * config.tier + 1.2 * config.near + 1.5 * taskFactor
+    + shape + 0.8 * phaseRandom + 0.6 * optionFactor - 0.7 * hintStrength + 1.2 * shadowLevel
+    + 0.3 * (config.families.length - 1)
+}
+
+// 一局固定 5 题：在「错 1 仍可达标」的过关规则下容错语义最清晰，也避免用题量当难度。
+const ROUNDS_PER_SESSION = 5
+// 同族每局最多 2 题，防止一局全是同一族让「转换」考点落空。
+const FAMILY_CAP = 2
+// 序列行最多 10 格（含问号），小程序宽度下一行放得下；单元太长时限制相位前缀。
+const MAX_CELLS = 10
+
+function illuGroup(id: string, s2: boolean, s3: boolean, names: string[]): PatternGroup {
+  const items = [] as PatternAsset[]
+  for (let i = 0; i < names.length; i++) {
+    items.push({
+      id: id + ':' + names[i],
+      groupId: id,
+      path: ILLUSTRATION_BASE + id + '/' + names[i] + '.webp',
+      shadowPath: ILLUSTRATION_BASE + id + '/' + names[i] + '-shadow.webp'
+    })
+  }
+  return { id: id, s2: s2, s3: s3, items: items }
+}
+
+// 星球只有彩色版，没有影子，因此只参与「同类别」档，不进 9–10 档。
+function planetGroup(names: string[]): PatternGroup {
+  const items = [] as PatternAsset[]
+  for (let i = 0; i < names.length; i++) {
+    items.push({ id: 'sky-planets:' + names[i], groupId: 'sky-planets', path: PLANET_BASE + names[i] + '.webp', shadowPath: '' })
+  }
+  return { id: 'sky-planets', s2: true, s3: false, items: items }
+}
+
+// s2/s3 的判定：easy 组跨组差异极大（组内也不是同款），只用于「跨类别」；
+// medium 非 similar 组是同类别的自然差异；medium-similar / high-similar / hard-similar 是同款只差细节。
+const GROUPS: PatternGroup[] = [
+  illuGroup('easy-animals', false, false, ['elephant', 'owl', 'rabbit', 'squirrel', 'turtle']),
+  illuGroup('easy-fruits', false, false, ['apple', 'banana', 'grapes', 'pineapple', 'strawberry']),
+  illuGroup('easy-vehicles', false, false, ['airplane', 'car', 'rocket', 'sailboat', 'train']),
+  illuGroup('easy-foods', false, false, ['birthday-cake', 'cupcake', 'donut', 'ice-cream', 'pizza']),
+  illuGroup('easy-garden', false, false, ['cactus', 'flower', 'mushroom', 'snail', 'tree']),
+  illuGroup('medium-puppies', true, false, ['puppy-1', 'puppy-2', 'puppy-3', 'puppy-4', 'puppy-5', 'puppy-6']),
+  illuGroup('medium-farm-animals', true, false, ['chicken', 'cow', 'duck', 'horse', 'pig', 'sheep']),
+  illuGroup('medium-forest-animals', true, false, ['bear', 'deer', 'fox', 'hedgehog', 'rabbit', 'squirrel']),
+  illuGroup('medium-musical-instruments', true, false, ['drum', 'guitar', 'maracas', 'piano', 'trumpet', 'violin']),
+  illuGroup('medium-playground-toys', true, false, ['blocks', 'duck', 'kite', 'rocking-horse', 'scooter', 'spinning-top']),
+  illuGroup('medium-toys', true, false, ['robot', 'rocket', 'rocking-horse', 'sailboat', 'teddy-bear', 'train']),
+  illuGroup('medium-trees', true, false, ['tree-1', 'tree-2', 'tree-3', 'tree-4', 'tree-5', 'tree-6']),
+  illuGroup('medium-cottages', true, false, ['cottage-1', 'cottage-2', 'cottage-3', 'cottage-4', 'cottage-5', 'cottage-6']),
+  illuGroup('medium-similar-birds', true, true, ['bird-1', 'bird-2', 'bird-3', 'bird-4', 'bird-5', 'bird-6', 'bird-7', 'bird-8']),
+  illuGroup('medium-similar-cars', true, true, ['car-1', 'car-2', 'car-3', 'car-4', 'car-5', 'car-6']),
+  illuGroup('medium-similar-flowers', true, true, ['flower-1', 'flower-2', 'flower-3', 'flower-4', 'flower-5', 'flower-6']),
+  illuGroup('medium-similar-sailboats', true, true, ['sailboat-1', 'sailboat-2', 'sailboat-3', 'sailboat-4', 'sailboat-5', 'sailboat-6', 'sailboat-7', 'sailboat-8']),
+  illuGroup('high-similar-airplanes', true, true, ['airplane-1', 'airplane-2', 'airplane-3', 'airplane-4', 'airplane-5', 'airplane-6', 'airplane-7', 'airplane-8']),
+  illuGroup('high-similar-penguins', true, true, ['penguin-1', 'penguin-2', 'penguin-3', 'penguin-4', 'penguin-5', 'penguin-6', 'penguin-7', 'penguin-8']),
+  illuGroup('high-similar-rockets', true, true, ['rocket-1', 'rocket-2', 'rocket-3', 'rocket-4', 'rocket-5', 'rocket-6', 'rocket-7', 'rocket-8']),
+  illuGroup('high-similar-teddy-bears', true, true, ['bear-1', 'bear-2', 'bear-3', 'bear-4', 'bear-5', 'bear-6', 'bear-7', 'bear-8']),
+  illuGroup('hard-similar-cats', true, true, ['cat-1', 'cat-2', 'cat-3', 'cat-4', 'cat-5', 'cat-6', 'cat-7', 'cat-8']),
+  illuGroup('hard-sea', true, true, ['angelfish', 'clownfish-smile', 'manta-ray', 'pufferfish', 'seahorse', 'shark', 'swordfish', 'tuna']),
+  planetGroup(['amber-ring', 'blue-ring', 'earth', 'gold-bands', 'gold-crater', 'gold-purple-ring', 'gold-ring', 'green-dots', 'ice-blue', 'indigo-moons', 'lavender-ring', 'lemon-ring', 'mint-cloud', 'orange-crater', 'peach-ring', 'pink-ring', 'red-lava', 'silver-crater', 'teal-crater', 'violet-bands'])
+]
+
+// 规律族：单元串里的大写字母是符号，A' 表示该位用影子版。
+// F7/F8 是特殊结构（影子规律、递增），unit 只作为族标记。
+// unitMax/alphabetMax/u 是难度指标公式用的形态参数。
+const FAMILIES: PatternFamily[] = [
+  { id: 'F1', units: ['AB'], special: '', unitMax: 2, alphabetMax: 2, u: 0.0 },
+  { id: 'F2', units: ['AAB', 'ABB'], special: '', unitMax: 3, alphabetMax: 2, u: 0.0 },
+  { id: 'F3', units: ['ABC'], special: '', unitMax: 3, alphabetMax: 3, u: 0.5 },
+  { id: 'F4', units: ['AABC'], special: '', unitMax: 4, alphabetMax: 3, u: 0.5 },
+  { id: 'F5', units: ['ABBC', 'ABCB', 'AABB', 'ABBA'], special: '', unitMax: 4, alphabetMax: 3, u: 1.0 },
+  { id: 'F6', units: ["A'BCB", "ABCB'", "A'ABB", "AABB'"], special: '', unitMax: 4, alphabetMax: 3, u: 1.0 },
+  { id: 'F7', units: ['ABC'], special: 'SHADOW_RULE', unitMax: 3, alphabetMax: 3, u: 1.5 },
+  { id: 'F8', units: ['BLOCK_GROW'], special: 'GROW_RULE', unitMax: 4, alphabetMax: 4, u: 1.5 }
+]
+
+function levelConfig(level: number, tier: number, families: string[], required: string[], near: number, optionCount: number, task: string, phase: string, hint: string, shadow: string): PatternLevelConfig {
+  return { level: level, tier: tier, families: families, required: required, near: near, optionCount: optionCount, task: task, phase: phase, hint: hint, shadow: shadow }
+}
+
+// 档位配置表：所有档位差异集中在这里，脚本可直接对照验收。
+// required 是「本档必须出现的族」：9 档必须出影子绑定（把影子引入规律），
+// 10 档必须出影子规律与递增，否则均匀抽族时一局可能完全不出现影子，影子维度就落空了。
+const LEVEL_CONFIGS: PatternLevelConfig[] = [
+  levelConfig(1, 1, ['F1'], [], 0, 3, 'FILL_END', 'FIXED2', 'BOX', 'NONE'),
+  levelConfig(2, 1, ['F1', 'F2'], [], 0, 3, 'FILL_END', 'FIXED2', 'BOX', 'NONE'),
+  levelConfig(3, 1, ['F1', 'F2', 'F3'], [], 0, 3, 'FILL_END', 'FIXED2', 'TEXT', 'NONE'),
+  levelConfig(4, 1, ['F1', 'F2', 'F3', 'F4'], [], 0, 3, 'FILL_END', 'FIXED2', 'TEXT', 'NONE'),
+  levelConfig(5, 2, ['F1', 'F2', 'F3', 'F4'], [], 1, 3, 'FILL_END', 'FIXED2', 'TEXT', 'NONE'),
+  levelConfig(6, 2, ['F1', 'F2', 'F3', 'F4'], [], 1, 3, 'FILL_END', 'RANDOM', 'TEXT_ON_MISS', 'NONE'),
+  levelConfig(7, 2, ['F1', 'F2', 'F3', 'F4', 'F5'], [], 1, 3, 'FILL_END', 'RANDOM', 'TEXT_ON_MISS', 'NONE'),
+  levelConfig(8, 2, ['F1', 'F2', 'F3', 'F4', 'F5'], [], 1, 4, 'FILL_ANY', 'RANDOM', 'TEXT_ON_MISS', 'NONE'),
+  levelConfig(9, 3, ['F1', 'F2', 'F3', 'F4', 'F5', 'F6'], ['F6'], 2, 4, 'FILL_ANY', 'RANDOM', 'TEXT_ON_MISS', 'BIND'),
+  levelConfig(10, 3, ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8'], ['F6', 'F7', 'F8'], 3, 4, 'FILL_ANY', 'RANDOM', 'TEXT_ON_MISS', 'RULE')
+]
+
+export function patternRoundCount(level: number): number {
+  return ROUNDS_PER_SESSION
+}
+
+export function patternLevelConfig(level: number): PatternLevelConfig {
+  return LEVEL_CONFIGS[Math.max(1, Math.min(10, Math.round(level))) - 1]
+}
+
+// 每局 5 题：错 ≤1 题即达标（100 分），再多错按比例给分。
+// 这样「升档需 100 分」的全局口径就等于设计里的「≥80 升档（5 题允许错 1）」，
+// 且不多不少正好一题容错；错 2 题 = 60 分，不低于降档线，错 3 题起才进入降档压力。
+export function patternFindScore(correct: number, total: number): number {
+  if (total <= 0) return 0
+  if (correct >= total - 1) return 100
+  return Math.max(0, Math.round(correct * 100 / total))
+}
+
+// 可注入的随机源：页面传 Math.random，测试传种子随机数保证可复现。
+export function createSeededRand(seed: number): () => number {
+  let state = Math.floor(seed) % 2147483647
+  if (state <= 0) state += 2147483646
+  return (): number => {
+    state = (state * 16807) % 2147483647
+    return (state - 1) / 2147483646
+  }
+}
+
+function shuffled<T>(items: T[], rand: () => number): T[] {
+  const copy = items.slice()
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1))
+    const tmp = copy[i]
+    copy[i] = copy[j]
+    copy[j] = tmp
+  }
+  return copy
+}
+
+function pickOne<T>(items: T[], rand: () => number): T {
+  return items[Math.floor(rand() * items.length)]
+}
+
+// ---------- 档位对应的素材池 ----------
+
+function groupsForTier(tier: number): PatternGroup[] {
+  if (tier <= 1) return GROUPS.filter((group: PatternGroup): boolean => !group.s2 && !group.s3)
+  if (tier == 2) return GROUPS.filter((group: PatternGroup): boolean => group.s2 && !group.s3)
+  return GROUPS.filter((group: PatternGroup): boolean => group.s3)
+}
+
+function allAssetsOfTier(tier: number): PatternAsset[] {
+  const result = [] as PatternAsset[]
+  const groups = groupsForTier(tier)
+  for (let i = 0; i < groups.length; i++) for (let k = 0; k < groups[i].items.length; k++) result.push(groups[i].items[k])
+  return result
+}
+
+// ---------- 会话状态：混排配额、防跟题、已见池、已用组 ----------
+
+type SessionState = {
+  familyCounts: number[],
+  lastAnswerId: string,
+  seenIds: string[],
+  usedGroups: string[]
+}
+
+function familyIndex(familyId: string): number {
+  for (let i = 0; i < FAMILIES.length; i++) if (FAMILIES[i].id == familyId) return i
+  return 0
+}
+
+function familyById(familyId: string): PatternFamily {
+  return FAMILIES[familyIndex(familyId)]
+}
+
+// 抽族：必出族优先补足；其余按同族配额随机，防止一局全是同一族。
+// 配额取「≤2 题」与「按族池大小均分」的较大值 —— 5 题 / 2 族时无法都 ≤2，只能均分为 3+2。
+function pickFamily(config: PatternLevelConfig, state: SessionState, roundsLeft: number, rand: () => number): PatternFamily {
+  const missingRequired = config.required.filter((id: string): boolean => state.familyCounts[familyIndex(id)] == 0)
+  if (missingRequired.length > 0 && roundsLeft <= missingRequired.length) return familyById(pickOne(missingRequired, rand))
+  const cap = Math.max(FAMILY_CAP, Math.ceil(ROUNDS_PER_SESSION / config.families.length))
+  const pool = [] as PatternFamily[]
+  for (let i = 0; i < config.families.length; i++) {
+    const family = familyById(config.families[i])
+    if (state.familyCounts[familyIndex(family.id)] < cap) pool.push(family)
+  }
+  const candidates = pool.length > 0 ? pool : config.families.map((id: string): PatternFamily => familyById(id))
+  return pickOne(candidates, rand)
+}
+
+// 抽素材组：需要组内除了单元符号之外还留得下 near 个近邻；
+// 一局内尽量不重复同一组，避免孩子反复见到同一批图而产生记忆捷径。
+function pickGroup(config: PatternLevelConfig, state: SessionState, symbolCount: number, rand: () => number): PatternGroup {
+  const groups = groupsForTier(config.tier)
+  const enough = groups.filter((group: PatternGroup): boolean => group.items.length >= symbolCount + config.near)
+  const base = enough.length > 0 ? enough : groups.filter((group: PatternGroup): boolean => group.items.length >= symbolCount)
+  const usable = base.length > 0 ? base : groups
+  const fresh = usable.filter((group: PatternGroup): boolean => state.usedGroups.indexOf(group.id) < 0)
+  const candidates = fresh.length > 0 ? fresh : usable
+  return pickOne(candidates, rand)
+}
+
+// ---------- 单元解析 ----------
+
+// "A'BCB" → 字母 ['A','B','C','B']、影子标记 [true,false,false,false]
+function parseUnit(unit: string): string[] {
+  const letters = [] as string[]
+  for (let i = 0; i < unit.length; i++) {
+    const ch = unit.charAt(i)
+    if (ch == "'") continue
+    letters.push(ch)
+  }
+  return letters
+}
+
+// 单元串里的 ' 写在字母**后面**（A' 表示 A 用影子版），所以标记要回填到前一个字母。
+function parseShadow(unit: string): boolean[] {
+  const flags = [] as boolean[]
+  for (let i = 0; i < unit.length; i++) {
+    const ch = unit.charAt(i)
+    if (ch == "'") {
+      if (flags.length > 0) flags[flags.length - 1] = true
+      continue
+    }
+    flags.push(false)
+  }
+  return flags
+}
+
+function distinctCount(letters: string[]): number {
+  let total = 0
+  for (let i = 0; i < letters.length; i++) {
+    let seen = false
+    for (let k = 0; k < i; k++) if (letters[k] == letters[i]) seen = true
+    if (!seen) total += 1
+  }
+  return total
+}
+
+function letterIndexes(letters: string[]): number[] {
+  const distinct = [] as string[]
+  const result = [] as number[]
+  for (let i = 0; i < letters.length; i++) {
+    let at = distinct.indexOf(letters[i])
+    if (at < 0) { distinct.push(letters[i]); at = distinct.length - 1 }
+    result.push(at)
+  }
+  return result
+}
+
+// ---------- 素材选择 ----------
+
+// 组内候选：排除上一题的答案图案（防「跟上一题」）与调用方指定的排除项。
+function candidatesOf(group: PatternGroup, excludeIds: string[], rand: () => number): PatternAsset[] {
+  const all = shuffled(group.items, rand)
+  const fresh = all.filter((asset: PatternAsset): boolean => excludeIds.indexOf(asset.id) < 0)
+  return fresh.length > 0 ? fresh : all
+}
+
+// 跨类别档：每个符号来自不同的组；同类别/细节档：所有符号来自同一个组。
+function pickSymbolAssets(config: PatternLevelConfig, state: SessionState, symbolCount: number, rand: () => number): { assets: PatternAsset[], groupPool: PatternAsset[], groupId: string } {
+  const exclude = state.lastAnswerId == '' ? ([] as string[]) : [state.lastAnswerId]
+  if (config.tier <= 1) {
+    const groups = shuffled(groupsForTier(1), rand)
+    const assets = [] as PatternAsset[]
+    for (let i = 0; i < symbolCount; i++) assets.push(candidatesOf(groups[i % groups.length], exclude, rand)[0])
+    return { assets: assets, groupPool: assets, groupId: assets[0].groupId }
+  }
+  const group = pickGroup(config, state, symbolCount, rand)
+  const pool = candidatesOf(group, exclude, rand)
+  const assets = [] as PatternAsset[]
+  for (let i = 0; i < symbolCount; i++) assets.push(pool[i])
+  return { assets: assets, groupPool: pool, groupId: group.id }
+}
+
+function assetIsSeen(state: SessionState, asset: PatternAsset): boolean {
+  return state.seenIds.indexOf(asset.id) >= 0
+}
+
+// ---------- 干扰项构造 ----------
+// 优先级（设计 §9.3）：答案的状态对（9–10 档）→ 同类近邻（优先已见）→ 序列内其他符号 →
+// 局内已见图 → 同层新图。答案必然出现在序列里，若干扰项全是新图，孩子不看规律也能排除——
+// 所以「序列内 / 局内已见」优先，新图只做兜底。
+function buildOptions(config: PatternLevelConfig, state: SessionState, answer: PatternAsset, answerShadow: boolean, sequenceAssets: PatternAsset[], groupPool: PatternAsset[], rand: () => number): PatternOption[] {
+  const distractors = [] as PatternAsset[]
+  const shadowFlags = [] as boolean[]
+  const used = [] as string[]
+  const answerKey = answer.id + (answerShadow ? "'" : '')
+
+  function add(asset: PatternAsset, isShadow: boolean) {
+    const key = asset.id + (isShadow ? "'" : '')
+    if (key == answerKey) return
+    if (used.indexOf(key) >= 0) return
+    if (isShadow && asset.shadowPath == '') return
+    used.push(key)
+    distractors.push(asset)
+    shadowFlags.push(isShadow)
+  }
+
+  // ① 答案的状态对：答 A′ 就放 A，答 A 就放 A′（A 与 A′ 是规则明示的两个不同图案）。
+  if (config.shadow != 'NONE') {
+    const pairShadow = !answerShadow
+    if (pairShadow) { if (answer.shadowPath != '') add(answer, true) } else add(answer, false)
+  }
+
+  // ② 同类近邻：优先挑「本局已经出现过」的同组图案，其次才是没见过的新图。
+  const nearNeeded = config.near - distractors.length
+  if (nearNeeded > 0) {
+    const pool = groupPool.filter((asset: PatternAsset): boolean => asset.id != answer.id && used.indexOf(asset.id) < 0)
+    const seenFirst = pool.filter((asset: PatternAsset): boolean => assetIsSeen(state, asset))
+    const ordered = shuffled(seenFirst, rand).concat(shuffled(pool.filter((asset: PatternAsset): boolean => !assetIsSeen(state, asset)), rand))
+    for (let i = 0; i < ordered.length && distractors.length < config.near; i++) add(ordered[i], false)
+  }
+
+  // ③ 兜底补齐：序列内其他符号 → 局内已见图 → 同层新图。
+  // 跨类别档还要求排除答案所在的组，否则兜底会抽到同组的图，把 S1 变成 S2。
+  const sameTierForbidden = config.tier <= 1 ? answer.groupId : ''
+  const acceptable = (asset: PatternAsset): boolean => sameTierForbidden == '' || asset.groupId != sameTierForbidden
+  const fallback = [] as PatternAsset[]
+  for (let i = 0; i < sequenceAssets.length; i++) if (acceptable(sequenceAssets[i])) fallback.push(sequenceAssets[i])
+  const tierAssets = allAssetsOfTier(config.tier)
+  for (let i = 0; i < tierAssets.length; i++) if (acceptable(tierAssets[i]) && assetIsSeen(state, tierAssets[i])) fallback.push(tierAssets[i])
+  for (let i = 0; i < tierAssets.length; i++) if (acceptable(tierAssets[i])) fallback.push(tierAssets[i])
+  for (let i = 0; i < fallback.length && distractors.length < config.optionCount - 1; i++) add(fallback[i], false)
+
+  const options = [] as PatternOption[]
+  options.push({ id: answerKey, path: answerShadow ? answer.shadowPath : answer.path, isShadow: answerShadow })
+  for (let i = 0; i < distractors.length; i++) {
+    options.push({ id: distractors[i].id + (shadowFlags[i] ? "'" : ''), path: shadowFlags[i] ? distractors[i].shadowPath : distractors[i].path, isShadow: shadowFlags[i] })
+  }
+  return shuffled(options, rand)
+}
+
+// 已见池只记素材 id（与 assetIsSeen 的比较口径一致）。
+function markSeen(state: SessionState, sequenceAssets: PatternAsset[]) {
+  for (let i = 0; i < sequenceAssets.length; i++) if (state.seenIds.indexOf(sequenceAssets[i].id) < 0) state.seenIds.push(sequenceAssets[i].id)
+}
+
+function hintTextFor(config: PatternLevelConfig, unitLength: number, familyId: string): string {
+  if (config.hint == 'BOX') return ''
+  if (familyId == 'F8') return '看看每一段是不是越来越长？'
+  if (familyId == 'F6' || familyId == 'F7') return '影子也是不一样的队员，看看影子轮到谁？'
+  if (config.task == 'FILL_ANY') return '有一个位置空着，每 ' + unitLength.toString() + ' 个一组，找找少了谁'
+  return '每 ' + unitLength.toString() + ' 个一组'
+}
+
+// ---------- 三种出题结构 ----------
+
+// F1–F6：循环单元。「问号在末尾」时先把相位之前的部分铺出来，问号补在末尾；
+// 「任意位置」时铺满两遍，随机把某一格挖空。
+function buildCyclicRound(config: PatternLevelConfig, state: SessionState, family: PatternFamily, rand: () => number): PatternRound {
+  const unit = pickOne(family.units, rand)
+  const letters = parseUnit(unit)
+  const shadows = parseShadow(unit)
+  const symbolCount = distinctCount(letters)
+  const picked = pickSymbolAssets(config, state, symbolCount, rand)
+  const indexes = letterIndexes(letters)
+
+  const cells = [] as PatternCell[]
+  const sequenceAssets = [] as PatternAsset[]
+  function push(unitIndex: number) {
+    const asset = picked.assets[indexes[unitIndex]]
+    const isShadow = shadows[unitIndex] && asset.shadowPath != ''
+    cells.push({ path: isShadow ? asset.shadowPath : asset.path, isShadow: isShadow })
+    sequenceAssets.push(asset)
+  }
+
+  let answerIndex = 0
+  let answerAsset = picked.assets[0]
+  let answerShadow = false
+  const unitLength = letters.length
+
+  if (config.task == 'FILL_ANY') {
+    for (let repeat = 0; repeat < 2; repeat++) for (let k = 0; k < unitLength; k++) push(k)
+    answerIndex = Math.floor(rand() * cells.length)
+    answerAsset = picked.assets[indexes[answerIndex % unitLength]]
+    answerShadow = cells[answerIndex].isShadow
+    cells[answerIndex] = { path: '', isShadow: answerShadow }
+  } else {
+    // 相位前缀受序列行容量限制：单元总长×2 + 前缀 + 问号 ≤ MAX_CELLS。
+    const phaseLimit = Math.max(1, Math.min(unitLength, MAX_CELLS - unitLength * 2))
+    const phase = config.phase == 'FIXED2' ? Math.min(2, phaseLimit) : 1 + Math.floor(rand() * phaseLimit)
+    for (let repeat = 0; repeat < 2; repeat++) for (let k = 0; k < unitLength; k++) push(k)
+    for (let k = 0; k < phase - 1; k++) push(k)
+    answerAsset = picked.assets[indexes[phase - 1]]
+    answerShadow = shadows[phase - 1] && answerAsset.shadowPath != ''
+    answerIndex = cells.length
+    cells.push({ path: '', isShadow: answerShadow })
+  }
+
+  const options = buildOptions(config, state, answerAsset, answerShadow, sequenceAssets, picked.groupPool, rand)
+  markSeen(state, sequenceAssets)
+  state.usedGroups.push(picked.groupId)
+  state.lastAnswerId = answerAsset.id
+  return {
+    cells: cells,
+    unitLength: unitLength,
+    answerIndex: answerIndex,
+    answerId: answerAsset.id + (answerShadow ? "'" : ''),
+    answerPath: answerShadow ? answerAsset.shadowPath : answerAsset.path,
+    answerIsShadow: answerShadow,
+    options: options,
+    optionCount: config.optionCount,
+    familyId: family.id,
+    unitLabel: unit,
+    hintKind: config.hint,
+    hintText: hintTextFor(config, unitLength, family.id),
+    shadowRule: family.id == 'F6' || family.id == 'F7'
+  }
+}
+
+// F7：影子规律。单元固定三个符号，显示 3 遍，问第 4 遍的第一格。
+// SHADOW_SHIFT：影子位每遍左移一格（ABC' → AB'C → A'BC → …），所以第 4 遍影子回到末位。
+// SHADOW_GROW：影子个数每遍 +1（ABC → ABC' → AB'C' → A'B'C'），所以第 4 遍首格就是影子。
+function buildShadowRuleRound(config: PatternLevelConfig, state: SessionState, family: PatternFamily, rand: () => number): PatternRound {
+  const letters = parseUnit('ABC')
+  const picked = pickSymbolAssets(config, state, 3, rand)
+  const shift = rand() < 0.5
+
+  const cells = [] as PatternCell[]
+  const sequenceAssets = [] as PatternAsset[]
+  for (let repeat = 0; repeat < 3; repeat++) {
+    for (let k = 0; k < 3; k++) {
+      const asset = picked.assets[k]
+      let isShadow = false
+      if (shift) isShadow = k == (2 - repeat + 6) % 3
+      else isShadow = k >= 3 - repeat && repeat > 0
+      if (asset.shadowPath == '') isShadow = false
+      cells.push({ path: isShadow ? asset.shadowPath : asset.path, isShadow: isShadow })
+      sequenceAssets.push(asset)
+    }
+  }
+
+  // 第 4 遍（repeat = 3）的第一格
+  const answerAsset = picked.assets[0]
+  let answerShadow = false
+  if (shift) answerShadow = 0 == (2 - 3 + 6) % 3
+  else answerShadow = 0 >= 3 - 3 && 3 > 0
+  if (answerAsset.shadowPath == '') answerShadow = false
+
+  const answerIndex = cells.length
+  cells.push({ path: '', isShadow: answerShadow })
+  const options = buildOptions(config, state, answerAsset, answerShadow, sequenceAssets, picked.groupPool, rand)
+  markSeen(state, sequenceAssets)
+  state.usedGroups.push(picked.groupId)
+  state.lastAnswerId = answerAsset.id
+  return {
+    cells: cells,
+    unitLength: 3,
+    answerIndex: answerIndex,
+    answerId: answerAsset.id + (answerShadow ? "'" : ''),
+    answerPath: answerShadow ? answerAsset.shadowPath : answerAsset.path,
+    answerIsShadow: answerShadow,
+    options: options,
+    optionCount: config.optionCount,
+    familyId: family.id,
+    unitLabel: shift ? 'ABC-SHIFT' : 'ABC-GROW',
+    hintKind: config.hint,
+    hintText: hintTextFor(config, 3, family.id),
+    shadowRule: true
+  }
+}
+
+// F8：递增族。第 k 个符号重复 k 次（A BB CCC DDDD），显示前 9 格，问第 10 格。
+// 规则单一、可读性好（对比「前缀递增」在无分隔时会歧义，故本版只实现块递增，见文档）。
+function buildGrowRound(config: PatternLevelConfig, state: SessionState, family: PatternFamily, rand: () => number): PatternRound {
+  const picked = pickSymbolAssets(config, state, 4, rand)
+  const cells = [] as PatternCell[]
+  const sequenceAssets = [] as PatternAsset[]
+  for (let k = 1; k <= 4; k++) {
+    for (let n = 0; n < k; n++) {
+      const asset = picked.assets[k - 1]
+      cells.push({ path: asset.path, isShadow: false })
+      sequenceAssets.push(asset)
+    }
+  }
+  // 10 格：显示前 9 格，问号在第 10 格（属于第 4 段，符号 D 的第 4 次重复）
+  const answerAsset = picked.assets[3]
+  const answerIndex = 9
+  cells[answerIndex] = { path: '', isShadow: false }
+  const options = buildOptions(config, state, answerAsset, false, sequenceAssets, picked.groupPool, rand)
+  markSeen(state, sequenceAssets)
+  state.usedGroups.push(picked.groupId)
+  state.lastAnswerId = answerAsset.id
+  return {
+    cells: cells,
+    unitLength: 0,
+    answerIndex: answerIndex,
+    answerId: answerAsset.id,
+    answerPath: answerAsset.path,
+    answerIsShadow: false,
+    options: options,
+    optionCount: config.optionCount,
+    familyId: family.id,
+    unitLabel: 'BLOCK_GROW',
+    hintKind: config.hint,
+    hintText: hintTextFor(config, 0, family.id),
+    shadowRule: false
+  }
+}
+
+// ---------- 主入口 ----------
+
+export function generatePatternRounds(level: number, rand: () => number): PatternRound[] {
+  const normalized = Math.max(1, Math.min(10, Math.round(level)))
+  const config = patternLevelConfig(normalized)
+  const state: SessionState = {
+    familyCounts: FAMILIES.map((family: PatternFamily): number => 0),
+    lastAnswerId: '',
+    seenIds: [] as string[],
+    usedGroups: [] as string[]
+  }
+  const rounds = [] as PatternRound[]
+  for (let i = 0; i < ROUNDS_PER_SESSION; i++) {
+    const family = pickFamily(config, state, ROUNDS_PER_SESSION - i, rand)
+    let round: PatternRound
+    if (family.special == 'SHADOW_RULE') round = buildShadowRuleRound(config, state, family, rand)
+    else if (family.special == 'GROW_RULE') round = buildGrowRound(config, state, family, rand)
+    else round = buildCyclicRound(config, state, family, rand)
+    state.familyCounts[familyIndex(round.familyId)] += 1
+    rounds.push(round)
+  }
+  return rounds
+}
