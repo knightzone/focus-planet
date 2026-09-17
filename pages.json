@@ -203,6 +203,13 @@
       }
     },
     {
+      "path": "pages/game/puzzle",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "拼图工坊"
+      }
+    },
+    {
       "path": "pages/game/bird-cloud",
       "style": {
         "navigationStyle": "custom",

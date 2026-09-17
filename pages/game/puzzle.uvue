@@ -1,0 +1,629 @@
+<template>
+  <TrainingFrame title="拼图工坊" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+    <view class="page">
+      <image class="scene" src="/static/images/runtime/backgrounds/shadow-match-desk-v1.webp" mode="aspectFill"></image>
+      <view class="content">
+        <view class="header">
+          <view><text class="eyebrow">选择注意训练</text><text class="title">拼图工坊</text></view>
+          <view class="counter"><text class="counter-text">{{ started ? displayRound + '/' + totalRounds : '试玩' }}</text></view>
+        </view>
+        <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
+
+        <view class="mission-card">
+          <view class="mission-ref">
+            <image class="ref-image" :src="sourceImage" mode="scaleToFill" @load="onBoardLoaded" @error="onBoardFailed"></image>
+            <text class="ref-label">参考图</text>
+          </view>
+          <view class="mission-side">
+            <text class="mission-label">{{ started ? '本轮目标' : '先试一下' }}</text>
+            <text class="mission-text">{{ started ? '把 ' + count + ' 块拼回原图' : '点或拖动拼块，放回原图里的位置' }}</text>
+            <text class="mission-hint">{{ missionHint }}</text>
+          </view>
+        </view>
+
+        <view class="board" :style="{ width: boardW.toString() + 'px', height: boardH.toString() + 'px' }">
+          <view v-for="(piece, slot) in slots" :key="'slot-' + slot" class="slot" :class="selected == piece && piece >= 0 ? 'slot-selected' : ''" :style="{ left: slotLeft(slot) + 'px', top: slotTop(slot) + 'px', width: slotWidth(slot) + 'px', height: slotHeight(slot) + 'px' }" @touchstart="slotStart(slot)" @touchmove="gestureMove" @touchend="gestureEnd" @touchcancel="gestureEnd" @click="tapSlot(slot)">
+            <view v-if="piece >= 0" class="piece-box" :style="{ width: slotW.toString() + 'px', height: slotH.toString() + 'px' }">
+              <image class="piece-img" :src="sourceImage" mode="scaleToFill" :style="{ left: cropLeft(piece, slotW) + 'px', top: cropTop(piece, slotH) + 'px', width: cropWidth(slotW) + 'px', height: cropHeight(slotH) + 'px' }"></image>
+            </view>
+          </view>
+          <text v-if="!boardReady" class="board-loading">图片加载中…</text>
+        </view>
+
+        <view class="tray" @touchstart="trayBackgroundStart" @touchmove="gestureMove" @touchend="gestureEnd" @touchcancel="gestureEnd" @click="tapTrayBackground">
+          <view class="tray-row" :style="{ left: (-trayScroll).toString() + 'px' }">
+            <view v-for="(piece, index) in tray" :key="'tray-' + piece" class="tray-cell" :style="{ width: trayCellW.toString() + 'px' }" @touchstart="trayStart(piece, index)" @touchmove="gestureMove" @touchend="gestureEnd" @touchcancel="gestureEnd" @click.stop="tapTrayPiece(piece)">
+              <view class="piece-box" :class="selected == piece ? 'tray-box-selected' : ''" :style="{ width: cellW.toString() + 'px', height: CELL_H.toString() + 'px' }">
+                <image class="piece-img" :src="sourceImage" mode="scaleToFill" :style="{ left: cropLeft(piece, cellW) + 'px', top: cropTop(piece, CELL_H) + 'px', width: cropWidth(cellW) + 'px', height: cropHeight(CELL_H) + 'px' }"></image>
+              </view>
+            </view>
+          </view>
+          <text v-if="tray.length == 0" class="tray-empty">拼块都放下啦</text>
+        </view>
+
+        <view class="feedback"><text v-if="feedback != ''" :class="feedbackGood ? 'good' : 'again'">{{ feedback }}</text></view>
+        <view class="stats">
+          <view class="stat"><text class="value">{{ placedCount }}/{{ count }}</text><text class="label">已拼好</text></view>
+          <view class="stat"><text class="value">{{ mistakes }}</text><text class="label">放错</text></view>
+          <view class="stat"><text class="value">{{ elapsedLabel }}</text><text class="label">{{ started ? '本轮用时' : '试玩不计分' }}</text></view>
+        </view>
+
+        <button v-if="!started" class="primary" @click="begin">开始</button>
+        <text v-if="!started && demoReplay" class="demo-replay" @click="resetDemo">再试一次</text>
+      </view>
+
+      <view v-if="dragPiece >= 0" class="drag-layer" :style="{ left: dragLeft.toString() + 'px', top: dragTop.toString() + 'px' }">
+        <view class="piece-box drag-box" :style="{ width: dragW.toString() + 'px', height: dragH.toString() + 'px' }">
+          <image class="piece-img" :src="sourceImage" mode="scaleToFill" :style="{ left: cropLeft(dragPiece, dragW) + 'px', top: cropTop(dragPiece, dragH) + 'px', width: cropWidth(dragW) + 'px', height: cropHeight(dragH) + 'px' }"></image>
+        </view>
+      </view>
+    </view>
+  </TrainingFrame>
+</template>
+
+<script setup lang="uts">
+import { timedRoundScore, scoreQuery } from '../../utils/game-scoring.uts'
+const roundScores: number[] = []
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
+import { ref, computed } from 'vue'
+import { onLoad, onUnload, onResize } from '@dcloudio/uni-app'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { DIFFERENCE_SCENES } from '../../utils/spot-difference-scenes.uts'
+import { chooseUnseenPuzzleSource, markPuzzleShown } from '../../utils/puzzle-cycle.uts'
+import { PUZZLE_EMPTY, puzzleConfig, puzzleShuffle, puzzleEmptySlots, puzzlePlaceFromTray, puzzleMoveBetweenSlots, puzzleReturnToTray, puzzlePlacedCount, puzzleSolved } from '../../utils/puzzle.uts'
+
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+
+// 布局常量：必须与下方样式里的固定高度一致，拖动落点判定靠这些值换算。
+const TOOLBAR_H = 44
+const HEADER_H = 46
+const PROGRESS_BLOCK = 24
+const MISSION_BLOCK = 96
+const BOARD_MARGIN = 12
+const TRAY_MARGIN = 10
+const TRAY_H = 66
+const CELL_H = 46
+const CELL_GAP = 6
+const FEEDBACK_H = 32
+const STATS_H = 60
+const BOTTOM_PAD = 76
+const CONTENT_PAD = 18
+const DEMO_IMAGE = '/static/images/runtime/spot-difference/story-v2/sd2-001-a.webp'
+const DROP_NONE = -2
+
+const started = ref(false)
+const demoDone = ref(false)
+const demoReplay = ref(false)
+const level = ref(1)
+const totalRounds = ref(3)
+const roundIndex = ref(0)
+const targetMs = ref(20000)
+const cols = ref(2)
+const rows = ref(2)
+const count = ref(4)
+const slots = ref([] as number[])
+const tray = ref([] as number[])
+const selected = ref(-1)
+const mistakes = ref(0)
+const steps = ref(0)
+const elapsed = ref(0)
+const roundComplete = ref(false)
+const boardReady = ref(false)
+const sourceImage = ref('')
+const sceneId = ref('')
+const passedRounds = ref(0)
+const feedback = ref('')
+const feedbackGood = ref(true)
+const totalPieces = ref(0)
+const totalMistakes = ref(0)
+const roundTimes = ref([] as number[])
+const boardW = ref(300)
+const boardH = ref(169)
+const slotW = ref(150)
+const slotH = ref(84)
+const cellW = ref(80)
+const trayScroll = ref(0)
+const dragPiece = ref(-1)
+const dragX = ref(0)
+const dragY = ref(0)
+
+const topInset = Math.max(0, uni.getWindowInfo().statusBarHeight)
+const dragW = computed((): number => slotW.value * 1.12)
+const dragH = computed((): number => slotH.value * 1.12)
+const trayCellW = computed((): number => cellW.value + CELL_GAP)
+const dragLeft = computed((): number => dragX.value - dragW.value / 2)
+const dragTop = computed((): number => dragY.value - dragH.value / 2)
+const placedCount = computed((): number => puzzlePlacedCount(slots.value))
+const elapsedLabel = computed((): string => elapsed.value.toString() + 's')
+const displayRound = computed((): number => Math.min(totalRounds.value, roundIndex.value + 1))
+const progressWidth = computed((): string => {
+  if (!started.value) return '0%'
+  const fraction = (roundIndex.value + (count.value == 0 ? 0 : placedCount.value / count.value)) / totalRounds.value
+  return Math.round(fraction * 100).toString() + '%'
+})
+const missionHint = computed((): string => {
+  if (demoDone.value) return '拼好啦！点下面的「开始」进入正式训练'
+  if (!boardReady.value) return '参考图出来啦，先看看它长什么样'
+  if (selected.value < 0) return '托盘可以左右滑动，纵向拖起拼块放进格子'
+  const at = pieceSlot(selected.value)
+  return at < 0 ? '再点一个格子放进去' : '点空格移动，点已占格子交换'
+})
+
+let gestureFrom = -1
+let gesturePiece = -1
+let gestureIndex = -1
+let gestureMode = ''
+let gestureAnchored = false
+// 锚点：第一次 touchmove 时的手指位置与拼块中心（都在各自坐标系里，只做差分用）
+let grabClientX = 0.0
+let grabClientY = 0.0
+let grabCenterX = 0.0
+let grabCenterY = 0.0
+let gestureDistance = 0.0
+let trayScrollStart = 0
+let suppressTapUntil = 0
+let gameStartedAt = 0
+let ticker = 0
+let finishTimer = 0
+let roundStartedAt = 0
+
+// 拖动/滑动结束后还会补一次 click，短时间内忽略点击，避免误触发。
+// 用训练时钟而不是墙上时间，暂停/后台时行为才一致。
+function tapSuppressed(): boolean {
+  return trainingClock.now() < suppressTapUntil
+}
+
+// 裁切几何：整图按 cols×rows 放大后偏移到第 piece 块自己的格子。
+// 这里只返回数字，样式统一在模板里用固定键名的对象字面量绑定 —— uni-app x 只认这种写法，
+// 返回整段样式字符串会在运行期失效。
+function cropLeft(piece: number, w: number): number { return -(piece % cols.value) * w }
+function cropTop(piece: number, h: number): number { return -Math.floor(piece / cols.value) * h }
+function cropWidth(w: number): number { return w * cols.value }
+function cropHeight(h: number): number { return h * rows.value }
+
+// 格子用四舍五入后的边界铺满棋盘，避免浮点留下缝隙。
+function slotLeft(slot: number): number { return Math.round((slot % cols.value) * slotW.value) }
+function slotTop(slot: number): number { return Math.round(Math.floor(slot / cols.value) * slotH.value) }
+function slotWidth(slot: number): number { return Math.round(((slot % cols.value) + 1) * slotW.value) - slotLeft(slot) }
+function slotHeight(slot: number): number { return Math.round((Math.floor(slot / cols.value) + 1) * slotH.value) - slotTop(slot) }
+
+// 拼块当前在哪个格子里；返回 -1 表示还在托盘。
+function pieceSlot(piece: number): number {
+  const found = slots.value.indexOf(piece)
+  return found
+}
+
+function interactive(): boolean {
+  if (trainingPaused.value || !boardReady.value) return false
+  if (!started.value) return !demoDone.value
+  return !roundComplete.value
+}
+
+function boardTopLocal(): number {
+  return CONTENT_PAD + HEADER_H + PROGRESS_BLOCK + MISSION_BLOCK + BOARD_MARGIN
+}
+
+function trayTopLocal(): number {
+  return boardTopLocal() + boardH.value + TRAY_MARGIN
+}
+
+// 触摸的原始 client 坐标。这里不做 client→页面的换算：
+// clientY 的零点在不同平台上是屏幕顶部还是页面顶部并不一致，靠假设换算会让落点整体偏移。
+function rawX(event: UniTouchEvent): number {
+  if (event.touches.length > 0) return event.touches[0].clientX
+  if (event.changedTouches.length > 0) return event.changedTouches[0].clientX
+  return 0.0
+}
+
+function rawY(event: UniTouchEvent): number {
+  if (event.touches.length > 0) return event.touches[0].clientY
+  if (event.changedTouches.length > 0) return event.changedTouches[0].clientY
+  return 0.0
+}
+
+// 拖动的锚点与拼块中心都在页面坐标里，之后只靠手指位移推进，因此与平台坐标零点无关。
+function slotCenterX(slot: number): number { return CONTENT_PAD + ((slot % cols.value) + 0.5) * slotW.value }
+function slotCenterY(slot: number): number { return boardTopLocal() + (Math.floor(slot / cols.value) + 0.5) * slotH.value }
+function trayCenterX(index: number): number { return CONTENT_PAD + index * (cellW.value + CELL_GAP) + cellW.value / 2 - trayScroll.value }
+function trayCenterY(): number { return trayTopLocal() + TRAY_H / 2 }
+
+// 落点判定：入参是拼块中心的页面坐标（与用户看到的位置一致）。
+// 返回格子序号；-1 表示托盘；DROP_NONE 表示都不在。
+function hitSlot(x: number, y: number): number {
+  const bx = x - CONTENT_PAD, by = y - boardTopLocal()
+  if (bx >= 0 && by >= 0 && bx < boardW.value && by < boardH.value) {
+    const col = Math.min(cols.value - 1, Math.floor(bx / slotW.value))
+    const row = Math.min(rows.value - 1, Math.floor(by / slotH.value))
+    return row * cols.value + col
+  }
+  if (y >= trayTopLocal() && y <= trayTopLocal() + TRAY_H) return -1
+  return DROP_NONE
+}
+
+function maxTrayScroll(): number {
+  const content = tray.value.length * (cellW.value + CELL_GAP)
+  const view = uni.getWindowInfo().windowWidth - CONTENT_PAD * 2
+  return Math.max(0, content - view)
+}
+
+function clampTrayScroll() {
+  const limit = maxTrayScroll()
+  if (trayScroll.value > limit) trayScroll.value = limit
+  if (trayScroll.value < 0) trayScroll.value = 0
+}
+
+function bumpBoard() {
+  slots.value = slots.value.slice()
+  tray.value = tray.value.slice()
+  clampTrayScroll()
+}
+
+function announce(piece: number, slot: number) {
+  if (piece == slot) {
+    feedbackGood.value = true
+    feedback.value = started.value ? '放对啦' : '对啦，就是这样'
+    if (started.value) training.playFeedback('correct')
+  } else {
+    feedbackGood.value = false
+    feedback.value = '这块不在这里，可以先放别的格子'
+    if (started.value) training.playFeedback('wrong')
+  }
+}
+
+// 托盘拼块放进格子（空格直接放，已占则原拼块退回托盘）。
+function placeFromTray(piece: number, slot: number) {
+  const added = puzzlePlaceFromTray(slots.value, tray.value, piece, slot)
+  if (added < 0) return
+  steps.value += 1
+  if (started.value) {
+    mistakes.value += added
+    totalMistakes.value += added
+  }
+  selected.value = -1
+  announce(piece, slot)
+  bumpBoard()
+  checkRoundDone()
+}
+
+function moveBetweenSlots(from: number, to: number) {
+  if (!puzzleMoveBetweenSlots(slots.value, from, to)) return
+  steps.value += 1
+  const piece = slots.value[to]
+  selected.value = -1
+  announce(piece, to)
+  bumpBoard()
+  checkRoundDone()
+}
+
+function returnToTray(slot: number) {
+  if (!puzzleReturnToTray(slots.value, tray.value, slot)) return
+  steps.value += 1
+  selected.value = -1
+  feedback.value = ''
+  bumpBoard()
+}
+
+function checkRoundDone() {
+  if (!puzzleSolved(slots.value)) return
+  if (!started.value) {
+    demoDone.value = true
+    demoReplay.value = true
+    feedbackGood.value = true
+    feedback.value = '拼好啦！点「开始」进入正式训练'
+    return
+  }
+  roundComplete.value = true
+  const used = Math.max(1, trainingClock.now() - roundStartedAt)
+  roundTimes.value.push(used)
+  totalPieces.value += count.value
+  const score = timedRoundScore(true, used, targetMs.value, mistakes.value)
+  roundScores.push(score)
+  if (score >= 100) passedRounds.value += 1
+  feedbackGood.value = true
+  feedback.value = score >= 100 ? '拼好啦！这轮达标' : '拼好啦，再用点时间会更稳'
+  training.playFeedback('correct')
+  clearFinishTimer()
+  finishTimer = trainingClock.setTimeout(() => {
+    roundIndex.value += 1
+    prepareRound()
+  }, 700)
+}
+
+function tapSlot(slot: number) {
+  if (!interactive() || tapSuppressed()) return
+  if (selected.value < 0) {
+    if (slots.value[slot] != PUZZLE_EMPTY) selected.value = slots.value[slot]
+    return
+  }
+  const piece = selected.value
+  const from = pieceSlot(piece)
+  if (from < 0) {
+    placeFromTray(piece, slot)
+    return
+  }
+  if (from == slot) {
+    selected.value = -1
+    return
+  }
+  moveBetweenSlots(from, slot)
+}
+
+function tapTrayPiece(piece: number) {
+  if (!interactive() || tapSuppressed()) return
+  selected.value = selected.value == piece ? -1 : piece
+  feedback.value = selected.value < 0 ? '' : '把这块放到原图里的位置'
+}
+
+function tapTrayBackground() {
+  if (!interactive()) return
+  const piece = selected.value
+  if (piece < 0) return
+  const from = pieceSlot(piece)
+  if (from >= 0) returnToTray(from)
+}
+
+function clearGesture() {
+  gestureMode = ''
+  gesturePiece = -1
+  gestureFrom = -1
+  gestureIndex = -1
+  gestureAnchored = false
+  dragPiece.value = -1
+  gestureDistance = 0.0
+}
+
+// 起点只记身份：哪个拼块、从格子还是托盘、托盘第几格。
+// 锚点放在第一次 touchmove 上（与分类车站一致），这样 touchstart 不需要事件参数。
+function beginGesture(piece: number, from: number, index: number) {
+  if (!interactive()) return
+  gestureMode = 'undecided'
+  gesturePiece = piece
+  gestureFrom = from
+  gestureIndex = index
+  gestureAnchored = false
+  gestureDistance = 0.0
+  trayScrollStart = trayScroll.value
+}
+
+// 格子上的按下：格子里有拼块才进入手势。
+function slotStart(slot: number) {
+  const piece = slots.value[slot]
+  if (piece == PUZZLE_EMPTY) return
+  beginGesture(piece, slot, -1)
+}
+
+// 托盘拼块上的按下。
+function trayStart(piece: number, index: number) {
+  beginGesture(piece, -1, index)
+}
+
+// 托盘空白处的按下：只能翻托盘，不会拿起拼块。
+function trayBackgroundStart() {
+  if (gestureMode != '') return // 已经由托盘格上的按下接了这次手势
+  beginGesture(-1, -1, -1)
+}
+
+function gestureMove(event: UniTouchEvent) {
+  if (gestureMode == '') return
+  const x = rawX(event), y = rawY(event)
+  if (!gestureAnchored) {
+    // 第一次移动只用来定锚点：记下手指位置，并算出拼块中心在页面里的位置。
+    grabClientX = x
+    grabClientY = y
+    grabCenterX = gestureFrom >= 0 ? slotCenterX(gestureFrom) : trayCenterX(gestureIndex)
+    grabCenterY = gestureFrom >= 0 ? slotCenterY(gestureFrom) : trayCenterY()
+    gestureAnchored = true
+    return
+  }
+  const dx = x - grabClientX, dy = y - grabClientY
+  gestureDistance = Math.abs(dx) + Math.abs(dy)
+  if (gestureMode == 'undecided' && gestureDistance > 6) {
+    if (gesturePiece < 0) gestureMode = 'scroll' // 托盘空白：只翻托盘
+    // 托盘拼块横向滑＝翻托盘；否则＝拿起拼块。
+    else if (gestureFrom < 0 && Math.abs(dx) > Math.abs(dy) * 1.4) gestureMode = 'scroll'
+    else gestureMode = 'drag'
+    if (gestureMode == 'drag') {
+      dragPiece.value = gesturePiece
+      selected.value = gesturePiece
+    }
+  }
+  if (gestureMode == 'scroll') {
+    trayScroll.value = Math.max(0, Math.min(maxTrayScroll(), trayScrollStart - dx))
+    return
+  }
+  if (gestureMode == 'drag') {
+    // 拼块中心跟着手指走；浮动拼块画在这个中心上，所以“看到的位置”就是落点。
+    dragX.value = grabCenterX + dx
+    dragY.value = grabCenterY + dy
+  }
+}
+
+function gestureEnd() {
+  if (gestureMode == 'drag') {
+    const target = hitSlot(dragX.value, dragY.value)
+    if (target != DROP_NONE) {
+      if (gestureFrom < 0) {
+        if (target >= 0) placeFromTray(gesturePiece, target)
+      } else if (target >= 0) {
+        moveBetweenSlots(gestureFrom, target)
+      } else {
+        returnToTray(gestureFrom)
+      }
+    }
+  }
+  if (gestureMode == 'drag' || gestureMode == 'scroll') suppressTapUntil = trainingClock.now() + 260
+  clearGesture()
+}
+
+// 需求：试玩与正式训练共用同一套棋盘与手势，只是不计分。
+function setupBoard(nextCols: number, nextRows: number, image: string) {
+  cols.value = nextCols
+  rows.value = nextRows
+  count.value = nextCols * nextRows
+  sourceImage.value = image
+  slots.value = puzzleEmptySlots(count.value)
+  tray.value = puzzleShuffle(count.value)
+  selected.value = -1
+  mistakes.value = 0
+  steps.value = 0
+  elapsed.value = 0
+  feedback.value = ''
+  feedbackGood.value = true
+  boardReady.value = false
+  roundComplete.value = false
+  trayScroll.value = 0
+  clearGesture()
+  layout()
+}
+
+function layout() {
+  const info = uni.getWindowInfo()
+  // 可用高度要把状态栏垫片也算进去，否则小屏上内容会超出屏幕，flex 会挤压固定高度的块，
+  // 格子的真实位置就与这里的常量对不上，拖动落点随之偏移。
+  // 试玩页底部还有「开始」按钮，正式训练没有，两者留白不同。
+  const bottomPad = started.value ? 14 : BOTTOM_PAD
+  const fixed = topInset + TOOLBAR_H + CONTENT_PAD + HEADER_H + PROGRESS_BLOCK + MISSION_BLOCK + BOARD_MARGIN + TRAY_MARGIN + TRAY_H + FEEDBACK_H + STATS_H + bottomPad
+  const maxBoardH = Math.max(120, info.windowHeight - fixed)
+  const maxBoardW = info.windowWidth - CONTENT_PAD * 2
+  let width = maxBoardW
+  let height = width * 432 / 768
+  if (height > maxBoardH) {
+    height = maxBoardH
+    width = height * 768 / 432
+  }
+  boardW.value = Math.floor(width)
+  boardH.value = Math.round(height)
+  slotW.value = boardW.value / cols.value
+  slotH.value = boardH.value / rows.value
+  cellW.value = Math.min(96, Math.max(26, Math.round(CELL_H * slotW.value / slotH.value)))
+  clampTrayScroll()
+}
+
+function resetDemo() {
+  demoDone.value = false
+  demoReplay.value = false
+  setupBoard(2, 2, DEMO_IMAGE)
+}
+
+function prepareRound() {
+  if (roundIndex.value >= totalRounds.value) {
+    finishGame()
+    return
+  }
+  const picked = chooseUnseenPuzzleSource(DIFFERENCE_SCENES)
+  const config = puzzleConfig(level.value)
+  sceneId.value = picked == null ? '' : picked.sceneId
+  targetMs.value = config.targetMs
+  setupBoard(config.cols, config.rows, picked == null ? DEMO_IMAGE : picked.image)
+}
+
+// 需求同找茬：图片真正显示出来才算「看过」，也只在这之后开始计时和允许操作。
+function onBoardLoaded() {
+  if (boardReady.value) return
+  boardReady.value = true
+  roundStartedAt = trainingClock.now()
+  if (started.value && sceneId.value != '') markPuzzleShown(sceneId.value, DIFFERENCE_SCENES)
+}
+
+function onBoardFailed() {
+  feedbackGood.value = false
+  feedback.value = '参考图没加载出来，点暂停里的「重新训练」再试'
+}
+
+function begin() {
+  if (trainingPaused.value) return
+  started.value = true
+  demoDone.value = false
+  demoReplay.value = false
+  gameStartedAt = trainingClock.now()
+  level.value = getGameDifficulty('puzzle')
+  totalRounds.value = puzzleConfig(level.value).rounds
+  roundIndex.value = 0
+  // 一局开始，清掉上一局的会话累计，避免二次进局时把旧分数带进来。
+  totalPieces.value = 0
+  totalMistakes.value = 0
+  passedRounds.value = 0
+  roundTimes.value = [] as number[]
+  roundScores.splice(0, roundScores.length)
+  prepareRound()
+}
+
+function clearFinishTimer() {
+  if (finishTimer > 0) trainingClock.clearTimeout(finishTimer)
+  finishTimer = 0
+}
+
+function finishGame() {
+  clearFinishTimer()
+  if (ticker > 0) trainingClock.clearInterval(ticker)
+  ticker = 0
+  const attempts = totalPieces.value + totalMistakes.value
+  const accuracy = attempts == 0 ? 0 : Math.round(totalPieces.value * 100 / attempts)
+  let sum = 0
+  for (let i = 0; i < roundTimes.value.length; i++) sum += roundTimes.value[i]
+  const average = roundTimes.value.length == 0 ? 0 : Math.round(sum / roundTimes.value.length)
+  const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
+  uni.redirectTo({ url: '/pages/result/result?gameId=puzzle&dimensionId=selective&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&completed=' + passedRounds.value.toString() + '&total=' + totalRounds.value.toString() + scoreQuery(roundScores) })
+}
+
+onResize(() => layout())
+onLoad((_options: OnLoadOptions) => {
+  level.value = getGameDifficulty('puzzle')
+  totalRounds.value = puzzleConfig(level.value).rounds
+  resetDemo()
+  ticker = trainingClock.setInterval(() => {
+    elapsed.value = started.value && boardReady.value && !roundComplete.value ? Math.round((trainingClock.now() - roundStartedAt) / 1000) : elapsed.value
+  }, 1000)
+})
+onUnload(() => {
+  if (ticker > 0) trainingClock.clearInterval(ticker)
+  clearFinishTimer()
+})
+training.setStartedCheck((): boolean => started.value)
+</script>
+
+<style>
+.page { flex: 1; background-color: #f0e0c4; }
+.scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.content { position: relative; flex: 1; padding: 18px 18px 12px; }
+.header { height: 46px; flex-shrink: 0; flex-direction: row; justify-content: space-between; align-items: center; }
+.eyebrow { color: #2f6f92; font-size: 12px; font-weight: 700; }
+.title { margin-top: 2px; color: #1f3b4d; font-size: 21px; font-weight: 700; }
+.counter { min-width: 64px; height: 38px; padding: 0 12px; border-radius: 19px; background-color: rgba(255,255,255,0.94); align-items: center; justify-content: center; }
+.counter-text { color: #2f7fa8; font-size: 13px; font-weight: 700; }
+.progress { margin-top: 16px; height: 8px; flex-shrink: 0; border-radius: 4px; background-color: rgba(255,255,255,0.7); overflow: hidden; }
+.progress-fill { height: 8px; border-radius: 4px; background-color: #4aa3d8; }
+.mission-card { margin-top: 14px; height: 82px; flex-shrink: 0; padding: 0 14px; border-radius: 20px; background-color: rgba(255,255,255,0.94); flex-direction: row; align-items: center; }
+.mission-ref { align-items: center; }
+.ref-image { width: 96px; height: 54px; border-radius: 10px; background-color: #e7eef5; }
+.ref-label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+.mission-side { flex: 1; margin-left: 14px; }
+.mission-label { color: #718b9e; font-size: 10px; }
+.mission-text { margin-top: 3px; color: #2f5f80; font-size: 14px; font-weight: 700; }
+.mission-hint { margin-top: 4px; color: #8a967e; font-size: 11px; }
+.board { position: relative; margin-top: 12px; flex-shrink: 0; border-radius: 18px; background-color: rgba(255,255,255,0.72); overflow: hidden; }
+.slot { position: absolute; border-width: 1px; border-style: dashed; border-color: rgba(120,140,160,0.5); align-items: center; justify-content: center; }
+.slot-selected { border-style: solid; border-color: #3f95d1; border-width: 2px; }
+.piece-box { position: relative; overflow: hidden; }
+.piece-img { position: absolute; }
+.board-loading { position: absolute; left: 0; right: 0; top: 45%; text-align: center; color: #7d8a9c; font-size: 12px; }
+.tray { position: relative; margin-top: 10px; height: 66px; flex-shrink: 0; border-radius: 18px; background-color: rgba(255,255,255,0.88); overflow: hidden; }
+.tray-row { position: absolute; left: 0; top: 0; height: 66px; flex-direction: row; align-items: center; }
+.tray-cell { height: 66px; align-items: center; justify-content: center; }
+.tray-box-selected { border-radius: 8px; background-color: rgba(74,163,216,0.28); }
+.tray-empty { position: absolute; left: 0; right: 0; top: 24px; text-align: center; color: #9aa6b6; font-size: 12px; }
+.feedback { height: 32px; flex-shrink: 0; align-items: center; justify-content: center; }
+.good { color: #338e72; font-size: 12px; font-weight: 700; }
+.again { color: #c65b66; font-size: 12px; font-weight: 700; }
+.stats { height: 60px; flex-shrink: 0; padding: 10px 8px; border-radius: 18px; background-color: rgba(255,255,255,0.94); flex-direction: row; }
+.stat { flex: 1; align-items: center; }
+.value { color: #25314a; font-size: 17px; font-weight: 700; }
+.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+.primary { margin-top: 8px; width: 160px; height: 46px; line-height: 46px; border-radius: 15px; background-color: #3f95d1; color: #ffffff; font-size: 14px; font-weight: 700; }
+.demo-replay { margin-top: 10px; padding: 6px 16px; color: #2f7fa8; font-size: 12px; font-weight: 700; }
+.drag-layer { position: absolute; z-index: 20; }
+.drag-box { border-radius: 8px; border-width: 2px; border-style: solid; border-color: #3f95d1; }
+</style>

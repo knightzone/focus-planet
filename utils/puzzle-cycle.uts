@@ -1,0 +1,43 @@
+// 拼图素材循环：与找茬同一套规则 —— 按场景去重，图片一显示就记为已用（不等拼完），
+// 本档全部看过后开新一轮，并避免与上一张相同。
+import { localTestKey } from './local-test.uts'
+import { DifferenceScene } from './spot-difference-types.uts'
+
+export type PuzzleSource = { sceneId: string, image: string }
+
+const PUZZLE_SEEN_KEY = 'focus_puzzle_seen_v1'
+const PUZZLE_LAST_KEY = 'focus_puzzle_seen_v1_last'
+
+function puzzleSeenIds(): string[] {
+  const raw = uni.getStorageSync(localTestKey(PUZZLE_SEEN_KEY))
+  if (raw == null || raw == '') return [] as string[]
+  try {
+    const ids = JSON.parse<string[]>(JSON.stringify(raw))
+    return ids == null ? [] as string[] : ids
+  } catch (_error) {
+    return [] as string[]
+  }
+}
+
+// 每轮随机取一张没看过的场景图；A/B 随机取一版。
+export function chooseUnseenPuzzleSource(scenes: DifferenceScene[]): PuzzleSource | null {
+  if (scenes.length == 0) return null
+  const seen = puzzleSeenIds()
+  let available = scenes.filter((scene: DifferenceScene): boolean => seen.indexOf(scene.id) < 0)
+  if (available.length == 0) {
+    const rawLast = uni.getStorageSync(localTestKey(PUZZLE_LAST_KEY))
+    const last = rawLast == null ? '' : rawLast as string
+    available = scenes.filter((scene: DifferenceScene): boolean => scenes.length == 1 || scene.id != last)
+  }
+  const picked = available[Math.floor(Math.random() * available.length)]
+  return { sceneId: picked.id, image: Math.random() < 0.5 ? picked.imageA : picked.imageB }
+}
+
+// 图片真正显示出来后调用；加载失败或预加载都不算看过。
+export function markPuzzleShown(sceneId: string, scenes: DifferenceScene[]) {
+  let seen = puzzleSeenIds().filter((id: string): boolean => scenes.some((scene: DifferenceScene): boolean => scene.id == id))
+  if (scenes.every((scene: DifferenceScene): boolean => seen.indexOf(scene.id) >= 0)) seen = [] as string[]
+  if (seen.indexOf(sceneId) < 0) seen.push(sceneId)
+  uni.setStorageSync(localTestKey(PUZZLE_SEEN_KEY), seen)
+  uni.setStorageSync(localTestKey(PUZZLE_LAST_KEY), sceneId)
+}

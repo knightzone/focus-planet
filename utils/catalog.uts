@@ -58,6 +58,7 @@ export const GAMES: TrainingGame[] = [
   { id: 'sound-filter', dimensionId: 'selective', name: '声音过滤器', summary: '忽略背景音识别目标声音', status: 'ready' },
   { id: 'symbol-detective', dimensionId: 'selective', name: '图案侦探', summary: '找齐不同的图案', status: 'ready' },
   { id: 'spot-difference', dimensionId: 'selective', name: '找茬乐园', summary: '比较两幅场景并找出不同', status: 'ready' },
+  { id: 'puzzle', dimensionId: 'selective', name: '拼图工坊', summary: '看参考图把拼块放回原位', status: 'ready' },
 
   { id: 'magic-rule', dimensionId: 'alternating', name: '魔法规则', summary: '在颜色与形状规则间切换', status: 'ready' },
   { id: 'sorting-station', dimensionId: 'alternating', name: '分类车站', summary: '按照变化的规则分类', status: 'ready' },

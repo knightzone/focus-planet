@@ -1,0 +1,106 @@
+// 拼图工坊：纯逻辑，页面只负责渲染与交互。
+// 素材与找茬同源（A/B 对比图），按网格把原图切成 cols×rows 块；
+// 拼块先放在可滑动的托盘里，可放进空格，也可与已占格子交换。
+// 只有「从托盘放进格子」放错才记一次失误；格子间移动/交换只花时间、不记失误。
+
+export const PUZZLE_IMAGE_W = 768
+export const PUZZLE_IMAGE_H = 432
+// 空格用 -1 表示，拼块编号即它自己的正确格子编号。
+export const PUZZLE_EMPTY = -1
+
+export type PuzzleConfig = {
+  level: number,
+  cols: number,
+  rows: number,
+  count: number,
+  rounds: number,
+  targetMs: number
+}
+
+const PUZZLE_COLS: number[] = [2, 2, 2, 3, 3, 3, 4, 4, 5, 5]
+const PUZZLE_ROWS: number[] = [2, 3, 4, 3, 4, 5, 4, 5, 5, 6]
+// 前 7 档 3→5 轮，最后三档因网格大回落到 4/3/3 轮。
+const PUZZLE_ROUNDS: number[] = [3, 3, 3, 4, 4, 5, 5, 4, 3, 3]
+// 每块按 4 秒估时再加 4 秒起手，作为 100 分线；首版参数，需结合实机校准。
+const PUZZLE_MS_PER_PIECE = 4000
+const PUZZLE_MS_BASE = 4000
+
+export function puzzleConfig(level: number): PuzzleConfig {
+  const index = Math.max(0, Math.min(9, Math.round(level) - 1))
+  const cols = PUZZLE_COLS[index]
+  const rows = PUZZLE_ROWS[index]
+  const count = cols * rows
+  return {
+    level: index + 1,
+    cols: cols,
+    rows: rows,
+    count: count,
+    rounds: PUZZLE_ROUNDS[index],
+    targetMs: count * PUZZLE_MS_PER_PIECE + PUZZLE_MS_BASE
+  }
+}
+
+// 托盘初始顺序：把 0..count-1 洗牌，保证拼块编号仍是各自的正确格子。
+export function puzzleShuffle(count: number): number[] {
+  const result = [] as number[]
+  for (let i = 0; i < count; i++) result.push(i)
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const value = result[i]
+    result[i] = result[j]
+    result[j] = value
+  }
+  return result
+}
+
+export function puzzleEmptySlots(count: number): number[] {
+  const result = [] as number[]
+  for (let i = 0; i < count; i++) result.push(PUZZLE_EMPTY)
+  return result
+}
+
+// 托盘拼块放进格子：空格直接放，已占则把原拼块退回托盘。
+// 返回本次新增的失误数（放错 1，放对 0），找不到该拼块返回 -1。
+export function puzzlePlaceFromTray(slots: number[], tray: number[], piece: number, slot: number): number {
+  if (slot < 0 || slot >= slots.length) return -1
+  const at = tray.indexOf(piece)
+  if (at < 0) return -1
+  const occupant = slots[slot]
+  tray.splice(at, 1)
+  if (occupant != PUZZLE_EMPTY) tray.push(occupant)
+  slots[slot] = piece
+  return piece == slot ? 0 : 1
+}
+
+// 格子之间移动或交换，返回是否发生了移动。
+export function puzzleMoveBetweenSlots(slots: number[], from: number, to: number): boolean {
+  if (from == to || from < 0 || to < 0 || from >= slots.length || to >= slots.length) return false
+  if (slots[from] == PUZZLE_EMPTY) return false
+  const value = slots[to]
+  slots[to] = slots[from]
+  slots[from] = value
+  return true
+}
+
+// 把格子里的拼块放回托盘，返回是否发生了移动。
+export function puzzleReturnToTray(slots: number[], tray: number[], slot: number): boolean {
+  if (slot < 0 || slot >= slots.length) return false
+  const piece = slots[slot]
+  if (piece == PUZZLE_EMPTY) return false
+  slots[slot] = PUZZLE_EMPTY
+  tray.push(piece)
+  return true
+}
+
+// 已放对位置的拼块数（不含空格）。
+export function puzzlePlacedCount(slots: number[]): number {
+  let total = 0
+  for (let i = 0; i < slots.length; i++) if (slots[i] == i) total += 1
+  return total
+}
+
+export function puzzleSolved(slots: number[]): boolean {
+  if (slots.length == 0) return false
+  for (let i = 0; i < slots.length; i++) if (slots[i] != i) return false
+  return true
+}
