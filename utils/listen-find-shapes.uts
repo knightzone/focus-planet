@@ -1,0 +1,384 @@
+// 听声捉图形（原「听声找图」重做）：纯逻辑层。
+//
+// 画面被十字坐标轴分成左上 / 右上 / 左下 / 右下四个区域，每个区域按难度放 1—4 个**平涂无边框**的图形
+// （形状：圆形 / 方形 / 三角形；颜色：红 / 黄 / 绿 / 蓝）。语音播报一句指令，例如
+// 「点击左侧方形」「点击下方红色图形」，孩子把**符合「半屏 + 描述符」的图形全部点出来**。
+//   - 难度：每个区域的图形数（1→4）、每轮思考时间、每轮答案上限（1→4）。
+//   - **正确答案数量按难度从「最多 1 个」升到「最多 4 个」**，并且只是上限：每轮在 1..上限 之间随机，
+//     所以同一档也可能只出现 1 个答案。
+//   - 图形在一轮内不变：被点过的图形翻面成 ✓ / ✗ 并锁住；一轮内**点齐全部答案**才收尾。
+//   - 一局固定 6 轮；点错扣分、点漏（超时）本轮 0 分；**点错不会提前结束，只影响最终分数**。
+//   - 指令保证**恰好 N 个匹配**（N = 本轮答案数）：同半屏里除了这 N 个，其他图形都不会和描述符撞上；
+//     另一半屏的图形完全随机 —— 它们就是干扰项（可能在错误的一侧出现同样的形状/颜色）。
+//
+// 位置：每个区域内的图形按**固定且居中的排布**摆放（1 个在正中、2 个左右并排、3 个上二下一、4 个 2×2），
+// 不做随机抖动，看起来更规整、也不会挤在一起。
+//
+// 逻辑与渲染分离：这里负责出题、判定、计分与轮次；页面负责测量场地尺寸、画图形与打勾打叉。
+// 随机源可注入（页面传 Math.random，测试传种子随机数）。
+
+export type ListenFindShape = {
+  id: string,
+  shape: string,
+  color: string,
+  quadrant: number,
+  slot: number,
+  x: number,
+  y: number,
+  size: number,
+  tapped: boolean,
+  correct: boolean
+}
+
+export type ListenFindCommand = { half: string, kind: string, key: string, id: string, text: string }
+
+export type ListenFindConfig = {
+  level: number,
+  perQuadrant: number,
+  maxTargets: number,
+  rounds: number,
+  roundMs: number,
+  wrongPenalty: number,
+  demo: boolean
+}
+
+export type ListenFindField = {
+  config: ListenFindConfig,
+  width: number,
+  height: number,
+  roundIndex: number,
+  command: ListenFindCommand,
+  shapes: ListenFindShape[],
+  roundTargets: number,
+  roundFound: number,
+  found: number,
+  wrong: number,
+  missedRounds: number,
+  errors: number,
+  roundWrong: number,
+  roundScores: number[],
+  elapsedMs: number,
+  roundLeftMs: number,
+  gapLeftMs: number,
+  revealedIds: string[],
+  phase: string
+}
+
+export type ListenFindEvent = { kind: string, shapeId: string, detail: string }
+
+export const LISTEN_FIND_SHAPES = ['circle', 'square', 'triangle']
+export const LISTEN_FIND_COLORS = ['red', 'yellow', 'green', 'blue']
+export const LISTEN_FIND_HALVES = ['left', 'right', 'top', 'bottom']
+export const LISTEN_FIND_ASSET_BASE = '/static/images/runtime/listen-find-shapes/'
+export const LISTEN_FIND_START_EVENT = 'roundStart'
+const SHAPE_LABEL = { circle: '圆形', square: '方形', triangle: '三角形' }
+const COLOR_LABEL = { red: '红色图形', yellow: '黄色图形', green: '绿色图形', blue: '蓝色图形' }
+const GAP_MS = 700
+
+// 6 轮固定；每区图形数 1→4；正确答案**上限** 1→4；时间随图形数放宽；
+const LEVEL_PER_QUADRANT = [1, 1, 2, 2, 2, 3, 3, 3, 4, 4]
+const LEVEL_MAX_TARGETS = [1, 1, 2, 2, 2, 3, 3, 3, 4, 4]
+const LEVEL_ROUND_MS = [5000, 5000, 6000, 6500, 7000, 7500, 8000, 9000, 10000, 11000]
+const LEVEL_MAX_ERRORS = [3, 3, 3, 2, 2, 2, 1, 1, 1, 1]
+const ROUNDS = 6
+const WRONG_PENALTY = 10
+
+export function listenFindConfig(level: number): ListenFindConfig {
+  const index = Math.max(0, Math.min(9, Math.round(level) - 1))
+  return {
+    level: index + 1,
+    perQuadrant: LEVEL_PER_QUADRANT[index],
+    maxTargets: LEVEL_MAX_TARGETS[index],
+    rounds: ROUNDS,
+    roundMs: LEVEL_ROUND_MS[index],
+    wrongPenalty: WRONG_PENALTY,
+    demo: false
+  }
+}
+
+// 试玩：四个区域各 1 个图形、只 1 轮、不计时不计分，用来看懂「听指令 → 找半屏 → 点图形 → 打勾打叉」。
+export function listenFindDemoConfig(): ListenFindConfig {
+  return {
+    level: 1,
+    perQuadrant: 1,
+    maxTargets: 1,
+    rounds: 1,
+    roundMs: 0,
+    wrongPenalty: 0,
+    demo: true
+  }
+}
+
+export function listenFindShapeLabel(shape: string): string {
+  return shape == 'circle' ? SHAPE_LABEL.circle : shape == 'square' ? SHAPE_LABEL.square : SHAPE_LABEL.triangle
+}
+
+export function listenFindColorLabel(color: string): string {
+  if (color == 'red') return COLOR_LABEL.red
+  if (color == 'yellow') return COLOR_LABEL.yellow
+  if (color == 'green') return COLOR_LABEL.green
+  return COLOR_LABEL.blue
+}
+
+export function listenFindHalfLabel(half: string): string {
+  if (half == 'left') return '左侧'
+  if (half == 'right') return '右侧'
+  if (half == 'top') return '上方'
+  return '下方'
+}
+
+export function listenFindAssetPath(shape: string, color: string): string {
+  return LISTEN_FIND_ASSET_BASE + shape + '-' + color + '.svg'
+}
+
+// 指令：点击 + 半屏 + （形状｜颜色+图形）。id 与语音文件名一一对应（例如 left-square）。
+export function listenFindCommand(half: string, kind: string, key: string): ListenFindCommand {
+  const descriptor = kind == 'shape' ? listenFindShapeLabel(key) : listenFindColorLabel(key)
+  return { half: half, kind: kind, key: key, id: half + '-' + key, text: '点击' + listenFindHalfLabel(half) + descriptor }
+}
+
+// 图形是否落在这一半屏（用象限判定，不含坐标歧义）
+export function listenFindInHalf(shape: ListenFindShape, half: string): boolean {
+  if (half == 'left') return shape.quadrant % 2 == 0
+  if (half == 'right') return shape.quadrant % 2 == 1
+  if (half == 'top') return shape.quadrant < 2
+  return shape.quadrant >= 2
+}
+
+export function listenFindMatches(shape: ListenFindShape, command: ListenFindCommand): boolean {
+  if (!listenFindInHalf(shape, command.half)) return false
+  return command.kind == 'shape' ? shape.shape == command.key : shape.color == command.key
+}
+
+export function listenFindMatchCount(shapes: ListenFindShape[], command: ListenFindCommand): number {
+  return shapes.filter((item: ListenFindShape): boolean => listenFindMatches(item, command)).length
+}
+
+export function listenFindRoundScore(found: number, targets: number, wrong: number, penalty: number): number {
+  const base = targets > 0 ? Math.round(100 * Math.max(0, found) / targets) : 100
+  return Math.max(0, Math.min(100, base - Math.max(0, wrong) * penalty))
+}
+
+export function listenFindSessionScore(field: ListenFindField): number {
+  if (field.roundScores.length == 0) return 0
+  let total = 0
+  for (let i = 0; i < field.roundScores.length; i++) total += field.roundScores[i]
+  return Math.floor(total / field.roundScores.length + 0.000001)
+}
+
+export function listenFindProgress(field: ListenFindField): number {
+  const total = field.config.rounds
+  return total <= 0 ? 0 : Math.max(0, Math.min(1, field.roundScores.length / total))
+}
+
+export function listenFindFinished(field: ListenFindField): boolean {
+  return field.phase == 'done'
+}
+
+// ---------- 位置：固定、居中、不挤 ----------
+
+// 每个区域内第 slot 个图形的相对位置（0—1）。按数量固定排布，1 个在正中、4 个 2×2。
+const SLOT_OFFSETS: number[][] = [
+  [0.50, 0.50],
+  [0.30, 0.50, 0.70, 0.50],
+  [0.30, 0.32, 0.70, 0.32, 0.50, 0.70],
+  [0.30, 0.32, 0.70, 0.32, 0.30, 0.70, 0.70, 0.70]
+]
+
+export function listenFindSlotOffset(count: number, slot: number): { x: number, y: number } {
+  const index = Math.max(1, Math.min(4, Math.round(count))) - 1
+  const table = SLOT_OFFSETS[index]
+  const at = Math.max(0, Math.min(count - 1, Math.round(slot)))
+  return { x: table[at * 2], y: table[at * 2 + 1] }
+}
+
+export function listenFindQuadrantOrigin(width: number, height: number, quadrant: number): { x: number, y: number, w: number, h: number } {
+  const w = width / 2
+  const h = height / 2
+  return { x: (quadrant % 2) * w, y: quadrant < 2 ? 0 : h, w: w, h: h }
+}
+
+export function listenFindShapeSize(width: number, height: number): number {
+  const cellWidth = width / 4
+  const cellHeight = height / 4
+  const raw = Math.min(cellWidth, cellHeight) * 0.72
+  return Math.max(32, Math.min(68, Math.round(raw)))
+}
+
+// ---------- 出题 ----------
+
+function pickIndex(length: number, rand: () => number): number {
+  if (length <= 0) return 0
+  return Math.max(0, Math.min(length - 1, Math.floor(rand() * length)))
+}
+
+function pick(list: string[], rand: () => number): string {
+  return list[pickIndex(list.length, rand)]
+}
+
+function shuffle(list: number[], rand: () => number): number[] {
+  const result = list.slice()
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = pickIndex(i + 1, rand)
+    const value = result[i]
+    result[i] = result[j]
+    result[j] = value
+  }
+  return result
+}
+
+// 生成一轮：
+//   1) 先随机半屏与描述符；
+//   2) 本轮答案数 N = 1..maxTargets 之间随机（maxTargets 是上限，不是必须）；
+//   3) 在半屏内的图形里随机挑 N 个做成答案，其余半屏内图形避开描述符；
+//   4) 另一半屏完全随机（干扰项）。
+export function listenFindGenerateRound(config: ListenFindConfig, width: number, height: number, roundIndex: number, rand: () => number): { command: ListenFindCommand, shapes: ListenFindShape[], targets: number } {
+  const half = pick(LISTEN_FIND_HALVES, rand)
+  const kind = rand() < 0.5 ? 'shape' : 'color'
+  const key = kind == 'shape' ? pick(LISTEN_FIND_SHAPES, rand) : pick(LISTEN_FIND_COLORS, rand)
+  const command = listenFindCommand(half, kind, key)
+  const size = listenFindShapeSize(width, height)
+
+  // 先把所有位置摆好（每区固定排布、居中），形状/颜色先随机。
+  const shapes = [] as ListenFindShape[]
+  let index = 0
+  for (let quadrant = 0; quadrant < 4; quadrant++) {
+    const origin = listenFindQuadrantOrigin(width, height, quadrant)
+    for (let slot = 0; slot < config.perQuadrant; slot++) {
+      const offset = listenFindSlotOffset(config.perQuadrant, slot)
+      shapes.push({
+        id: 'r' + roundIndex.toString() + '-' + index.toString(),
+        shape: pick(LISTEN_FIND_SHAPES, rand),
+        color: pick(LISTEN_FIND_COLORS, rand),
+        quadrant: quadrant,
+        slot: slot,
+        x: origin.x + offset.x * origin.w,
+        y: origin.y + offset.y * origin.h,
+        size: size,
+        tapped: false,
+        correct: false
+      })
+      index += 1
+    }
+  }
+
+  // 本轮答案数：1..maxTargets（上限内随机，所以同一档也可能只有 1 个答案）。
+  const wanted = 1 + pickIndex(config.maxTargets, rand)
+  const inHalf = shapes.filter((item: ListenFindShape): boolean => listenFindInHalf(item, half))
+  const targets = Math.max(1, Math.min(wanted, inHalf.length))
+  const order = shuffle(inHalf.map((item: ListenFindShape): number => item.quadrant * 10 + item.slot), rand)
+  const targetKeys = order.slice(0, targets)
+  for (let i = 0; i < inHalf.length; i++) {
+    const shape = inHalf[i]
+    const isTarget = targetKeys.indexOf(shape.quadrant * 10 + shape.slot) >= 0
+    if (isTarget) {
+      if (kind == 'shape') shape.shape = key
+      else shape.color = key
+      shape.correct = false
+    } else if (kind == 'shape') {
+      // 同半屏的非答案不能撞描述符，否则会出现多出来的答案
+      while (shape.shape == key) shape.shape = pick(LISTEN_FIND_SHAPES, rand)
+    } else {
+      while (shape.color == key) shape.color = pick(LISTEN_FIND_COLORS, rand)
+    }
+  }
+  return { command: command, shapes: shapes, targets: targets }
+}
+
+function startRound(field: ListenFindField, rand: () => number): ListenFindEvent[] {
+  const round = listenFindGenerateRound(field.config, field.width, field.height, field.roundIndex, rand)
+  field.command = round.command
+  field.shapes = round.shapes
+  field.roundTargets = round.targets
+  field.roundFound = 0
+  field.roundWrong = 0
+  field.revealedIds = [] as string[]
+  field.roundLeftMs = field.config.roundMs
+  field.gapLeftMs = 0
+  field.phase = 'play'
+  return [{ kind: LISTEN_FIND_START_EVENT, shapeId: '', detail: field.command.id }]
+}
+
+export function listenFindCreate(config: ListenFindConfig, width: number, height: number, rand: () => number): ListenFindField {
+  const field: ListenFindField = {
+    config: config,
+    width: Math.max(1, width),
+    height: Math.max(1, height),
+    roundIndex: 0,
+    command: listenFindCommand('left', 'shape', 'circle'),
+    shapes: [] as ListenFindShape[],
+    roundTargets: 1,
+    roundFound: 0,
+    found: 0,
+    wrong: 0,
+    missedRounds: 0,
+    errors: 0,
+    roundWrong: 0,
+    roundScores: [] as number[],
+    elapsedMs: 0,
+    roundLeftMs: config.roundMs,
+    gapLeftMs: 0,
+    revealedIds: [] as string[],
+    phase: 'play'
+  }
+  startRound(field, rand)
+  return field
+}
+
+// 点图形：点到本轮答案之一算「点对」（记一次），点齐全部答案本轮收尾；
+// 点其它图形算「点错」（只在本轮扣分，不判负），本轮继续。
+export function listenFindTap(field: ListenFindField, shapeId: string): string {
+  if (field.phase != 'play') return 'ignored'
+  const found = field.shapes.filter((item: ListenFindShape): boolean => item.id == shapeId)
+  if (found.length == 0) return 'ignored'
+  const shape = found[0]
+  if (shape.tapped) return 'ignored'
+  shape.tapped = true
+  if (listenFindMatches(shape, field.command)) {
+    shape.correct = true
+    field.found += 1
+    field.roundFound += 1
+    if (field.roundFound >= field.roundTargets) {
+      field.roundScores.push(listenFindRoundScore(field.roundTargets, field.roundTargets, field.roundWrong, field.config.wrongPenalty))
+      field.phase = 'gap'
+      field.gapLeftMs = GAP_MS
+    }
+    return 'correct'
+  }
+  field.wrong += 1
+  field.errors += 1
+  field.roundWrong += 1
+  return 'wrong'
+}
+
+// 推进 dtMs 毫秒：轮内倒计时 → 超时算「点漏」（本轮 0 分并亮出全部答案）→ 短暂停顿 → 下一轮先重新生成图形再播报。
+export function listenFindStep(field: ListenFindField, dtMs: number, rand: () => number): ListenFindEvent[] {
+  const events = [] as ListenFindEvent[]
+  if (field.phase == 'done') return events
+  const ms = Math.max(0, dtMs)
+  field.elapsedMs += ms
+  if (field.phase == 'play') {
+    if (field.config.roundMs <= 0) return events
+    field.roundLeftMs -= ms
+    if (field.roundLeftMs > 0) return events
+    field.roundLeftMs = 0
+    field.missedRounds += 1
+    field.roundScores.push(0)
+    field.revealedIds = field.shapes.filter((item: ListenFindShape): boolean => listenFindMatches(item, field.command)).map((item: ListenFindShape): string => item.id)
+    field.phase = 'gap'
+    field.gapLeftMs = GAP_MS
+    events.push({ kind: 'timeout', shapeId: field.revealedIds.length > 0 ? field.revealedIds[0] : '', detail: field.command.id })
+    return events
+  }
+  // gap：让 ✓ / ✗ 停一下再进下一轮
+  field.gapLeftMs -= ms
+  if (field.gapLeftMs > 0) return events
+  field.roundIndex += 1
+  if (field.roundIndex >= field.config.rounds) {
+    field.phase = 'done'
+    events.push({ kind: 'finished', shapeId: '', detail: '' })
+    return events
+  }
+  return startRound(field, rand)
+}
+

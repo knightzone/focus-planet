@@ -1,0 +1,429 @@
+<template>
+<TrainingFrame :difficulty="level" :preparing="state != 'running' && state != 'paused'" title="一心二用小司机" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+  <view class="ld-page">
+    <view id="ld-scene" class="ld-scene">
+      <image class="ld-scene-art tap-content" src="/static/images/runtime/backgrounds/car-patrol-town-v1.webp" mode="scaleToFill"></image>
+      <view class="ld-hud">
+        <view class="ld-hud-chip"><text class="ld-hud-label">{{ state == 'ready' ? '一心二用小司机' : state == 'demo' || state == 'demo-done' ? '试玩' : '难度 ' + level + ' · ' + laneCount + ' 车道' }}</text></view>
+        <view v-if="state == 'running'" class="ld-hud-chip"><text class="ld-hud-label">{{ scoredWaves }} / {{ laneTotal }}</text></view>
+      </view>
+      <view v-if="state != 'ready'" class="ld-progress"><view class="ld-progress-fill" :style="{ width: progressWidth }"></view></view>
+      <view v-for="dash in dashes" :key="dash.id" class="ld-dash tap-content" :style="dash.style"></view>
+      <view v-for="post in posts" :key="post.id" class="ld-post tap-content" :style="post.style"><view class="ld-post-band"></view></view>
+      <image v-for="cone in cones" :key="cone.id" class="ld-cone tap-content" src="/static/images/runtime/car-patrol/cone-v1.svg" mode="aspectFit" :style="cone.style"></image>
+      <image class="ld-car tap-content" :class="bumping ? 'ld-car-bump' : ''" src="/static/images/runtime/car-patrol/car-rear-v1.webp" mode="aspectFit" :style="{ left: carLeft + '%', width: carSize + 'px', height: carSize + 'px' }"></image>
+      <text v-if="bumping" class="ld-bump">碰到路锥啦</text>
+      <view v-if="state == 'ready' || state == 'demo-done'" class="ld-message training-preview-card">
+        <text class="ld-message-title">{{ state == 'demo-done' ? (demoAvoided ? '躲开啦！' : '换条车道试试') : '躲路锥，也照顾小伙伴' }}</text>
+        <text class="ld-message-note">换车道 · 点探头的小朋友</text>
+        <button class="tap-target ld-primary training-preview-primary" @click="begin">开始训练</button>
+        <text class="ld-replay training-preview-secondary" @click="startDemo">{{ state == 'demo-done' ? '再试一次' : '先试玩' }}</text>
+      </view>
+      <view v-if="state == 'demo'" class="ld-demo-skip"><button class="ld-demo-start training-preview-primary" @click="begin">开始训练</button></view>
+    </view>
+
+    <view class="ld-controls">
+      <text class="ld-hint">{{ state == 'running' || state == 'demo' ? '点车道换位置' : '跃跃和暖暖，出发！' }}</text>
+      <view class="ld-lane-buttons">
+        <view v-for="lane in laneCount" :key="lane" class="tap-target ld-lane-button" :class="targetLane == lane - 1 ? 'ld-lane-selected' : ''" @click="moveTo(lane - 1)">
+          <image v-if="targetLane == lane - 1" class="ld-lane-car" src="/static/images/runtime/car-patrol/car-rear-v1.webp" mode="aspectFit"></image>
+          <text v-else class="ld-lane-arrow">{{ lane - 1 < targetLane ? '←' : '→' }}</text>
+          <text class="ld-lane-caption">{{ targetLane == lane - 1 ? '当前' : (laneCount == 2 ? (lane == 1 ? '左道' : '右道') : lane + ' 道') }}</text>
+        </view>
+      </view>
+    </view>
+
+    <view id="ld-strip" class="ld-strip">
+      <text class="ld-strip-title">{{ stripFeedback == '' ? '点探头的小伙伴，让他坐好' : stripFeedback }}</text>
+      <view id="ld-strip-track" class="ld-strip-track">
+        <view v-for="image in stripViews" :key="image.id" class="tap-target ld-strip-item" :style="image.style" @click="tapStrip(image.id)">
+          <image class="ld-strip-art" :src="image.path" mode="aspectFit" :style="image.artStyle"></image>
+          <view v-if="image.mark == 'good'" class="ld-mark ld-mark-good" :style="image.markStyle"><text class="ld-mark-text">✓</text></view>
+          <view v-if="image.mark == 'bad'" class="ld-mark ld-mark-bad" :style="image.markStyle"><text class="ld-mark-text">✕</text></view>
+        </view>
+      </view>
+    </view>
+
+    <view class="ld-stats">
+      <view class="ld-stat"><text class="ld-stat-value">{{ laneDone }}</text><text class="ld-stat-label">躲过路锥</text></view>
+      <view class="ld-stat"><text class="ld-stat-value">{{ leanHit }}</text><text class="ld-stat-label">点对探头</text></view>
+      <view class="ld-stat"><text class="ld-stat-value">{{ wrongTaps }}</text><text class="ld-stat-label">误点端坐</text></view>
+    </view>
+  </view>
+</TrainingFrame>
+</template>
+
+<script setup lang="uts">
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
+import { ref, computed, nextTick } from 'vue'
+import { onLoad, onReady, onUnload, onResize } from '@dcloudio/uni-app'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { scoreQuery } from '../../utils/game-scoring.uts'
+import {
+  patrolDepth, patrolY, patrolX, patrolRoadWidth, patrolOverlaps, patrolConeSize, patrolConeOpacity, patrolDividerAngle, makePatrolWave, getPatrolConfig, PatrolConfig, PatrolWave
+} from '../../utils/car-patrol.uts'
+import { LITTLE_DRIVER_VOICE_IDS, LITTLE_DRIVER_VOICE_FILES, LITTLE_DRIVER_VOICE_MS } from '../../utils/little-driver-voice.uts'
+import {
+  littleDriverConfig, littleDriverDemoConfig, littleDriverCreate, littleDriverStepStrip, littleDriverTapStrip, littleDriverRecordWave,
+  littleDriverFinish, littleDriverSessionScore, stripImagePath, stripSeatedPath, StripImage, LittleDriverConfig, LittleDriverField
+} from '../../utils/little-driver.uts'
+
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+
+type RoadDash = { id: number, style: string }
+type RoadPost = { id: number, style: string }
+type ConeVisual = { id: string, style: string, y: number }
+type StripView = { id: string, style: string, path: string, artStyle: string, mark: string, markStyle: string }
+
+const SCENE_ID = 'ld-scene'
+const STRIP_ID = 'ld-strip-track'
+
+const level = ref(1)
+const state = ref('ready')
+const stripViews = ref([] as StripView[])
+const dashes = ref([] as RoadDash[])
+const posts = ref([] as RoadPost[])
+const cones = ref([] as ConeVisual[])
+const carLeft = ref(50)
+const carSize = ref(44)
+const targetLane = ref(0)
+const demoAvoided = ref(false)
+const bumping = ref(false)
+const laneDone = ref(0), leanHit = ref(0), wrongTaps = ref(0)
+const scoredWaves = ref(0)
+const stripFeedback = ref('')
+const laneCount = ref(2), laneTotal = ref(6)
+
+let config = littleDriverConfig(1)
+// 出题用的路锥参数：直接取本档配置（车道数、封路数、波次都一致）
+let patrolConfig: PatrolConfig = { lanes: 2, travelMs: 7400, gapMs: 4800, waves: 6, blocked: 1 }
+let field: LittleDriverField | null = null
+let waves = [] as PatrolWave[]
+let elapsed = 0, carLane = 0, nextSpawn = 0, spawned = 0, previousSafe = 0
+let flashUntil = 0
+let sceneWidth = 350, sceneHeight = 420
+let stripWidth = 350, stripHeight = 78
+let timer = 0, lastTick = 0
+let voiceAudio: InnerAudioContext | null = null
+let introMs = 0
+let feedbackTimer = 0
+
+const progressWidth = computed((): string => Math.round(scoredWaves.value * 100 / Math.max(1, laneTotal.value)).toString() + '%')
+
+function measure() {
+  const scene = uni.getElementById(SCENE_ID)
+  if (scene != null) {
+    const bounds = scene.getBoundingClientRect()
+    if (bounds.width > 0 && bounds.height > 0) { sceneWidth = bounds.width; sceneHeight = bounds.height }
+  }
+  const strip = uni.getElementById(STRIP_ID)
+  if (strip != null) {
+    const bounds = strip.getBoundingClientRect()
+    if (bounds.width > 0 && bounds.height > 0) { stripWidth = bounds.width; stripHeight = bounds.height }
+  }
+  carSize.value = Math.max(64, Math.min(96, Math.round(sceneWidth * 0.25)))
+}
+
+function renderRoad() {
+  const marks = [] as RoadDash[], edges = [] as RoadPost[], objects = [] as ConeVisual[]
+  const shift = elapsed / config.travelMs * 0.82
+  for (let index = 0; index < 2; index++) {
+    const depth = ((index * 1.12 / 2 + shift) % 1.12)
+    const edgeFade = Math.min(1, depth / 0.12, Math.max(0, (1.12 - depth) / 0.14))
+    for (let divider = 1; divider < config.lanes; divider++) {
+      const angle = patrolDividerAngle(divider, config.lanes, sceneWidth, sceneHeight)
+      marks.push({ id: index * 10 + divider, style: 'left:' + (50 + (divider / config.lanes - 0.5) * patrolRoadWidth(depth)).toString() + '%;top:' + patrolY(depth).toString() + '%;width:' + (1 + 2 * depth).toString() + 'px;height:' + ((12 + 78 * depth * depth) / Math.cos(angle * Math.PI / 180)).toString() + 'px;opacity:' + (0.4 * edgeFade).toString() + ';transform:translate(-50%, -100%) rotate(' + angle.toString() + 'deg);' })
+    }
+  }
+  for (let index = 0; index < 4; index++) {
+    const depth = 0.18 + index * 0.2
+    for (let side = 0; side < 2; side++) {
+      edges.push({ id: index * 2 + side, style: 'left:' + (50 + (side == 0 ? -1 : 1) * (patrolRoadWidth(depth) / 2 + 3)).toString() + '%;top:' + patrolY(depth).toString() + '%;width:' + (2 + 5 * depth).toString() + 'px;height:' + (4 + 20 * depth).toString() + 'px;' })
+    }
+  }
+  for (let index = 0; index < waves.length; index++) {
+    const wave = waves[index], depth = patrolDepth(elapsed, wave.bornAt, config.travelMs)
+    if (depth > 1.16) continue
+    for (let item = 0; item < wave.lanes.length; item++) {
+      const size = patrolConeSize(depth)
+      objects.push({ id: wave.id.toString() + '-' + item.toString(), y: patrolY(depth), style: 'left:' + patrolX(wave.lanes[item], config.lanes, depth).toString() + '%;top:' + patrolY(depth).toString() + '%;width:' + size.toString() + 'px;height:' + size.toString() + 'px;opacity:' + (patrolConeOpacity(depth) * (wave.hit ? 0.4 : 1)).toString() + ';transform:translate(-50%, -100%);' })
+    }
+  }
+  objects.sort((a: ConeVisual, b: ConeVisual): number => a.y - b.y)
+  dashes.value = marks
+  posts.value = edges
+  cones.value = objects
+}
+
+function renderStrip() {
+  if (field == null) return
+  const views = [] as StripView[]
+  const size = field!.stripSize
+  const radius = Math.round(size / 2)
+  const top = Math.max(0, Math.round((field!.height - size) / 2))
+  for (let i = 0; i < field!.images.length; i++) {
+    const image = field!.images[i]
+    let mark = ''
+    if (image.tapped) mark = image.seated ? 'good' : 'bad'
+    views.push({
+      id: image.id,
+      style: 'left:' + Math.round(image.x - size / 2).toString() + 'px;top:' + top.toString() + 'px;width:' + size.toString() + 'px;height:' + size.toString() + 'px;',
+      path: image.seated ? stripSeatedPath(image.kind) : stripImagePath(image.kind),
+      artStyle: 'width:' + Math.round(size * 0.92).toString() + 'px;height:' + Math.round(size * 0.92).toString() + 'px;',
+      mark: mark,
+      markStyle: 'border-radius:' + radius.toString() + 'px;'
+    })
+  }
+  stripViews.value = views
+}
+
+function renderAll() {
+  carLeft.value = patrolX(carLane, config.lanes, 1)
+  renderRoad()
+  renderStrip()
+  if (field != null) {
+    laneDone.value = field!.laneDone
+    leanHit.value = field!.leanHit
+    wrongTaps.value = field!.wrongTaps
+  }
+}
+
+function stopTimer() { if (timer != 0) trainingClock.clearInterval(timer); timer = 0 }
+
+// 训练开始时的玩法语音：念「跃跃、暖暖把头伸出车窗很危险…」；没有录音时只显示文字。
+function playIntro() {
+  const index = LITTLE_DRIVER_VOICE_IDS.indexOf('safety-intro')
+  introMs = index < 0 ? 0 : LITTLE_DRIVER_VOICE_MS[index]
+  if (index < 0) return
+  if (voiceAudio == null) voiceAudio = trainingClock.createAudio()
+  voiceAudio!.src = LITTLE_DRIVER_VOICE_FILES[index]
+  voiceAudio!.play()
+}
+
+function showStripFeedback(text: string) {
+  stripFeedback.value = text
+  if (feedbackTimer > 0) trainingClock.clearTimeout(feedbackTimer)
+  feedbackTimer = trainingClock.setTimeout(() => { stripFeedback.value = '' }, 1400)
+}
+
+function finish() {
+  if (state.value != 'running') return
+  state.value = 'finished'
+  stopTimer()
+  if (field == null) return
+  littleDriverFinish(field!)
+  const score = littleDriverSessionScore(field!)
+  const required = field!.laneTotal + field!.leanTotal
+  const done = field!.laneDone + field!.leanHit
+  const accuracy = required <= 0 ? 0 : Math.round(done * 100 / required)
+  const duration = Math.max(1, Math.round(elapsed / 1000))
+  uni.redirectTo({ url: '/pages/result/result?gameId=little-driver&dimensionId=divided&score=' + score.toString() + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + duration.toString() + '&falseAlarms=' + field!.wrongTaps.toString() + '&completed=' + done.toString() + '&total=' + required.toString() + scoreQuery([score]) })
+}
+
+function updateGame(delta: number) {
+  if (state.value != 'running' && state.value != 'demo') return
+  elapsed += delta
+  const distance = targetLane.value - carLane
+  const step = delta / 190
+  carLane += Math.abs(distance) <= step ? distance : distance > 0 ? step : -step
+  if (field != null) {
+    const stripEvents = littleDriverStepStrip(field!, delta, Math.random)
+    for (let i = 0; i < stripEvents.length; i++) training.playFeedback('missed')
+  }
+  if (state.value == 'demo') {
+    const depth = patrolDepth(elapsed, 0, config.travelMs)
+    if (depth >= 0.84 && depth <= 1.06 && patrolOverlaps(carLane, 0)) {
+      waves[0].hit = true
+      bumping.value = true
+    }
+    if (depth >= 1.12) {
+      demoAvoided.value = !waves[0].hit
+      state.value = 'demo-done'
+      bumping.value = false
+      stopTimer()
+    }
+    renderAll(); return
+  }
+  if (spawned < config.waves && elapsed >= nextSpawn) {
+    const wave = makePatrolWave(spawned, elapsed, patrolConfig, previousSafe)
+    waves.push(wave); previousSafe = wave.safeLane; spawned += 1
+    nextSpawn = elapsed + config.gapMs
+  }
+  for (let index = 0; index < waves.length; index++) {
+    const wave = waves[index], depth = patrolDepth(elapsed, wave.bornAt, config.travelMs)
+    if (wave.scored) continue
+    if (depth >= 0.84 && depth <= 1.06 && !wave.hit) {
+      for (let lane = 0; lane < wave.lanes.length; lane++) {
+        if (patrolOverlaps(carLane, wave.lanes[lane])) {
+          wave.hit = true
+          training.playFeedback('wrong')
+          flashUntil = elapsed + 500
+          break
+        }
+      }
+    }
+    if (depth > 1.06) {
+      wave.scored = true
+      scoredWaves.value += 1
+      if (field != null) littleDriverRecordWave(field!, wave.hit)
+      if (!wave.hit) training.playFeedback('correct')
+    }
+  }
+  waves = waves.filter((wave: PatrolWave): boolean => patrolDepth(elapsed, wave.bornAt, config.travelMs) <= 1.16)
+  bumping.value = elapsed < flashUntil
+  carLeft.value = patrolX(carLane, config.lanes, 1)
+  renderAll()
+  // 全部波次都结算完就收尾（撞过的也算结算，否则撞锥的孩子永远结束不了）
+  if (scoredWaves.value >= config.waves) finish()
+}
+
+function tick() {
+  if (trainingPaused.value || (state.value != 'running' && state.value != 'demo')) return
+  const now = trainingClock.now()
+  const delta = now - lastTick
+  lastTick = now
+  if (delta > 250) { training.pause(); return }
+  updateGame(Math.max(0, delta))
+}
+
+function startTimer() { stopTimer(); lastTick = trainingClock.now(); timer = trainingClock.setInterval(() => tick(), 33) }
+
+function resetRun() {
+  stopTimer()
+  elapsed = 0; flashUntil = 0; spawned = 0; nextSpawn = 700; previousSafe = 0
+  waves = [] as PatrolWave[]
+  carLane = 0; targetLane.value = 0; demoAvoided.value = false
+  carLeft.value = patrolX(carLane, config.lanes, 1)
+  laneDone.value = 0; leanHit.value = 0; wrongTaps.value = 0; scoredWaves.value = 0
+  bumping.value = false
+}
+
+function applyConfig(next: LittleDriverConfig) {
+  config = next
+  laneCount.value = next.lanes
+  laneTotal.value = next.waves
+  patrolConfig = { lanes: next.lanes, travelMs: next.travelMs, gapMs: next.gapMs, waves: next.waves, blocked: next.blocked }
+}
+
+function startDemo() {
+  if (trainingPaused.value) return
+  nextTick(() => {
+    measure()
+    resetRun()
+    applyConfig(littleDriverDemoConfig())
+    field = littleDriverCreate(config, stripWidth, stripHeight, Math.random)
+    waves.push({ id: 0, bornAt: 0, lanes: [0], safeLane: 1, hit: false, scored: false, reactedAt: -1 })
+    state.value = 'demo'
+    renderAll()
+    startTimer()
+  })
+}
+
+function begin() {
+  if (trainingPaused.value) return
+  if (state.value != 'ready' && state.value != 'demo' && state.value != 'demo-done') return
+  stopTimer()
+  nextTick(() => {
+    measure()
+    resetRun()
+    applyConfig(littleDriverConfig(level.value))
+    field = littleDriverCreate(config, stripWidth, stripHeight, Math.random)
+    state.value = 'running'
+    renderAll()
+    playIntro()
+    // 语音说明还没念完先不派路锥，避免孩子边听边被撞
+    nextSpawn = Math.max(700, introMs + 400)
+    startTimer()
+  })
+}
+
+function moveTo(lane: number) {
+  if (trainingPaused.value) return
+  if (state.value != 'running' && state.value != 'demo') return
+  if (lane < 0 || lane >= config.lanes || targetLane.value == lane) return
+  targetLane.value = lane
+}
+
+function tapStrip(imageId: string) {
+  if (trainingPaused.value || field == null || (state.value != 'demo' && state.value != 'running')) return
+  const result = littleDriverTapStrip(field!, imageId)
+  if (result == 'ignored') return
+  if (result == 'correct') { training.playFeedback('correct'); showStripFeedback('坐好了，真棒！') } else { training.playFeedback('wrong'); showStripFeedback('他坐得好好的，不用点') }
+  renderStrip()
+  laneDone.value = field!.laneDone
+  leanHit.value = field!.leanHit
+  wrongTaps.value = field!.wrongTaps
+}
+
+onLoad(() => { level.value = getGameDifficulty('little-driver') })
+onReady(() => nextTick(() => {
+  measure()
+  applyConfig(littleDriverConfig(level.value))
+  resetRun()
+  state.value = 'ready'
+  renderAll()
+}))
+onResize(() => nextTick(() => measure()))
+onUnload(() => {
+  stopTimer()
+  if (feedbackTimer > 0) trainingClock.clearTimeout(feedbackTimer)
+  if (voiceAudio != null) { trainingClock.destroyAudio(voiceAudio); voiceAudio = null }
+})
+// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+training.setStartedCheck((): boolean => state.value == 'running' || state.value == 'finished')
+</script>
+
+<style>
+.ld-page { flex: 1; background-color: #ecf7ea; }
+.ld-scene { flex: 1; min-height: 300px; position: relative; overflow: hidden; }
+.ld-scene-art { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.ld-hud { position: absolute; left: 14px; right: 14px; top: 12px; flex-direction: row; justify-content: space-between; z-index: 12; }
+.ld-hud-chip { padding: 9px 13px; border-radius: 18px; background-color: rgba(255, 255, 255, 0.92); }
+.ld-hud-label { color: #34586a; font-size: 12px; font-weight: 700; }
+.ld-progress { position: absolute; left: 18px; right: 18px; top: 58px; height: 5px; border-radius: 3px; background-color: rgba(255, 255, 255, 0.5); overflow: hidden; z-index: 12; }
+.ld-progress-fill { height: 5px; border-radius: 3px; background-color: #4ab68b; }
+.ld-dash { position: absolute; background-color: #fff9dd; border-radius: 2px; transform-origin: 50% 100%; }
+.ld-post { position: absolute; background-color: #fffce8; border-radius: 3px; transform: translate(-50%, -100%); overflow: hidden; }
+.ld-post-band { height: 35%; margin-top: 20%; background-color: #f38276; }
+.ld-cone { position: absolute; }
+.ld-car { position: absolute; top: 86%; transform: translate(-50%, -100%); z-index: 8; }
+.ld-car-bump { opacity: 0.55; }
+.ld-bump { position: absolute; top: 46%; left: 18%; width: 64%; text-align: center; color: #963f32; background-color: #fff1dc; padding: 10px; border-radius: 16px; font-size: 15px; font-weight: 700; z-index: 10; }
+.ld-message { position: absolute; top: 22%; left: 7%; right: 7%; padding: 20px 14px; border-radius: 24px; background-color: rgba(255, 255, 255, 0.95); align-items: center; z-index: 15; }
+.ld-message-title { color: #2c5063; font-size: 19px; font-weight: 700; text-align: center; }
+.ld-message-note { margin-top: 10px; color: #5d7a72; font-size: 12px; text-align: center; }
+.ld-primary { width: 176px; height: 46px; line-height: 46px; margin-top: 16px; border-radius: 23px; background-color: #46b589; color: #ffffff; font-size: 16px; font-weight: 700; }
+.ld-replay { color: #648384; padding: 12px; font-size: 13px; }
+.ld-controls { padding: 8px 16px 4px; }
+.ld-hint { text-align: center; color: #53786b; font-size: 12px; }
+.ld-lane-buttons { flex-direction: row; margin-top: 6px; }
+.ld-lane-button { flex: 1; height: 62px; margin: 0 3px; border-radius: 18px; background-color: #f7fcf4; border-width: 2px; border-color: #c7dfce; align-items: center; justify-content: center; }
+.ld-lane-selected { background-color: #fff0b9; border-color: #e7c66c; }
+.ld-lane-arrow { color: #518b73; font-size: 26px; font-weight: 700; line-height: 30px; }
+.ld-lane-car { width: 34px; height: 30px; }
+.ld-lane-caption { color: #59766b; font-size: 10px; font-weight: 700; }
+.ld-demo-skip { position: absolute; top: 16%; right: 14px; z-index: 15; }
+.ld-demo-start { height: 38px; line-height: 38px; padding: 0 16px; border-radius: 19px; color: #3f7662; background-color: rgba(255,255,255,0.94); font-size: 13px; font-weight: 700; }
+.ld-arrow-selected { color: #c09b36; font-size: 19px; }
+.ld-strip { padding: 6px 12px 4px; }
+.ld-strip-title { color: #6c897d; font-size: 11px; }
+.ld-strip-track { margin-top: 4px; height: 78px; position: relative; overflow: hidden; border-radius: 18px; background-color: rgba(255, 255, 255, 0.9); }
+.ld-strip-item { position: absolute; align-items: center; justify-content: center; }
+.ld-strip-art { flex-shrink: 0; }
+.ld-mark { position: absolute; left: 0; top: 0; width: 100%; height: 100%; align-items: center; justify-content: center; }
+.ld-mark-good { background-color: rgba(63, 174, 116, 0.8); }
+.ld-mark-bad { background-color: rgba(198, 91, 102, 0.8); }
+.ld-mark-text { color: #ffffff; font-size: 26px; font-weight: 700; }
+.ld-stats { padding: 4px 16px 12px; flex-direction: row; }
+.ld-stat { flex: 1; align-items: center; }
+.ld-stat-value { color: #25314a; font-size: 15px; font-weight: 700; }
+.ld-stat-label { margin-top: 1px; color: #7d8a9c; font-size: 10px; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
+</style>

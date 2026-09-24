@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 IOS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT_ROOT="$(cd "$IOS_DIR/.." && pwd)"
 APP_ID="__UNI__B5780B0"
-EXPECTED_RUNTIME_VERSION="5.25"
+EXPECTED_RUNTIME_VERSION="5.26"
 source_dir="${1:-$PROJECT_ROOT/unpackage/resources/app-ios/$APP_ID}"
 target_dir="$IOS_DIR/FocusPlanet/FocusPlanet/uni-app-x/apps/$APP_ID"
 generated_plugin="$PROJECT_ROOT/unpackage/resources/app-ios/uni_modules/focus-face-detector/utssdk/app-ios/src/index.swift"
@@ -25,8 +25,11 @@ if [[ "$compiler_version" != "$EXPECTED_RUNTIME_VERSION" ]]; then
   exit 1
 fi
 
+# macOS 的 .DS_Store / ._* 只会在包里占位、还会污染资源新鲜度判断，一律不进包。
+# --delete-excluded：源里没有、但目标里遗留的这些文件也一并删掉。
 mkdir -p "$target_dir"
-rsync -a --delete "$source_dir/" "$target_dir/"
+rsync -a --delete --delete-excluded --exclude='.DS_Store' --exclude='._*' "$source_dir/" "$target_dir/"
+find "$target_dir" \( -name '.DS_Store' -o -name '._*' \) -delete
 
 if [[ -f "$generated_plugin" ]]; then
   if [[ ! -f "$plugin_source/index.swift" ]] || ! cmp -s "$generated_plugin" "$plugin_source/index.swift"; then

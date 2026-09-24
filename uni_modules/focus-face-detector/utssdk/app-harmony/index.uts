@@ -1,1 +1,1 @@
-export { detectFaceFrame } from '../index.uts'
+export { detectFaceFrame, fetchAppleStoreProducts } from '../index.uts'

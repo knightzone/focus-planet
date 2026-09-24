@@ -9,7 +9,7 @@
 
 ## 本机工具链（已配好）
 
-- HBuilderX **5.25.2026082902-alpha**：`/Applications/HBuilderX-Alpha.app`。另有正式版 `HBuilderX.app`；iOS Vapor 必须用 alpha，且 HBuilderX 与 iOS 原生 SDK 版本必须同为 5.25，不能混用。
+- HBuilderX **5.26.2026091802**（正式版）：`/Applications/HBuilderX.app`。iOS Vapor 不再使用 alpha，且 HBuilderX 与 iOS 原生 SDK 版本必须同为 5.26，不能混用。
 - Node v24 / npm 11；Python 3.13，Pillow 装在 `~/Library/Python/3.13`（Homebrew Python 有 PEP 668 保护，装包用 `pip3 install --user --break-system-packages <pkg>`）。
 - 可用：`rg` `jq` `ffmpeg` `cwebp` `xcodebuild` `plutil` `swiftc` `pod`。`carthage`/`xcodegen` 未安装，但脚本不需要。
 - **根目录没有 package.json**，不要在本工程跑 `npm install`。

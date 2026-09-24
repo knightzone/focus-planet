@@ -1,5 +1,5 @@
 <template>
-<TrainingFrame :title="gameName" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+<TrainingFrame :difficulty="difficultyLevel" :preparing="!started" :title="gameName" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="page">
     <image v-if="mode == 'light-tracking'" class="scene-background" src="/static/images/runtime/backgrounds/firefly-night-forest-v1.webp" mode="aspectFill"></image>
     <view class="page-content">
@@ -7,7 +7,7 @@
     <view class="progress"><view class="progress-fill" :style="{ width: progressWidth, backgroundColor: accentColor }"></view></view>
     <view v-if="mode != 'light-tracking'" class="mission"><text class="mission-title">{{ missionTitle }}</text></view>
 
-    <view v-if="!started" class="instruction" :class="mode == 'light-tracking' ? 'forest-instruction' : ''">
+    <view v-if="!started" class="instruction training-preview-card" :class="mode == 'light-tracking' ? 'forest-instruction' : ''">
       <template v-if="mode == 'light-tracking'">
         <text class="demo-title">先试一下</text>
         <text class="demo-hint">{{ demoHint }}</text>
@@ -18,10 +18,10 @@
             <text v-else-if="demoInput == 2 && index == 3" class="demo-check">2 ✓</text>
           </view>
         </view>
-        <text class="demo-replay" @click="startDemo">再看一次</text>
+        <text class="demo-replay training-preview-secondary" @click="startDemo">再看一次</text>
       </template>
       <YoungChildCue v-else kind="tap"></YoungChildCue>
-      <button class="tap-target primary" :style="{ backgroundColor: accentColor }" @click="begin">开始</button>
+      <button class="tap-target primary training-preview-primary" @click="begin">开始训练</button>
     </view>
 
     <view v-else-if="mode == 'light-tracking'" class="light-game forest-light-game">
@@ -60,12 +60,14 @@ import { ref, computed } from 'vue'
 import YoungChildCue from '../../components/YoungChildCue.uvue'
 import { onLoad, onUnload, onHide, onShow } from '@dcloudio/uni-app'
 import { getGameDifficulty, getGameTuningAge } from '../../utils/difficulty.uts'
-import { getGameName } from '../../utils/catalog.uts'
+import { getGameName, getGameDimensionId } from '../../utils/catalog.uts'
 const training = useTrainingSession()
 const trainingClock = training.clock
 const trainingPaused = training.paused, trainingBusy = training.navigating
 
 
+// 注意：little-driver（一心二用小司机）已于 2026-09-18 迁到独立页面 pages/game/little-driver.uvue，
+// 本页只再服务 light-tracking（萤火虫追踪）；下面的 little-driver 分支保留作历史兜底，路由不再进入。
 const mode = ref('light-tracking'), gameName = ref('萤火虫追踪'), dimensionId = ref('focused')
 const started = ref(false), totalRounds = ref(12), roundIndex = ref(0), roundDuration = ref(1200), difficultyLevel = ref(1)
 const activeCell = ref(4), obstacleLane = ref('left'), chosenLane = ref(''), roadsideTarget = ref(false), roadsideDone = ref(false)
@@ -96,7 +98,7 @@ function tapDemo(index: number) { if (trainingPaused.value) return;
 let shownAt = 0, gameStartedAt = 0, roundTimer = 0, nextTimer = 0, playbackTimer = 0, markerTimer = 0
 const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
 const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
-const dimensionLabel = computed((): string => mode.value == 'light-tracking' ? '集中注意训练 · 难度 ' + difficultyLevel.value.toString() + '/10' : mode.value == 'car-patrol' ? '持续注意训练' : '分配注意训练')
+const dimensionLabel = computed((): string => mode.value == 'light-tracking' ? '记忆辨识训练 · 难度 ' + difficultyLevel.value.toString() + '/10' : mode.value == 'car-patrol' ? '反应控制训练' : '切换兼顾训练')
 const accentColor = computed((): string => mode.value == 'light-tracking' ? '#5B8DEF' : mode.value == 'car-patrol' ? '#55C9A5' : '#F17C8D')
 const missionTitle = computed((): string => mode.value == 'light-tracking' ? lightPhase.value == 'recall' ? '按顺序复现萤火虫的移动路径' : '记住萤火虫飞过的位置和顺序' : mode.value == 'car-patrol' ? '选择没有障碍的车道' : '避障，同时收集路边金色星星')
 const missionTip = computed((): string => mode.value == 'light-tracking' ? lightPhase.value == 'watch' ? '观察期间不能点击，等萤火虫消失后再作答' : '每一步都必须和刚才的顺序一致' : mode.value == 'little-driver' ? '蓝色圆点不要点击' : '保持稳定，不要抢点')
@@ -194,7 +196,7 @@ function tapRoadside() { if (trainingPaused.value) return;
   if (roadsideTarget.value) { { correct.value += 1; training.playFeedback('correct') } feedbackGood.value = true; if (chosenLane.value != '') { accepting.value = false; feedback.value = '正确'; scheduleNext() } }
   else { { errors.value += 1; training.playFeedback('wrong') } feedback.value = '蓝点不用收集'; feedbackGood.value = false }
 }
-onLoad((options: UTSJSONObject) => { const option = options['gameId']; mode.value = option == null || option == '' ? 'light-tracking' : option as string; if (mode.value == 'car-patrol') { uni.redirectTo({ url: '/pages/game/car-patrol' }); return }; gameName.value = getGameName(mode.value); dimensionId.value = mode.value == 'light-tracking' ? 'focused' : mode.value == 'car-patrol' ? 'sustained' : 'divided'; configureDifficulty() })
+onLoad((options: UTSJSONObject) => { const option = options['gameId']; mode.value = option == null || option == '' ? 'light-tracking' : option as string; if (mode.value == 'car-patrol') { uni.redirectTo({ url: '/pages/game/car-patrol' }); return }; gameName.value = getGameName(mode.value); dimensionId.value = getGameDimensionId(mode.value); configureDifficulty() })
 onShow(() => { if (!trainingPaused.value && !started.value && mode.value == 'light-tracking') startDemo() })
 onUnload(() => { stopDemo(); clearTimers() })
 // 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
@@ -228,4 +230,9 @@ training.setStartedCheck((): boolean => started.value)
 .forest-stats { padding: 12px; border-radius: 18px; background-color: rgba(255,255,255,0.92); }
 .forest-good { color: #b9f5dc; }
 .forest-again { color: #ffe0d2; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

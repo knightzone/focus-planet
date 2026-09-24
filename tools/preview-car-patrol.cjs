@@ -1,9 +1,9 @@
 // 本地浏览器视觉检查；直接使用 .uvue 模板、样式与游戏逻辑，不替代原生编译。
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http');
-const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
+const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
 const root = path.resolve(__dirname, '..');
 const game = ['bird-cloud','audio-sequence','breathing-planet'].includes(process.env.PREVIEW_GAME) ? process.env.PREVIEW_GAME : 'car-patrol';
-const vue = process.env.VUE_BROWSER_PATH || '/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/uniapp-cli-vite/node_modules/vue/dist/vue.global.js';
+const vue = process.env.VUE_BROWSER_PATH || '/Applications/HBuilderX.app/Contents/HBuilderX/plugins/uniapp-cli-vite/node_modules/vue/dist/vue.global.js';
 function html() {
   const file = fs.readFileSync(path.join(root, 'pages/game/' + game + '.uvue'), 'utf8');
   const template = file.match(/<template>([\s\S]*?)<\/template>/)[1].replace(/<(\/?)view\b/g, '<$1div').replace(/<(\/?)text\b/g, '<$1span').replace(/<image\b/g, '<img').replace(/<\/image>/g, '');

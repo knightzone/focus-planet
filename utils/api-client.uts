@@ -1,5 +1,5 @@
 import { LOCAL_TEST_MODE } from './local-test.uts'
-export const API_BASE_URL = 'http://192.168.3.71:8002/api/v1'
+export const API_BASE_URL = 'http://47.103.134.123:8555/api/v1'
 
 export type ApiSuccess = (data: UTSJSONObject) => void
 export type ApiFailure = (message: string, code: string) => void
@@ -98,6 +98,7 @@ function performRequest(path: string, method: HttpMethod, body: UTSJSONObject, a
   uni.request({
     url: API_BASE_URL + path,
     method: method,
+    timeout: 15000,
     data: body,
     header: headers,
     success: (result) => {

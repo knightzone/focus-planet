@@ -29,7 +29,11 @@
       "notes": "十项局部变化肉眼可见，蝴蝶结实际在额头近耳处。尚未做候选区域坐标和局部拼接验证。",
       "runtimeCandidateCount": 9,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-011-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-011-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-011-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-012",
@@ -55,7 +59,11 @@
       "notes": "十个计划变化均肉眼可见；仍需局部抽取边缘验证。",
       "runtimeCandidateCount": 5,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-012-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-012-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-012-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-013",
@@ -81,7 +89,11 @@
       "notes": "十项变化可见；创可贴实际位于画面上方竖耳。候选区域和拼接验证未完成。",
       "runtimeCandidateCount": 9,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-013-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-013-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-013-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-014",
@@ -107,7 +119,11 @@
       "notes": "十个局部变化可见；领巾实际多于三点，整体图案按一个差异计。未标注候选区域或验证局部拼接。",
       "runtimeCandidateCount": 9,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-014-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-014-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-014-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-015",
@@ -133,7 +149,11 @@
       "notes": "十处变化肉眼可见；篮扣较小需后续手机尺寸检查。未验证候选区域坐标或局部拼接。",
       "runtimeCandidateCount": 6,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-015-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-015-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-015-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-016",
@@ -159,7 +179,11 @@
       "notes": "十处变化可见；露珠采用童话化金色倒影，保留A/B一致。候选区域坐标及局部拼接未验证。",
       "runtimeCandidateCount": 8,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-016-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-016-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-016-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-017",
@@ -189,7 +213,11 @@
       "notes": "A已修正蓝鼻及面部配色。B存在额外表情差异，共11候选；运行抽取前需选择10区域并处理额外变化，当前未完成坐标与拼接验证。",
       "runtimeCandidateCount": 6,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-017-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-017-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-017-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-018",
@@ -215,7 +243,11 @@
       "notes": "十处候选可见；画框心形实际略凸出顶部，局部区域需包含凸出轮廓。存在材质纹理漂移，尚未做坐标和拼接验证。",
       "runtimeCandidateCount": 7,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-018-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-018-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-018-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-019",
@@ -244,7 +276,11 @@
       "notes": "水瓶整体作为一处变化；两卷毯边变化分处需单独标注。当前仅图片目检，坐标与拼接未验证。",
       "runtimeCandidateCount": 7,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-019-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-019-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-019-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-020",
@@ -270,7 +306,11 @@
       "notes": "十处计划变化可见，部分环境纹理重绘。A为童话化回望场景，萝卜实际呈分叉外形。坐标和拼接未验证。",
       "runtimeCandidateCount": 8,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-020-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-020-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-020-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     }
   ],
   "runtimeStatus": "selected-regions-installed-source-full-differences-still-partial",

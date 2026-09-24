@@ -2,14 +2,14 @@
   <view class="page">
     <image class="result-sky tap-content" src="/static/images/runtime/backgrounds/shadow-match-sky-v1.webp" mode="aspectFill"></image>
     <scroll-view class="result-scroll" direction="vertical" show-scrollbar="false"><view class="result-content">
-      <text class="title">训练完成</text><text class="subtitle">{{ gameName }}</text>
-      <view class="reward-card">
+      <text class="title">{{ resultInvalid ? '本次未记录' : '训练完成' }}</text><text class="subtitle">{{ resultInvalid ? '请重练这一题' : gameName }}</text>
+      <view v-if="!resultInvalid" class="reward-card">
         <ResultCelebration v-if="dialogueIndex >= 0" :score="score" :character="characterImage"></ResultCelebration>
         <view class="stars-row"><ScoreStars v-if="!specialCelebration" :score="score" :report="false" :size="36"></ScoreStars><text v-else class="special-label">星光环绕，为你闪耀</text></view>
         <ResultVoice v-if="dialogueIndex >= 0" :dialogue="dialogueIndex" :key="dialogueIndex"></ResultVoice>
       </view>
-      <button class="tap-target primary" @click="continuePlan">{{ nextPlan == null ? '回到首页' : '继续今日训练' }}</button>
-      <button class="tap-target secondary" @click="again">再练一次</button>
+      <button class="tap-target primary" @click="continuePlan">{{ resultInvalid || nextPlan == null ? '回到首页' : '继续今日训练' }}</button>
+      <button class="tap-target secondary" @click="again">{{ resultInvalid ? '重练本题' : '再练一次' }}</button>
     </view></scroll-view>
   </view>
 </template>
@@ -22,17 +22,18 @@ import ResultVoice from '../../components/ResultVoice.uvue'
 import { RESULT_DIALOGUES, selectResultDialogue, resultCharacter } from '../../utils/result-dialogue.uts'
 import { resultStarCount, hasPassStar, hasStarCelebration } from '../../utils/star-rating.uts'
 import { onLoad } from '@dcloudio/uni-app'
-import { addRecord, getProfile, getRecords } from '../../utils/storage.uts'
-import { getGameName, getGameRoute } from '../../utils/catalog.uts'
-import { DailyPlanItem, buildDailyPlan, buildServerPlan, nextPendingPlanItem } from '../../utils/training-plan.uts'
-import { getGameDifficulty, updateGameDifficulty } from '../../utils/difficulty.uts'
+import { addRecord, getRecords, saveRecords, TrainingRecord } from '../../utils/storage.uts'
+import { getGameName, getGameRoute, getGameDimensionId } from '../../utils/catalog.uts'
+import { DailyPlanItem, buildClientLessonPlan, nextPendingPlanItem } from '../../utils/training-plan.uts'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
 import { SCORE_VERSION, gameScoreMax, parseRoundScores } from '../../utils/game-scoring.uts'
 import { evaluatePerformance, PerformanceEvaluation } from '../../utils/performance.uts'
-import { getServerPlan } from '../../utils/server-api.uts'
-import { enqueueResult } from '../../utils/offline-sync.uts'
+import { enqueueLessonResult } from '../../utils/offline-sync.uts'
 import { getDeviceId } from '../../utils/api-client.uts'
+import { ClientLessonItem, getActiveLesson, saveActiveLesson, getCachedRecentResults, activeLessonItemForResult, markLessonResult, beginLessonItem } from '../../utils/course-plan.uts'
 
 const dialogueIndex = ref(-1)
+const resultInvalid = ref(false)
 const characterImage = computed((): string => dialogueIndex.value < 0 ? '' : resultCharacter(RESULT_DIALOGUES[dialogueIndex.value].role, RESULT_DIALOGUES[dialogueIndex.value].band))
 const rawScore = ref(0), roundScores = ref([] as number[])
 const score = ref(0)
@@ -83,9 +84,16 @@ function optionNumber(options: UTSJSONObject, key: string): number {
   return Number.isFinite(value) ? value : 0
 }
 
+function discardInvalidResult(reason: string) {
+  resultInvalid.value = true
+  dialogueIndex.value = -1
+  nextPlan.value = null
+  console.error('[lesson-sync] CRITICAL result discarded reason=' + reason + ' game=' + gameId.value)
+}
+
 onLoad((options: UTSJSONObject) => {
   gameId.value = optionString(options, 'gameId', 'star-catcher')
-  dimensionId.value = optionString(options, 'dimensionId', 'focused')
+  dimensionId.value = getGameDimensionId(gameId.value)
   gameName.value = getGameName(gameId.value)
   rawScore.value = optionNumber(options, 'score')
   roundScores.value = optionString(options, 'scoreVersion', '') == SCORE_VERSION ? parseRoundScores(optionString(options, 'roundScores', '')) : [] as number[]
@@ -104,8 +112,32 @@ onLoad((options: UTSJSONObject) => {
   dialogueIndex.value = selectResultDialogue(score.value)
   playedDifficulty.value = getGameDifficulty(gameId.value)
   const completedAt = Date.now()
-  addRecord({
-    id: Date.now().toString(),
+  // 必须在 markLessonResult 更新本地 bestScore 之前判断；只有首次成绩或严格更高分才同步。
+  const pendingLessonItem = activeLessonItemForResult(gameId.value)
+  if (pendingLessonItem == null) {
+    discardInvalidResult('course-context-missing')
+    return
+  }
+  else console.log('[lesson-sync] result context lesson=' + pendingLessonItem!.lessonNo.toString() + ' game=' + gameId.value)
+  // activeLesson.bestScore 可能来自旧版无课号记录，不能据此跳过新成绩上传。
+  const savedRecords = getRecords()
+  const serverResults = getCachedRecentResults()
+  let confirmedBest = -1
+  if (pendingLessonItem != null) {
+    for (let i = 0; i < savedRecords.length; i++) {
+      const entry = savedRecords[i]
+      if (entry.lessonNo == pendingLessonItem!.lessonNo && entry.gameId == gameId.value) confirmedBest = Math.max(confirmedBest, entry.score)
+    }
+    for (let i = 0; i < serverResults.length; i++) {
+      const entry = serverResults[i]
+      if (entry.lessonNo == pendingLessonItem!.lessonNo && entry.gameId == gameId.value) confirmedBest = Math.max(confirmedBest, entry.score)
+    }
+  }
+  const shouldSyncLessonResult = pendingLessonItem != null && score.value > confirmedBest
+  console.log('[lesson-sync] result best game=' + gameId.value + ' confirmed=' + confirmedBest.toString() + ' active=' + (pendingLessonItem == null ? 'missing' : pendingLessonItem!.bestScore.toString()) + ' current=' + score.value.toString())
+  const localSyncId = 'lesson-result-' + completedAt.toString() + '-' + Math.round(Math.random() * 100000).toString()
+  const localRecord = {
+    id: completedAt.toString(),
     gameId: gameId.value,
     dimensionId: dimensionId.value,
     score: score.value,
@@ -116,49 +148,98 @@ onLoad((options: UTSJSONObject) => {
     durationSeconds: duration.value,
     omissions: omissions.value,
     falseAlarms: falseAlarms.value,
+    completionCount: completedCount.value,
     switchErrors: switchErrors.value,
     interferenceErrors: interferenceErrors.value,
     completedCount: completedCount.value,
     totalCount: totalCount.value,
     completedAt: completedAt
-  })
-  updateGameDifficulty(gameId.value, playedDifficulty.value, score.value, completedAt, getRecords())
-  const profile = getProfile()
-  if (profile != null) nextPlan.value = nextPendingPlanItem(buildDailyPlan(profile.age, getRecords(), Date.now()))
-  const serverPlan = getServerPlan()
-  if (profile != null && serverPlan != null) {
-    const serverItems = buildServerPlan(serverPlan)
-    const serverItem = serverItems.find((item: DailyPlanItem): boolean => item.gameId == gameId.value)
-    if (serverItem != null && serverItem.planId != null && serverItem.itemId != null && serverItem.playToken != null) {
-      const submissionId = 'result-' + Date.now().toString() + '-' + Math.round(Math.random() * 100000).toString()
-      const payload: UTSJSONObject = {
-        submissionId: submissionId,
-        playToken: serverItem.playToken!,
-        planRevision: serverItem.planRevision == null ? 1 : serverItem.planRevision,
-        score: score.value,
-        accuracy: accuracy.value,
-        averageReactionMs: reaction.value,
-        durationSeconds: Math.max(1, duration.value),
-        omissions: omissions.value,
-        falseAlarms: falseAlarms.value,
-        switchErrors: switchErrors.value,
-        interferenceErrors: interferenceErrors.value,
-        scoreAlgorithmVersion: SCORE_VERSION,
-        clientCompletedAt: new Date(completedAt).toISOString(),
-        deviceId: getDeviceId()
-      }
-      if (totalCount.value > 0) {
-        payload['completedCount'] = completedCount.value
-        payload['totalCount'] = totalCount.value
-      }
-      enqueueResult(serverItem.planId!, serverItem.itemId!, payload)
+  } as TrainingRecord
+  if (pendingLessonItem != null) {
+    localRecord.lessonNo = pendingLessonItem!.lessonNo
+    localRecord.slotNo = pendingLessonItem!.slotNo
+    localRecord.localSyncId = localSyncId
+    localRecord.lessonSyncPending = shouldSyncLessonResult
+  }
+  const previousRecords = getRecords()
+  addRecord(localRecord)
+  if (shouldSyncLessonResult) {
+    let stored = getRecords().find((entry: TrainingRecord): boolean => entry.localSyncId == localSyncId && entry.lessonNo == pendingLessonItem!.lessonNo && entry.gameId == gameId.value)
+    if (stored == null) {
+      addRecord(localRecord)
+      stored = getRecords().find((entry: TrainingRecord): boolean => entry.localSyncId == localSyncId && entry.lessonNo == pendingLessonItem!.lessonNo && entry.gameId == gameId.value)
+    }
+    if (stored == null) {
+      saveRecords(previousRecords)
+      discardInvalidResult('storage-readback-failed')
+      return
     }
   }
+  const payload: UTSJSONObject = {
+    localSyncId: localSyncId,
+    score: score.value,
+    accuracy: Math.max(0, Math.min(100, Math.round(accuracy.value))),
+    averageReactionMs: Math.max(0, Math.min(60000, Math.round(reaction.value))),
+    durationSeconds: Math.max(1, Math.min(86400, Math.round(duration.value))),
+    omissions: Math.max(0, Math.round(omissions.value)),
+    falseAlarms: Math.max(0, Math.round(falseAlarms.value)),
+    completionCount: Math.max(0, Math.round(completedCount.value)),
+    switchErrors: switchErrors.value,
+    interferenceErrors: interferenceErrors.value,
+    scoreAlgorithmVersion: SCORE_VERSION,
+    clientCompletedAt: new Date(completedAt).toISOString(),
+    deviceId: getDeviceId()
+  }
+  if (totalCount.value > 0) payload['totalCount'] = totalCount.value
+  const previousLesson = getActiveLesson()
+  const lessonItem = markLessonResult(gameId.value, score.value)
+  if (lessonItem == null) {
+    saveRecords(previousRecords)
+    discardInvalidResult('lesson-mark-failed')
+    return
+  }
+  if (shouldSyncLessonResult) {
+    payload['lessonNo'] = pendingLessonItem!.lessonNo
+    payload['slotNo'] = pendingLessonItem!.slotNo
+    payload['gameId'] = pendingLessonItem!.gameId
+    payload['dimensionId'] = pendingLessonItem!.dimensionId
+    payload['difficultyLevel'] = pendingLessonItem!.difficultyLevel
+    payload['lessonAlgorithmVersion'] = 'fixed-cycle-v1'
+    if (!enqueueLessonResult(payload)) {
+      saveRecords(previousRecords)
+      if (previousLesson != null) saveActiveLesson(previousLesson!)
+      discardInvalidResult('queue-readback-failed')
+      return
+    }
+  }
+  console.log('[lesson-sync] result saved game=' + gameId.value + ' lesson=' + localRecord.lessonNo!.toString() + ' slot=' + localRecord.slotNo!.toString() + ' better=' + shouldSyncLessonResult.toString() + ' pending=' + shouldSyncLessonResult.toString())
+  const activeLesson = getActiveLesson()
+  if (activeLesson != null) nextPlan.value = nextPendingPlanItem(buildClientLessonPlan(activeLesson!))
 })
 
 function backHome() { uni.reLaunch({ url: '/pages/index/index' }) }
-function continuePlan() { if (nextPlan.value == null) backHome(); else uni.redirectTo({ url: getGameRoute(nextPlan.value!.gameId) }) }
-function again() { uni.redirectTo({ url: getGameRoute(gameId.value) }) }
+function continuePlan() {
+  if (nextPlan.value == null) { backHome(); return }
+  const lesson = getActiveLesson()
+  if (lesson != null) {
+    const item = lesson!.items.find((entry: ClientLessonItem): boolean => entry.gameId == nextPlan.value!.gameId)
+    if (item != null && beginLessonItem(item!)) {
+      uni.redirectTo({ url: getGameRoute(nextPlan.value!.gameId) })
+      return
+    }
+  }
+  console.log('[lesson-sync] continue blocked game=' + nextPlan.value!.gameId + ' reason=lesson-context-missing')
+  uni.showToast({ title: '课程准备中，请稍后重试', icon: 'none' })
+  backHome()
+}
+function again() {
+  if (resultInvalid.value) {
+    const lesson = getActiveLesson()
+    const item = lesson == null ? null : lesson!.items.find((entry: ClientLessonItem): boolean => entry.gameId == gameId.value)
+    if (item == null || !beginLessonItem(item!)) { backHome(); return }
+  }
+  uni.redirectTo({ url: getGameRoute(gameId.value) })
+}
 </script>
 
 <style>

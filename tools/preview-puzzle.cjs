@@ -6,9 +6,9 @@
 //   http://127.0.0.1:4178/?debug=1                   打印棋盘/格子/托盘的实际尺寸与页面算出的几何值
 //   http://127.0.0.1:4178/?w=375&h=667               复核小屏
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http')
-const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js')
+const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js')
 const root = path.resolve(__dirname, '..')
-const vue = process.env.VUE_BROWSER_PATH || '/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/uniapp-cli-vite/node_modules/vue/dist/vue.global.js'
+const vue = process.env.VUE_BROWSER_PATH || '/Applications/HBuilderX.app/Contents/HBuilderX/plugins/uniapp-cli-vite/node_modules/vue/dist/vue.global.js'
 const read = file => fs.readFileSync(path.join(root, file), 'utf8')
 const strip = text => text.replace(/^import .*$/gm, '').replace(/^export /gm, '')
 

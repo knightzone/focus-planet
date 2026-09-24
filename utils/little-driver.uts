@@ -1,0 +1,275 @@
+// 一心二用小司机（`little-driver`）：纯逻辑层。
+//
+// 玩法 = 小车巡逻的**降难度版** + 底部一条安全提醒滚动条：
+//   - 上方：路锥按透视从远处驶来，孩子在车道按钮上换道躲开路锥（沿用小车巡逻的几何与判定）。
+//   - 下方：一排小图**固定匀速**横向滚动，一张一张经过。内容是跃跃/暖暖「端坐」与「探头出车窗」四种。
+//     点到「探头」图 → 翻成拍手图并打勾（做对）；点到「端坐」图 → 打叉（误点）；每张图只能点一次。
+//   - 难度映射：本游戏第 10 档 ≈ 小车巡逻第 8 档；第 1—2 档在小车巡逻最低档基础上再放宽（时间更长、波次更少）。
+//   - 滚动条速度全档一致（不靠提速加难），难度只由车道数 / 路锥速度 / 波次 / 同时封路数决定。
+//
+// 逻辑与渲染分离：这里负责出题（路锥波次、滚动条图片序列）、位移、判定与计分；
+// 页面负责测量尺寸、画透视路面与滚动条。
+//
+// 路锥参数直接复用 utils/car-patrol.uts 的配置表：本模块只做「档位映射 + 第 1—2 档放宽」，
+// 不复制一份表，这样「第 10 档 = 小车巡逻第 8 档」是结构上成立的，不会随两处表改动而漂移。
+
+import { getPatrolConfig, PatrolConfig } from './car-patrol.uts'
+
+export type LittleDriverConfig = {
+  level: number,
+  patrolLevel: number,
+  lanes: number,
+  travelMs: number,
+  gapMs: number,
+  waves: number,
+  blocked: number,
+  stripSpeed: number,
+  stripWrongPenalty: number,
+  demo: boolean
+}
+
+export type StripImage = {
+  id: string,
+  kind: string,
+  child: string,
+  x: number,
+  tapped: boolean,
+  seated: boolean,
+  resolved: boolean
+}
+
+export type LittleDriverField = {
+  config: LittleDriverConfig,
+  width: number,
+  height: number,
+  stripWidth: number,
+  stripSize: number,
+  stripGap: number,
+  elapsed: number,
+  images: StripImage[],
+  queue: string[],
+  nextId: number,
+  laneDone: number,
+  laneTotal: number,
+  leanHit: number,
+  leanTotal: number,
+  wrongTaps: number,
+  phase: string
+}
+
+export type LittleDriverEvent = { kind: string, imageId: string, detail: string }
+
+// 小车巡逻的档位映射：0 = 比它的 1 档再放宽（第 1—2 档），3→1 档 …… 10→8 档。
+const PATROL_LEVEL_TABLE = [0, 0, 1, 2, 3, 4, 5, 6, 7, 8]
+// 第 1—2 档在小车巡逻最低档之上再放宽：路锥更慢、间隔更长、波次更少。
+const EASY_TRAVEL_MS = [7400, 6800]
+const EASY_GAP_MS = [4800, 4400]
+const EASY_WAVES = [6, 8]
+
+// 滚动条：固定速度（像素/秒），全档一致；间距按图片尺寸的比例算，随屏幕自适应。
+export const STRIP_SPEED = 46
+export const STRIP_GAP_RATIO = 0.7
+export const STRIP_WRONG_PENALTY = 10
+// 四种图：端坐（坐着系好安全带）与探头（把头探出车窗）。
+const STRIP_KINDS = ['sit-yueyue', 'sit-nuannuan', 'lean-yueyue', 'lean-nuannuan']
+
+export function littleDriverConfig(level: number): LittleDriverConfig {
+  const index = Math.max(0, Math.min(9, Math.round(level) - 1))
+  const patrolLevel = PATROL_LEVEL_TABLE[index]
+  const easy = patrolLevel == 0
+  const patrol: PatrolConfig = getPatrolConfig(easy ? 1 : patrolLevel)
+  return {
+    level: index + 1,
+    patrolLevel: patrolLevel,
+    lanes: easy ? 2 : patrol.lanes,
+    travelMs: easy ? EASY_TRAVEL_MS[index] : patrol.travelMs,
+    gapMs: easy ? EASY_GAP_MS[index] : patrol.gapMs,
+    waves: easy ? EASY_WAVES[index] : patrol.waves,
+    blocked: easy ? 1 : patrol.blocked,
+    stripSpeed: STRIP_SPEED,
+    stripWrongPenalty: STRIP_WRONG_PENALTY,
+    demo: false
+  }
+}
+
+// 试玩：2 车道、只 2 波、滚动条照常滚（教规则，不计分）。
+export function littleDriverDemoConfig(): LittleDriverConfig {
+  return {
+    level: 1,
+    patrolLevel: 0,
+    lanes: 2,
+    travelMs: 7600,
+    gapMs: 4200,
+    waves: 2,
+    blocked: 1,
+    stripSpeed: STRIP_SPEED,
+    stripWrongPenalty: 0,
+    demo: true
+  }
+}
+
+export function stripKindOf(kind: string): string {
+  return kind.indexOf('lean') == 0 ? 'lean' : 'sit'
+}
+
+export function stripChildOf(kind: string): string {
+  return kind.indexOf('nuannuan') >= 0 ? 'nuannuan' : 'yueyue'
+}
+
+// 滚动条图片素材：端坐 / 探头 / 点对后翻成的拍手图。
+export function stripImagePath(kind: string): string {
+  const child = stripChildOf(kind)
+  if (stripKindOf(kind) == 'lean') return '/static/images/runtime/car-patrol/' + child + '-car-window-v1_small.webp'
+  return '/static/images/runtime/car-patrol/' + child + '-seatbelt-v1_small.webp'
+}
+
+// 点对后的正脸：同一个小朋友的「端坐」图（点到探头图 = 提醒他坐好，图片就翻成坐好的样子）。
+export function stripSeatedPath(kind: string): string {
+  return '/static/images/runtime/car-patrol/' + stripChildOf(kind) + '-seatbelt-v1_small.webp'
+}
+
+// 一局得分：完成比例（躲过的路锥 + 点中的探头图）减去误点（点了端坐图）。
+export function littleDriverScore(laneDone: number, laneTotal: number, leanHit: number, leanTotal: number, wrongTaps: number, penalty: number): number {
+  const required = Math.max(1, laneTotal + leanTotal)
+  const done = Math.max(0, laneDone) + Math.max(0, leanHit)
+  const base = Math.round(100 * Math.min(done, required) / required)
+  return Math.max(0, Math.min(100, base - Math.max(0, wrongTaps) * penalty))
+}
+
+export function littleDriverProgress(field: LittleDriverField): number {
+  const total = field.config.waves
+  return total <= 0 ? 0 : Math.max(0, Math.min(1, field.laneDone / total))
+}
+
+export function littleDriverFinished(field: LittleDriverField): boolean {
+  return field.phase == 'done'
+}
+
+// ---------- 滚动条 ----------
+
+function pickIndex(length: number, rand: () => number): number {
+  if (length <= 0) return 0
+  return Math.max(0, Math.min(length - 1, Math.floor(rand() * length)))
+}
+
+// 一轮补充：四个种类各一次并打乱，避免连续两张相同图；每批里端坐/探头各两张。
+function refillQueue(queue: string[], rand: () => number) {
+  const batch = STRIP_KINDS.slice()
+  for (let i = batch.length - 1; i > 0; i--) {
+    const j = pickIndex(i + 1, rand)
+    const value = batch[i]
+    batch[i] = batch[j]
+    batch[j] = value
+  }
+  for (let i = 0; i < batch.length; i++) {
+    if (i == 0 && queue.length > 0 && batch[i] == queue[queue.length - 1]) {
+      const swapAt = batch.length - 1
+      const value = batch[0]
+      batch[0] = batch[swapAt]
+      batch[swapAt] = value
+    }
+    queue.push(batch[i])
+  }
+}
+
+function spawnStripImage(field: LittleDriverField, rand: () => number) {
+  if (field.queue.length == 0) refillQueue(field.queue, rand)
+  const kind = field.queue.shift()
+  field.nextId += 1
+  const count = field.images.length
+  const spacing = field.stripSize + field.stripGap
+  // 第一张从右侧进入；之后每张都放在「上一张位置 + 固定间距」，间距精确、不会重叠。
+  const x = count == 0 ? field.stripWidth + field.stripSize / 2 : field.images[count - 1].x + spacing
+  field.images.push({
+    id: 's' + field.nextId.toString(),
+    kind: kind,
+    child: stripChildOf(kind),
+    x: x,
+    tapped: false,
+    seated: false,
+    resolved: false
+  })
+}
+
+export function littleDriverCreate(config: LittleDriverConfig, stripWidth: number, stripHeight: number, rand: () => number): LittleDriverField {
+  const width = Math.max(60, stripWidth)
+  const size = Math.max(44, Math.min(76, Math.round(stripHeight) - 14))
+  const field: LittleDriverField = {
+    config: config,
+    width: width,
+    height: Math.max(1, stripHeight),
+    stripWidth: width,
+    stripSize: size,
+    stripGap: Math.round(size * STRIP_GAP_RATIO),
+    elapsed: 0,
+    images: [] as StripImage[],
+    queue: [] as string[],
+    nextId: 0,
+    laneDone: 0,
+    laneTotal: config.waves,
+    leanHit: 0,
+    leanTotal: 0,
+    wrongTaps: 0,
+    phase: 'running'
+  }
+  // 开局先铺满：第一张从右侧进入，后续按「上一张前进了一个间距」补位。
+  spawnStripImage(field, rand)
+  return field
+}
+
+// 点滚动条上的图：探头图 → 做对（翻拍手图 + 打勾）；端坐图 → 误点（打叉）；每张只能点一次。
+export function littleDriverTapStrip(field: LittleDriverField, imageId: string): string {
+  if (field.phase == 'done') return 'ignored'
+  const found = field.images.filter((item: StripImage): boolean => item.id == imageId)
+  if (found.length == 0) return 'ignored'
+  const image = found[0]
+  if (image.tapped || image.resolved) return 'ignored'
+  image.tapped = true
+  if (stripKindOf(image.kind) == 'lean') {
+    image.seated = true
+    field.leanHit += 1
+    return 'correct'
+  }
+  field.wrongTaps += 1
+  return 'wrong'
+}
+
+// 推进 dtMs：滚动条匀速左移、飘出即结算（探头图没点到算漏掉），每波结束时记录通过/碰撞。
+export function littleDriverStepStrip(field: LittleDriverField, dtMs: number, rand: () => number): LittleDriverEvent[] {
+  const events = [] as LittleDriverEvent[]
+  const seconds = Math.max(0, dtMs) / 1000
+  const speed = field.config.stripSpeed
+  for (let i = 0; i < field.images.length; i++) {
+    const image = field.images[i]
+    image.x -= speed * seconds
+    if (!image.resolved && image.x + field.stripSize / 2 < 0) {
+      image.resolved = true
+      if (stripKindOf(image.kind) == 'lean') {
+        field.leanTotal += 1
+        if (!image.tapped) {
+          events.push({ kind: 'missed', imageId: image.id, detail: image.kind })
+        }
+      }
+    }
+  }
+  field.images = field.images.filter((image: StripImage): boolean => !image.resolved)
+  // 补位：最后一张已经往前走了一个「图宽 + 间距」，就从右边补下一张。
+  const rest = field.images.length
+  const lastX = rest == 0 ? field.stripWidth + field.stripSize / 2 : field.images[rest - 1].x
+  const spacing = field.stripSize + field.stripGap
+  if (rest == 0 || lastX <= field.stripWidth + field.stripSize / 2 - spacing) spawnStripImage(field, rand)
+  return events
+}
+
+// 一波路锥结算：躲过去记一次「通过」，撞上就不记（分母是总波次）。
+export function littleDriverRecordWave(field: LittleDriverField, hit: boolean) {
+  if (!hit) field.laneDone += 1
+}
+
+export function littleDriverFinish(field: LittleDriverField) {
+  field.phase = 'done'
+}
+
+export function littleDriverSessionScore(field: LittleDriverField): number {
+  return littleDriverScore(field.laneDone, field.laneTotal, field.leanHit, field.leanTotal, field.wrongTaps, field.config.stripWrongPenalty)
+}

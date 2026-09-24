@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Native edge gradient used by Focus Planet artwork cards.",
   "engines": {
-    "HBuilderX": "^5.25.0",
+    "HBuilderX": "^5.26.0",
     "uni-app-x": "^4.0.0"
   },
   "dcloudext": {

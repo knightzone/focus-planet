@@ -1,11 +1,11 @@
 <template>
-<TrainingFrame title="星星捕手" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+<TrainingFrame :difficulty="difficultyLevel" :preparing="!started" title="星星捕手" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="sc-page">
     <image class="sc-sky-background tap-content" src="/static/images/runtime/backgrounds/star-catcher-sky-v1.webp" mode="aspectFill"></image>
     <view class="sc-content">
     <view class="sc-header">
       <view>
-        <text class="sc-round-label">集中注意训练</text>
+        <text class="sc-round-label">反应控制训练</text>
         <text class="sc-title">找到闪亮的星星</text>
       </view>
       <view v-if="started" class="sc-counter"><text class="sc-counter-value">{{ hits }}/{{ targetCount }}</text></view>
@@ -22,8 +22,8 @@
           <image class="sc-demo-image tap-content" src="/static/images/runtime/game-objects/star-four-point-gold-v1.svg" mode="aspectFit"></image>
         </view>
         <text class="sc-demo-hint">{{ demoCaught ? '✓ 抓到啦！' : '点一下星星' }}</text>
-        <view class="sc-demo-replay-row"><text v-if="demoCaught" class="sc-demo-replay" @click.stop="resetDemo">再试一次</text></view>
-        <button class="tap-target sc-start" @click.stop="begin">开始</button>
+        <view class="sc-demo-replay-row"><text v-if="demoCaught" class="sc-demo-replay training-preview-secondary" @click.stop="resetDemo">再试一次</text></view>
+        <button class="tap-target sc-start training-preview-primary" @click.stop="begin">开始训练</button>
       </view>
       <view
         v-if="started && !finished"
@@ -153,7 +153,7 @@ function finishGame() {
   const score = Math.max(0, Math.min(100, Math.round(accuracy * 0.8 + speedScore * 0.2)))
   const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
   uni.redirectTo({
-    url: '/pages/result/result?gameId=star-catcher&dimensionId=focused&score=' + score.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + scoreQuery(roundScores) })
+    url: '/pages/result/result?gameId=star-catcher&dimensionId=sustained&score=' + score.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + scoreQuery(roundScores) })
 }
 
 function begin() { if (trainingPaused.value) return;
@@ -218,4 +218,9 @@ training.setStartedCheck((): boolean => started.value)
 .sc-demo-hint { margin-top: 24px; color: #25314a; font-size: 14px; }
 .sc-demo-replay { padding: 12px 18px; color: #344b75; font-size: 12px; }
 .sc-start { margin-top: 24px; width: 140px; height: 48px; line-height: 48px; border-radius: 16px; background-color: #5b8def; color: #ffffff; font-size: 15px; font-weight: 700; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

@@ -1,21 +1,48 @@
 <template>
-<TrainingFrame title="声音过滤器" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
-  <view class="page">
-    <view class="game-header"><view><text class="round-label">选择注意训练</text><text class="game-title">声音过滤器</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
-    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-    <view class="rule-card"><view><text class="rule-title">找出最清楚的声音</text></view><button class="tap-target replay" :disabled="!accepting" @click="replay">再听一次</button></view>
+<TrainingFrame :difficulty="level" :preparing="!started" title="声音过滤器" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+  <view class="sf-page">
+    <image class="sf-scene" src="/static/images/runtime/backgrounds/shadow-match-sky-v1.webp" mode="aspectFill"></image>
+    <view class="sf-content">
+      <view class="sf-header">
+        <view>
+          <text class="sf-eyebrow">切换兼顾训练</text>
+          <text class="sf-title">声音过滤器</text>
+        </view>
+        <view class="sf-header-right">
+          <view v-if="started" class="sf-level"><text class="sf-level-text">难度 {{ level }}</text></view>
+          <view class="sf-counter"><text class="sf-counter-text">{{ started ? displayRound.toString() + '/' + totalRounds.toString() : '试玩' }}</text></view>
+        </view>
+      </view>
+      <view class="sf-progress"><view class="sf-progress-fill" :style="{ width: progressWidth }"></view></view>
 
-    <view v-if="!started" class="instruction">
-      <YoungChildCue kind="listen"></YoungChildCue>
-      <view class="samples"><ActionSurface v-for="cue in availableCues" :key="cue.id" class="tap-target sample" @click="preview(cue.id)"><text class="sample-symbol tap-content">{{ cue.icon }}</text><text class="sample-tip tap-content">试听</text></ActionSurface></view>
-      <button class="tap-target primary" @click="begin">开始</button>
+      <view class="sf-callout">
+        <text class="sf-callout-hint">{{ switching ? '先听目标，马上继续' : '把同一类气泡一路点掉' }}</text>
+        <view class="sf-callout-row">
+          <text class="sf-callout-speaker">♫</text>
+          <text class="sf-callout-type">{{ announceText }}</text>
+          <button class="tap-target sf-replay" :disabled="!voiceReady || switching" @click="replayAnnouncement">{{ voiceReady ? '再听一次' : '文字播报' }}</button>
+        </view>
+      </view>
+
+      <view id="sf-field" class="sf-field">
+        <view v-for="bubble in bubbleViews" :key="bubble.id" class="tap-target sf-bubble" :style="bubble.style" @touchstart="armBubble(bubble.id)" @touchcancel="clearGesture" @click="tapBubble(bubble.id)">
+          <image class="sf-bubble-art" :src="bubble.path" mode="aspectFit" :style="bubble.artStyle"></image>
+          <view v-if="bubble.mark == 'good'" class="sf-mark sf-mark-good" :style="bubble.markStyle"><text class="sf-mark-text">✓</text></view>
+          <view v-if="bubble.mark == 'bad'" class="sf-mark sf-mark-bad" :style="bubble.markStyle"><text class="sf-mark-text">✕</text></view>
+        </view>
+      </view>
+
+      <view class="sf-stats">
+        <view class="sf-stat"><text class="sf-stat-value">{{ hitCount }}</text><text class="sf-stat-label">点对</text></view>
+        <view class="sf-stat"><text class="sf-stat-value">{{ wrongCount }}</text><text class="sf-stat-label">点错</text></view>
+        <view class="sf-stat"><text class="sf-stat-value">{{ missedCount }}</text><text class="sf-stat-label">漏掉</text></view>
+      </view>
+
+      <view v-if="!started" class="sf-start-row">
+        <text class="sf-demo-hint">{{ demoDone ? '试玩好了，开始正式训练吧' : '点气泡试一下：对勾是点对、叉号是点错' }}</text>
+        <button class="tap-target sf-start training-preview-primary" @click="begin">开始训练</button>
+      </view>
     </view>
-    <view v-else class="challenge">
-      <view class="noise-view"><view class="wave wave-one"></view><view class="wave wave-two"></view><view class="sound-core"><text class="sound-core-symbol">♫</text></view></view>
-      <view class="answers"><ActionSurface v-for="cue in availableCues" :key="cue.id" class="tap-target answer" :disabled="!accepting" @click="answer(cue.id)"><text class="answer-symbol tap-content">{{ cue.icon }}</text></ActionSurface></view>
-      <text class="feedback" :class="feedback == '过滤正确' ? 'good' : 'again'">{{ feedback }}</text>
-    </view>
-    <view class="footer-stats"><view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view><view class="footer-stat"><text class="footer-value">{{ interferenceErrors }}</text><text class="footer-label">干扰错误</text></view><view class="footer-stat"><text class="footer-value">{{ replayCount }}</text><text class="footer-label">重听</text></view></view>
   </view>
 </TrainingFrame>
 </template>
@@ -23,43 +50,316 @@
 <script setup lang="uts">
 import TrainingFrame from '../../components/TrainingFrame.uvue'
 import { useTrainingSession } from '../../utils/training-session.uts'
-import ActionSurface from '../../components/ActionSurface.uvue'
-import { ref, computed } from 'vue'
-import YoungChildCue from '../../components/YoungChildCue.uvue'
-import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { getGameTuningAge } from '../../utils/difficulty.uts'
+import { ref, computed, nextTick, watch } from 'vue'
+import { onLoad, onUnload, onResize } from '@dcloudio/uni-app'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { averageRoundScore, scoreQuery } from '../../utils/game-scoring.uts'
+import {
+  soundFilterConfig, soundFilterDemoConfig, soundFilterCreate, soundFilterStep, soundFilterTap,
+  soundFilterAnnouncement, soundFilterAnnouncementEnded, soundFilterVoicePath, soundFilterProgress, SoundFilterConfig, SoundFilterEvent, SoundFilterField
+} from '../../utils/sound-filter.uts'
+import { SOUND_FILTER_VOICE_FILES } from '../../utils/sound-filter-voice.uts'
+
 const training = useTrainingSession()
 const trainingClock = training.clock
 const trainingPaused = training.paused, trainingBusy = training.navigating
 
-type SoundCue = { id: string, icon: string }
-const CUES: SoundCue[] = [{ id: 'star', icon: '✦' }, { id: 'moon', icon: '☾' }, { id: 'planet', icon: '●' }]
-const started = ref(false), accepting = ref(false), availableCues = ref(CUES.slice(0, 2))
-const totalRounds = ref(10), roundIndex = ref(0), targetId = ref('star')
-const correct = ref(0), interferenceErrors = ref(0), replayCount = ref(0), feedback = ref('')
-const reactions = ref([] as number[]), audio = ref<InnerAudioContext | null>(null)
-let appearedAt = 0, gameStartedAt = 0, nextTimer = 0
-const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
-const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
-function configure() { const age = getGameTuningAge('sound-filter'); if (age <= 6) totalRounds.value = 8; else if (age <= 9) totalRounds.value = 10; else { availableCues.value = CUES.slice(0, 3); totalRounds.value = age <= 12 ? 14 : 18 } }
-function cuePath(id: string, filtered: boolean): string { return filtered ? '/static/audio/filter/' + id + '.mp3' : '/static/audio/cues/' + id + '.mp3' }
-function play(id: string, filtered: boolean) { if (audio.value == null) audio.value = trainingClock.createAudio(); else audio.value!.stop(); audio.value!.src = cuePath(id, filtered); audio.value!.play() }
-function preview(id: string) { if (trainingPaused.value) return; play(id, false) }
-function clearResources() { if (nextTimer > 0) trainingClock.clearTimeout(nextTimer); audio.value?.stop() }
-function finish() { clearResources(); const accuracy = Math.round((correct.value / totalRounds.value) * 100); const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=sound-filter&dimensionId=selective&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&interferenceErrors=' + interferenceErrors.value.toString() }) }
-function prepare() { if (roundIndex.value >= totalRounds.value) { finish(); return }; targetId.value = availableCues.value[Math.floor(Math.random() * availableCues.value.length)].id; feedback.value = ''; accepting.value = true; appearedAt = trainingClock.now(); play(targetId.value, true) }
-function begin() { if (trainingPaused.value) return; started.value = true; gameStartedAt = trainingClock.now(); prepare() }
-function replay() { if (trainingPaused.value) return; if (!accepting.value) return; replayCount.value += 1; play(targetId.value, true) }
-function answer(id: string) { if (trainingPaused.value) return; if (!accepting.value) return; accepting.value = false; audio.value?.stop(); reactions.value.push(trainingClock.now() - appearedAt); if (id == targetId.value) { { correct.value += 1; training.playFeedback('correct') } feedback.value = '过滤正确' } else { { interferenceErrors.value += 1; training.playFeedback('wrong') } feedback.value = '被背景声干扰了' }; nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepare() }, 620) }
-onLoad((_options: OnLoadOptions) => configure()); onUnload(() => { clearResources(); trainingClock.destroyAudio(audio.value); audio.value = null })
+type BubbleView = { id: string, style: string, path: string, artStyle: string, mark: string, markStyle: string }
+
+const FIELD_ID = 'sf-field'
+const FIELD_HPAD = 16
+
+const started = ref(false)
+const demoDone = ref(false)
+const level = ref(1)
+const totalRounds = ref(4)
+const announceText = ref('')
+const hitCount = ref(0), wrongCount = ref(0), missedCount = ref(0)
+const bubbleViews = ref([] as BubbleView[])
+const voiceReady = ref(false)
+const switching = ref(true)
+const roundIndex = ref(0)
+const roundDone = ref(0)
+const fieldWidth = ref(320), fieldHeight = ref(360)
+
+let field: SoundFilterField | null = null
+let demoMode = false
+let voiceAudio: InnerAudioContext | null = null
+let ticker = 0
+let lastTick = 0
+let gameStartedAt = 0
+let roundStartedAt = 0
+let reactions = [] as number[]
+let voiceGeneration = 0
+let voiceTimeout = 0
+let armedId = ''
+let armedEpoch = -1
+
+function clearGesture() { armedId = ''; armedEpoch = -1 }
+function armBubble(id: string) {
+  clearGesture()
+  if (field == null || trainingPaused.value || field!.phase != 'play') return
+  armedId = id
+  armedEpoch = field!.inputEpoch
+}
+watch(trainingPaused, () => clearGesture())
+
+function stopVoice() {
+  voiceGeneration += 1
+  if (voiceTimeout > 0) { trainingClock.clearTimeout(voiceTimeout); voiceTimeout = 0 }
+  if (voiceAudio != null) { trainingClock.destroyAudio(voiceAudio); voiceAudio = null }
+}
+function endAnnouncement(generation: number) {
+  if (generation != voiceGeneration || field == null || field!.phase != 'announce') return
+  if (voiceTimeout > 0) { trainingClock.clearTimeout(voiceTimeout); voiceTimeout = 0 }
+  if (voiceAudio != null) voiceAudio!.stop()
+  soundFilterAnnouncementEnded(field!)
+}
+
+const displayRound = computed((): number => Math.min(totalRounds.value, roundIndex.value + 1))
+const progressWidth = computed((): string => Math.round((roundDone.value / Math.max(1, totalRounds.value)) * 100).toString() + '%')
+
+function measureField() {
+  const info = uni.getWindowInfo()
+  const topInset = Math.max(0, info.statusBarHeight)
+  const width = Math.max(240, info.windowWidth - FIELD_HPAD * 2)
+  // 上方：头部 + 进度 + 播报卡；下方：三格统计 + 开始按钮 + 内外边距。
+  const pageHeight = info.windowHeight - topInset - 44
+  const height = Math.max(220, pageHeight - 344)
+  fieldWidth.value = width
+  fieldHeight.value = height
+  const element = uni.getElementById(FIELD_ID)
+  if (element != null) {
+    const bounds = element.getBoundingClientRect()
+    if (bounds.width > 0 && bounds.height > 0) {
+      fieldWidth.value = bounds.width
+      fieldHeight.value = bounds.height
+    }
+  }
+}
+
+function renderBubbles() {
+  if (field == null) return
+  const views = [] as BubbleView[]
+  const size = field!.config.bubbleSize
+  const radius = Math.round(size / 2)
+  const art = Math.round(size * 0.72)
+  for (let i = 0; i < field!.bubbles.length; i++) {
+    const bubble = field!.bubbles[i]
+    if (bubble.escaped) continue
+    const left = Math.round(bubble.x - size / 2)
+    const top = Math.round(bubble.y - size / 2)
+    let mark = ''
+    if (bubble.tapped) mark = bubble.correct ? 'good' : 'bad'
+    views.push({
+      id: bubble.id,
+      style: 'left:' + left.toString() + 'px;top:' + top.toString() + 'px;width:' + size.toString() + 'px;height:' + size.toString() + 'px;border-radius:' + radius.toString() + 'px;',
+      path: bubble.path,
+      artStyle: 'width:' + art.toString() + 'px;height:' + art.toString() + 'px;opacity:' + (bubble.neutral ? '0.35' : '1') + ';',
+      mark: mark,
+      markStyle: 'border-radius:' + radius.toString() + 'px;'
+    })
+  }
+  bubbleViews.value = views
+}
+
+// 播报：文字始终显示；有录音的类型才播语音，没录音时按钮显示为「文字播报」并禁点。
+function announce() {
+  if (field == null) return
+  stopVoice()
+  clearGesture()
+  switching.value = true
+  const generation = voiceGeneration
+  announceText.value = soundFilterAnnouncement(field!.typeId)
+  const path = soundFilterVoicePath(field!.typeId)
+  voiceReady.value = SOUND_FILTER_VOICE_FILES.indexOf(path) >= 0
+  voiceTimeout = trainingClock.setTimeout(() => endAnnouncement(generation), voiceReady.value ? 8000 : 2000)
+  if (!voiceReady.value) return
+  voiceAudio = trainingClock.createAudio()
+  voiceAudio!.onEnded(() => endAnnouncement(generation))
+  voiceAudio!.onError(() => {
+    if (generation != voiceGeneration) return
+    if (voiceTimeout > 0) trainingClock.clearTimeout(voiceTimeout)
+    voiceReady.value = false
+    voiceTimeout = trainingClock.setTimeout(() => endAnnouncement(generation), 2000)
+  })
+  voiceAudio!.src = path
+  voiceAudio!.play()
+}
+
+function replayAnnouncement() {
+  if (trainingPaused.value || !voiceReady.value || switching.value) return
+  if (voiceAudio == null) return
+  voiceAudio!.stop()
+  voiceAudio!.play()
+}
+
+function handleEvent(event: SoundFilterEvent) {
+  if (event.kind == 'roundStart') {
+    roundIndex.value = field == null ? roundIndex.value : field!.roundIndex
+    roundDone.value = field == null ? roundDone.value : field!.roundScores.length
+    roundStartedAt = trainingClock.now()
+    announce()
+  } else if (event.kind == 'finished') {
+    if (demoMode) {
+      // 试玩跑完一轮就停下，等孩子点「开始」
+      demoDone.value = true
+      stopTicker()
+      bubbleViews.value = [] as BubbleView[]
+    } else {
+      finish()
+    }
+  }
+}
+
+function tick() {
+  if (field == null) return
+  const now = trainingClock.now()
+  const dt = Math.min(0.2, Math.max(0, (now - lastTick) / 1000))
+  lastTick = now
+  const events = soundFilterStep(field!, dt, Math.random)
+  for (let i = 0; i < events.length; i++) handleEvent(events[i])
+  switching.value = field!.phase != 'play'
+  if (!demoMode) missedCount.value = field!.missed
+  renderBubbles()
+}
+
+function startTicker() {
+  stopTicker()
+  lastTick = trainingClock.now()
+  ticker = trainingClock.setInterval(() => tick(), 33)
+}
+
+function stopTicker() {
+  if (ticker > 0) { trainingClock.clearInterval(ticker); ticker = 0 }
+}
+
+function createField(config: SoundFilterConfig) {
+  field = soundFilterCreate(config, fieldWidth.value, fieldHeight.value, Math.random)
+  hitCount.value = 0; wrongCount.value = 0; missedCount.value = 0
+  reactions = [] as number[]
+  roundIndex.value = 0
+  roundDone.value = 0
+  roundStartedAt = trainingClock.now()
+  renderBubbles()
+  announce()
+  startTicker()
+}
+
+// 试玩：页面一进来就跑一小段单列气泡流，让孩子先看懂规则（不扣分、不计成绩）。
+function startDemo() {
+  demoMode = true
+  demoDone.value = false
+  createField(soundFilterDemoConfig())
+}
+
+function configure() {
+  level.value = getGameDifficulty('sound-filter')
+}
+
+function begin() {
+  if (trainingPaused.value) return
+  stopTicker()
+  demoMode = false
+  started.value = true
+  gameStartedAt = trainingClock.now()
+  nextTick(() => {
+    measureField()
+    createField(soundFilterConfig(level.value))
+  })
+}
+
+function tapBubble(bubbleId: string) {
+  if (trainingPaused.value || field == null) return
+  const valid = armedId == bubbleId && armedEpoch == field!.inputEpoch
+  clearGesture()
+  if (!valid) return
+  const result = soundFilterTap(field!, bubbleId)
+  if (result == 'ignored') return
+  if (result == 'correct') {
+    hitCount.value = field!.correct
+    reactions.push(Math.round(field!.segmentElapsed * 1000))
+    training.playFeedback('correct')
+  } else {
+    wrongCount.value = field!.wrong
+    training.playFeedback('wrong')
+  }
+  renderBubbles()
+}
+
+function finish() {
+  stopTicker()
+  stopVoice()
+  if (field == null) return
+  missedCount.value = field!.missed
+  roundDone.value = field!.roundScores.length
+  const scores = field!.roundScores.slice()
+  const score = scores.length == 0 ? 0 : averageRoundScore(scores, 100)
+  const attempts = field!.correct + field!.wrong + field!.missed
+  const accuracy = attempts <= 0 ? 0 : Math.round(field!.correct * 100 / attempts)
+  const reaction = reactions.length == 0 ? 0 : Math.round(reactions.reduce((total: number, value: number): number => total + value, 0) / reactions.length)
+  const duration = Math.max(1, Math.round(field!.elapsed))
+  uni.redirectTo({
+    url: '/pages/result/result?gameId=sound-filter&dimensionId=divided&score=' + score.toString() + '&accuracy=' + accuracy.toString()
+      + '&reaction=' + reaction.toString() + '&duration=' + duration.toString()
+      + '&interferenceErrors=' + field!.wrong.toString() + '&completed=' + scores.length.toString() + '&total=' + totalRounds.value.toString()
+      + scoreQuery(scores)
+  })
+}
+
+onLoad(() => {
+  configure()
+  totalRounds.value = soundFilterConfig(level.value).rounds
+  measureField()
+  startDemo()
+})
+onResize(() => measureField())
+onUnload(() => {
+  stopTicker()
+  stopVoice()
+  clearGesture()
+})
 // 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
 training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>
-.page { flex: 1; padding: 20px; }.game-header { flex-direction: row; justify-content: space-between; align-items: center; }.round-label { color: #ad7a10; font-size: 12px; font-weight: 700; }.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #fff4d7; align-items: center; justify-content: center; }.counter-value { color: #a97810; font-size: 13px; font-weight: 700; }
-.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; background-color: #ffc857; }.rule-card { margin-top: 14px; padding: 15px; border-radius: 18px; background-color: #fff7e5; flex-direction: row; align-items: center; justify-content: space-between; }.rule-title { color: #594b2f; font-size: 14px; font-weight: 700; }.rule-tip { margin-top: 4px; color: #8b7b59; font-size: 10px; }.replay { margin: 0; padding: 0 12px; height: 48px; line-height: 48px; border-radius: 11px; background-color: #ffffff; color: #a97810; font-size: 11px; }
-.instruction, .challenge { margin-top: 14px; height: 355px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; }.instruction-title { color: #25314a; font-size: 19px; font-weight: 700; }.instruction-copy { margin-top: 8px; width: 80%; color: #7b8599; font-size: 11px; line-height: 18px; text-align: center; }.samples, .answers { margin-top: 20px; flex-direction: row; justify-content: center; }.sample { margin: 0 6px; padding: 0; width: 74px; height: 82px; border-radius: 18px; background-color: #fff7e5; align-items: center; justify-content: center; }.sample-symbol { color: #d49a1d; font-size: 31px; }.sample-tip { margin-top: 3px; color: #9c8b68; font-size: 9px; }.primary { margin-top: 20px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #e4ab2b; color: #ffffff; font-size: 14px; font-weight: 700; }
-.noise-view { width: 170px; height: 150px; align-items: center; justify-content: center; position: relative; }.wave { position: absolute; border: 3px solid #f0d998; border-radius: 50%; }.wave-one { width: 115px; height: 115px; }.wave-two { width: 160px; height: 145px; }.sound-core { width: 74px; height: 74px; border-radius: 37px; background-color: #ffc857; align-items: center; justify-content: center; }.sound-core-symbol { color: #ffffff; font-size: 34px; }.question { margin-top: 12px; color: #626d83; font-size: 12px; }.answer { margin: 0 6px; padding: 0; width: 78px; height: 72px; border-radius: 18px; background-color: #f3f6fb; align-items: center; justify-content: center; }.answer-symbol { color: #52617c; font-size: 34px; }.feedback { margin-top: 17px; font-size: 12px; font-weight: 700; }.good { color: #338e72; }.again { color: #c65b66; }
-.footer-stats { margin-top: 14px; flex-direction: row; }.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+.sf-page { flex: 1; position: relative; background-color: #dbe7ff; }
+.sf-scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.sf-content { position: relative; flex: 1; padding: 18px 16px 12px; }
+.sf-header { flex-direction: row; justify-content: space-between; align-items: center; }
+.sf-header-right { flex-direction: row; align-items: center; }
+.sf-eyebrow { color: #8062bf; font-size: 12px; font-weight: 700; }
+.sf-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.sf-level { margin-right: 8px; height: 38px; padding: 0 12px; border-radius: 19px; background-color: rgba(255, 255, 255, 0.92); align-items: center; justify-content: center; }
+.sf-level-text { color: #8062bf; font-size: 12px; font-weight: 700; }
+.sf-counter { width: 62px; height: 38px; border-radius: 19px; background-color: rgba(255, 255, 255, 0.92); align-items: center; justify-content: center; }
+.sf-counter-text { color: #785bb7; font-size: 13px; font-weight: 700; }
+.sf-progress { margin-top: 14px; height: 8px; border-radius: 4px; background-color: rgba(255, 255, 255, 0.7); overflow: hidden; }
+.sf-progress-fill { height: 8px; border-radius: 4px; background-color: #9b7ede; }
+.sf-callout { margin-top: 14px; padding: 10px 14px; border-radius: 20px; background-color: rgba(255, 255, 255, 0.94); }
+.sf-callout-hint { color: #7d8a9c; font-size: 11px; font-weight: 700; }
+.sf-callout-row { margin-top: 5px; flex-direction: row; align-items: center; justify-content: space-between; }
+.sf-callout-speaker { font-size: 16px; }
+.sf-callout-type { flex: 1; margin-left: 8px; color: #4a3b86; font-size: 19px; font-weight: 700; }
+.sf-replay { padding: 8px 12px; border-radius: 14px; background-color: #efe9fb; color: #6b53ad; font-size: 12px; font-weight: 700; }
+.sf-field { margin-top: 10px; position: relative; overflow: hidden; flex: 1; }
+.sf-bubble { position: absolute; background-color: rgba(255, 255, 255, 0.86); border-width: 2px; border-color: rgba(255, 255, 255, 0.95); align-items: center; justify-content: center; }
+.sf-bubble-art { flex-shrink: 0; }
+.sf-mark { position: absolute; left: 0; top: 0; width: 100%; height: 100%; align-items: center; justify-content: center; }
+.sf-mark-good { background-color: rgba(79, 174, 134, 0.78); }
+.sf-mark-bad { background-color: rgba(198, 91, 102, 0.78); }
+.sf-mark-text { color: #ffffff; font-size: 26px; font-weight: 700; }
+.sf-stats { margin-top: 8px; flex-direction: row; }
+.sf-stat { flex: 1; align-items: center; }
+.sf-stat-value { color: #25314a; font-size: 16px; font-weight: 700; }
+.sf-stat-label { margin-top: 1px; color: #7d8a9c; font-size: 10px; }
+.sf-start-row { margin-top: 8px; flex-direction: row; align-items: center; justify-content: space-between; }
+.sf-demo-hint { flex: 1; color: #5d6a80; font-size: 12px; }
+.sf-start { width: 132px; height: 44px; line-height: 44px; border-radius: 22px; background-color: #7f66c4; color: #ffffff; font-size: 15px; font-weight: 700; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

@@ -9,6 +9,13 @@ TEAM_ID="${DEVELOPMENT_TEAM:-}"
 
 "$SCRIPT_DIR/verify.sh"
 
+# 出包前再清一次 macOS 垃圾文件：HBuilderX / Finder 会在导出后重新生成 .DS_Store，
+# 同步阶段清过也可能被再次写回；这里在 xcodebuild 之前兜底，保证产物里不含它们。
+BUNDLE_APP_DIR="$IOS_DIR/FocusPlanet/FocusPlanet/uni-app-x/apps/__UNI__B5780B0"
+if [[ -d "$BUNDLE_APP_DIR" ]]; then
+  find "$BUNDLE_APP_DIR" \( -name '.DS_Store' -o -name '._*' \) -delete
+fi
+
 args=(
   archive
   -project "$IOS_DIR/FocusPlanet/FocusPlanet.xcodeproj"

@@ -1,5 +1,34 @@
 import { localTestKey } from './local-test.uts'
-import { DifferenceScene } from './spot-difference-types.uts'
+import { DifferenceCandidate, DifferenceScene } from './spot-difference-types.uts'
+
+// Positive-area intersection is exclusive; touching edges alone are allowed.
+export function differenceCandidatesConflict(a: DifferenceCandidate, b: DifferenceCandidate): boolean {
+  return a.zone == b.zone || (Math.max(a.x, b.x) < Math.min(a.x + a.w, b.x + b.w) && Math.max(a.y, b.y) < Math.min(a.y + a.h, b.y + b.h))
+}
+function searchDifferenceRecipe(pool: DifferenceCandidate[], start: number, count: number, picked: DifferenceCandidate[]): boolean {
+  if (picked.length == count) return true
+  if (pool.length - start < count - picked.length) return false
+  for (let i = start; i < pool.length; i++) {
+    const item = pool[i]
+    if (picked.some((other: DifferenceCandidate): boolean => differenceCandidatesConflict(item, other))) continue
+    picked.push(item)
+    if (searchDifferenceRecipe(pool, i + 1, count, picked)) return true
+    picked.pop()
+  }
+  return false
+}
+export function canMakeDifferenceRecipe(items: DifferenceCandidate[], count: number): boolean {
+  if (count <= 0) return true
+  return searchDifferenceRecipe(items, 0, count, [] as DifferenceCandidate[])
+}
+export function chooseDifferenceRecipe(items: DifferenceCandidate[], count: number): string[] {
+  if (count <= 0) return [] as string[]
+  const pool = items.slice()
+  for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const item = pool[i]; pool[i] = pool[j]; pool[j] = item }
+  const picked = [] as DifferenceCandidate[]
+  if (!searchDifferenceRecipe(pool, 0, count, picked)) return [] as string[]
+  return picked.map((item: DifferenceCandidate): string => item.id)
+}
 
 function seenKey(tier: string): string { return localTestKey('focus_difference_seen_v1_' + tier) }
 function seenIds(tier: string): string[] {
@@ -7,8 +36,8 @@ function seenIds(tier: string): string[] {
   if (raw == null || raw == '') return [] as string[]
   try { const ids = JSON.parse<string[]>(JSON.stringify(raw)); return ids == null ? [] as string[] : ids } catch (_error) { return [] as string[] }
 }
-export function chooseUnseenDifference(tier: string, scenes: DifferenceScene[]): DifferenceScene | null {
-  const pool = scenes.filter((scene: DifferenceScene): boolean => scene.tier == tier)
+export function chooseUnseenDifference(tier: string, scenes: DifferenceScene[], minimumTargets: number = 0): DifferenceScene | null {
+  const pool = scenes.filter((scene: DifferenceScene): boolean => scene.tier == tier && canMakeDifferenceRecipe(scene.regions, minimumTargets))
   if (pool.length == 0) return null
   const seen = seenIds(tier)
   let available = pool.filter((scene: DifferenceScene): boolean => seen.indexOf(scene.id) < 0)
@@ -20,10 +49,12 @@ export function chooseUnseenDifference(tier: string, scenes: DifferenceScene[]):
   return available[Math.floor(Math.random() * available.length)]
 }
 // Called when the scene image loads on screen, never on completion or prefetch.
-export function markDifferenceShown(scene: DifferenceScene, scenes: DifferenceScene[]) {
-  const pool = scenes.filter((item: DifferenceScene): boolean => item.tier == scene.tier)
-  let seen = seenIds(scene.tier).filter((id: string): boolean => pool.some((item: DifferenceScene): boolean => item.id == id))
-  if (pool.every((item: DifferenceScene): boolean => seen.indexOf(item.id) >= 0)) seen = [] as string[]
+export function markDifferenceShown(scene: DifferenceScene, scenes: DifferenceScene[], minimumTargets: number = 0) {
+  const all = scenes.filter((item: DifferenceScene): boolean => item.tier == scene.tier)
+  const pool = all.filter((item: DifferenceScene): boolean => canMakeDifferenceRecipe(item.regions, minimumTargets))
+  let seen = seenIds(scene.tier).filter((id: string): boolean => all.some((item: DifferenceScene): boolean => item.id == id))
+  // Start a new eligible cycle without forgetting smaller scenes seen at earlier levels.
+  if (pool.every((item: DifferenceScene): boolean => seen.indexOf(item.id) >= 0)) seen = seen.filter((id: string): boolean => !pool.some((item: DifferenceScene): boolean => item.id == id))
   if (seen.indexOf(scene.id) < 0) seen.push(scene.id)
   uni.setStorageSync(seenKey(scene.tier), seen)
   uni.setStorageSync(seenKey(scene.tier) + '_last', scene.id)

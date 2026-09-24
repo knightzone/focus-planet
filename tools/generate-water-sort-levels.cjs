@@ -5,7 +5,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
-const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js')
+const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js')
 const root = path.resolve(__dirname, '..')
 const source = fs.readFileSync(path.join(root, 'utils/water-sort.uts'), 'utf8').replace(/^export /gm, '')
 const context = {}
@@ -52,9 +52,9 @@ out += '// 每档预生成的「最少步数固定」关卡；颜色用编号 0.
 out += 'export const WATER_SORT_LEVELS: number[][][][] = [\n'
 for (const pool of levels) {
   out += '  [ // 档位\n'
-  for (const tubes of pool) out += '    ' + JSON.stringify(tubes) + ',\n'
+  for (const tubes of pool) out += `    ${JSON.stringify(tubes)},\n`
   out += '  ],\n'
 }
 out += ']\n'
 fs.writeFileSync(path.join(root, 'utils/water-sort-levels.uts'), out)
-console.log('已写入 utils/water-sort-levels.uts，' + out.length + ' 字节')
+console.log(`已写入 utils/water-sort-levels.uts，${out.length} 字节`)

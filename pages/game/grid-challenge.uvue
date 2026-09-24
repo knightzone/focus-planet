@@ -1,11 +1,11 @@
 <template>
-<TrainingFrame :title="gameName" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+<TrainingFrame :difficulty="scoringLevel" :preparing="!started" :title="gameName" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="page">
     <image class="scene tap-content" src="/static/images/runtime/backgrounds/shadow-match-desk-v1.webp" mode="aspectFill"></image>
     <scroll-view class="scroll" direction="vertical" show-scrollbar="false"><view class="content">
-      <view class="header"><view><text class="dimension">{{ mode == 'spot-change' ? '双星观察室' : dimensionLabel }}</text><text class="title">{{ started ? missionTitle : gameName }}</text></view><text class="counter-value">{{ started ? displayRound + ' / ' + totalRounds : '难度 ' + scoringLevel }}</text></view>
+      <view class="header"><view><text class="dimension">{{ mode == 'spot-change' ? '双星观察室' : dimensionLabel }}</text><text class="title">{{ started ? missionTitle : gameName }}</text></view><text class="counter-value">{{ started ? displayRound + ' / ' + totalRounds : '试玩' }}</text></view>
       <view class="progress"><view class="progress-fill" :style="{ width: progressWidth, backgroundColor: accentColor }"></view></view>
-      <view v-if="!started" class="instruction">
+      <view v-if="!started" class="instruction training-preview-card">
         <image v-if="mode == 'spot-change'" class="cover tap-content" src="/static/images/runtime/level-thumbnails/spot-change.webp" mode="aspectFill"></image>
         <view class="intro-body">
           <template v-if="mode == 'spot-change'">
@@ -23,7 +23,7 @@
             <text class="demo-feedback">{{ demoFeedback }}</text>
           </template>
           <YoungChildCue v-else :kind="mode == 'memory-search' ? 'search' : 'match'"></YoungChildCue>
-          <button class="primary" :class="mode == 'symbol-detective' ? 'detective-primary' : ''" @click="begin">开始训练</button>
+          <button class="primary training-preview-primary" :class="mode == 'symbol-detective' ? 'detective-primary' : ''" @click="begin">开始训练</button>
         </view>
       </view>
       <view v-else class="board-wrap" :class="mode == 'symbol-detective' ? 'detective-board' : ''">
@@ -47,7 +47,7 @@ import { ref, computed } from 'vue'
 import YoungChildCue from '../../components/YoungChildCue.uvue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import { getGameDifficulty, getGameTuningAge } from '../../utils/difficulty.uts'
-import { getGameName } from '../../utils/catalog.uts'
+import { getGameName, getGameDimensionId } from '../../utils/catalog.uts'
 import { GAME_OBJECT_IDS, getGameObjectPath } from '../../utils/game-assets.uts'
 const training = useTrainingSession()
 const trainingClock = training.clock
@@ -76,7 +76,7 @@ const accepting = ref(false), feedback = ref(''), correct = ref(0), errors = ref
 let shownAt = 0, gameStartedAt = 0, phaseTimer = 0, nextTimer = 0
 const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
 const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
-const dimensionLabel = computed((): string => mode.value == 'spot-change' ? '持续注意训练' : mode.value == 'symbol-detective' ? '选择注意训练' : '分配注意训练')
+const dimensionLabel = computed((): string => mode.value == 'spot-change' ? '记忆辨识训练' : mode.value == 'symbol-detective' ? '观察发现训练' : '记忆辨识训练')
 const accentColor = computed((): string => mode.value == 'spot-change' ? '#55C9A5' : mode.value == 'symbol-detective' ? '#FFC857' : '#F17C8D')
 const missionTitle = computed((): string => mode.value == 'spot-change' ? '找出变化的位置' : mode.value == 'symbol-detective' ? '找出不一样的' : '找到记住的伙伴')
 const missionTip = computed((): string => phase.value == 'preview' ? '请认真观察' : '点击你认为正确的位置')
@@ -147,7 +147,7 @@ function chooseDetective(index: number) {
   nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepare() }, 520)
 }
 function choose(index: number) { if (trainingPaused.value) return; if (!accepting.value) return; if (mode.value == 'symbol-detective') { chooseDetective(index); return }; accepting.value = false; if (phaseTimer > 0) trainingClock.clearTimeout(phaseTimer); roundScores.push(timedRoundScore(index == answerIndex.value, trainingClock.now() - shownAt, answerTargetMs.value)); reactions.value.push(trainingClock.now() - shownAt); if (index == answerIndex.value) { { correct.value += 1; training.playFeedback('correct') } feedback.value = '正确' } else { { errors.value += 1; training.playFeedback('wrong') } feedback.value = '再仔细观察' }; nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepare() }, 520) }
-onLoad((options: UTSJSONObject) => { const option = options['gameId']; mode.value = option == null || option == '' ? 'spot-change' : option as string; gameName.value = getGameName(mode.value); dimensionId.value = mode.value == 'spot-change' ? 'sustained' : mode.value == 'symbol-detective' ? 'selective' : 'divided'; configureDifficulty() })
+onLoad((options: UTSJSONObject) => { const option = options['gameId']; mode.value = option == null || option == '' ? 'spot-change' : option as string; gameName.value = getGameName(mode.value); dimensionId.value = getGameDimensionId(mode.value); configureDifficulty() })
 onUnload(() => clearTimers())
 // 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
 training.setStartedCheck((): boolean => started.value)
@@ -170,4 +170,9 @@ training.setStartedCheck((): boolean => started.value)
 .cell-wrong { background-color: #f9e9e4; border-color: #d3a39a; }
 .detective-primary { background-color: #c18b38; }
 .found-check { color: #2b9270; font-size: 20px; font-weight: 800; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

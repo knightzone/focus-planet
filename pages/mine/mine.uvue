@@ -36,13 +36,15 @@
       </view>
 
       <text class="section-title">账户</text>
-      <view class="account-card">
+      <view class="account-card" @click="openMembership">
         <view class="account-copy">
           <text class="account-title">{{ loggedIn ? accountName : '访客模式' }}</text>
+          <text class="account-meta">星伴会员 · 查看方案或恢复购买</text>
         </view>
-        <button v-if="!loggedIn" class="account-button" @click="openLogin">登录</button>
-        <button v-else class="logout-button" @click="logout">登出</button>
+        <text class="arrow">›</text>
       </view>
+
+      <view class="logout-row" @click="logout"><text class="logout-text">退出登录</text></view>
 
       <text class="section-title">最近陪伴</text>
       <view class="companion-card">
@@ -161,10 +163,7 @@ onShow(() => {
   if (companionRecords.length > 0) {
     const latest = companionRecords[0]
     lastCompanionTitle.value = getCompanionModeName(latest.mode) + ' · ' + Math.max(1, Math.round(latest.focusedSeconds / 60)).toString() + ' 分钟'
-    const observed = latest.observedSeconds == null ? 0 : latest.observedSeconds
-    const steady = latest.steadyPresenceSeconds == null ? 0 : latest.steadyPresenceSeconds
-    const observationText = latest.cameraAnalysisEnabled == true && observed > 0 ? ' · 稳定在屏 ' + Math.round(steady * 100 / observed).toString() + '%' : ''
-    lastCompanionMeta.value = formatCompanionDate(latest.completedAt) + ' · ' + (latest.breakCompleted ? '完成休息' : '跳过休息') + observationText
+    lastCompanionMeta.value = formatCompanionDate(latest.completedAt) + ' · ' + (latest.breakCompleted ? '完成休息' : '跳过休息')
   } else {
     lastCompanionTitle.value = '还没有陪伴记录'
     lastCompanionMeta.value = '从“星陪伴”完成第一轮专注吧'
@@ -178,12 +177,13 @@ onShow(() => {
   }
 })
 
-function openReport() { uni.navigateTo({ url: '/pages/report/report' }) }
-function openHistory() { uni.navigateTo({ url: '/pages/history/history' }) }
+function openReport() { uni.navigateTo({ url: '/pages/report/report-v2' }) }
+function openHistory() { uni.navigateTo({ url: '/pages/history/history-v2' }) }
 function openSettings() {
   uni.navigateTo({ url: '/pages/settings/settings' })
 }
 function openAccount() { uni.navigateTo({ url: '/pages/account/account' }) }
+function openMembership() { uni.navigateTo({ url: '/pages/membership/membership' }) }
 function openLogin() { requireLogin() }
 function logout() {
   if (LOCAL_TEST_MODE) { uni.showToast({ title: '当前为本地测试登录', icon: 'none' }); return }
@@ -223,6 +223,8 @@ function logout() {
 .account-copy { flex: 1; }
 .account-title { color: #344059; font-size: 15px; font-weight: 700; }
 .account-meta { margin-top: 5px; color: #8a93a5; font-size: 10px; }
+.logout-row { margin-top: 9px; min-height: 45px; border-radius: 18px; background-color: #f4f6fa; align-items: center; justify-content: center; }
+.logout-text { color: #7d8799; font-size: 12px; }
 .account-button { margin: 0; width: 72px; height: 40px; line-height: 40px; padding: 0; border-radius: 20px; background-color: #5b8def; color: #ffffff; font-size: 12px; font-weight: 700; }
 .logout-button { margin: 0; width: 72px; height: 40px; line-height: 40px; padding: 0; border-radius: 20px; background-color: #f2f4f8; color: #6e788d; font-size: 12px; }
 .stat { flex: 1; align-items: center; }

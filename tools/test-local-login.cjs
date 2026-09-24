@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
+const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
 const root = path.resolve(__dirname, '..');
 for (const enabled of [true, false]) {
   const values = new Map([
@@ -17,7 +17,7 @@ for (const enabled of [true, false]) {
     if (modules.has(file)) return modules.get(file).exports;
     const m = { exports: {} }; modules.set(file, m);
     let source = fs.readFileSync(file, 'utf8');
-    if (file.endsWith('/local-test.uts')) source = source.replace('LOCAL_TEST_MODE = true', 'LOCAL_TEST_MODE = ' + enabled);
+    if (file.endsWith('/local-test.uts')) source = source.replace(/LOCAL_TEST_MODE = (true|false)/, 'LOCAL_TEST_MODE = ' + enabled);
     const js = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
     vm.runInNewContext(js, { exports: m.exports, module: m, require: p => load(path.resolve(path.dirname(file), p)), uni, console, Date, setTimeout, clearTimeout, setInterval, clearInterval }, { filename: file });
     return m.exports;

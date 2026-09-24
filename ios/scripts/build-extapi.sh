@@ -9,7 +9,7 @@ DERIVED_DIR="$IOS_DIR/.derived/extapi"
 OUTPUT_DIR="$IOS_DIR/CustomFrameworks"
 OUTPUT="$OUTPUT_DIR/DCloudUTSExtAPI.xcframework"
 
-[[ -d "$IOS_DIR/SDK/ExtApiSrc" ]] || { echo "Missing 5.25 SDK; run install-sdk.sh first." >&2; exit 1; }
+[[ -d "$IOS_DIR/SDK/ExtApiSrc" ]] || { echo "Missing uni-app x iOS SDK; run install-sdk.sh first." >&2; exit 1; }
 command -v ruby >/dev/null || { echo "Ruby is required to generate the Xcode project." >&2; exit 1; }
 ruby -e 'require "xcodeproj"' >/dev/null 2>&1 || { echo "Ruby gem xcodeproj is required." >&2; exit 1; }
 
@@ -67,6 +67,14 @@ module_sources = %w[
   uni-oauth-index.swift
   uni-oauth-apple-index.swift
   uni-oauth-apple-AppleLoginNativeManager.swift
+  uni-virtualPayment-index.swift
+  uni-virtualPayment-Types.swift
+  uni-virtualPayment-ProductService.swift
+  uni-virtualPayment-PurchaseService.swift
+  uni-virtualPayment-UniProduct.swift
+  uni-virtualPayment-UniPurchase.swift
+  uni-virtualPayment-UniStoreKit.swift
+  uni-virtualPayment-UniStoreKit+Closure.swift
 ]
 
 prompt_sources = Dir.children(source_dir).grep(/\Auni-prompt-Uni(?:Alert|Toast)-.*\.swift\z/).sort

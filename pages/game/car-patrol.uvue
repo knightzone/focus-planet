@@ -1,5 +1,5 @@
 <template>
-<TrainingFrame title="小车巡逻" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+<TrainingFrame :difficulty="level" :preparing="state != 'running' && state != 'paused'" title="小车巡逻" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="patrol-page">
     <view id="patrol-scene" class="scene">
       <image class="scene-art tap-content" src="/static/images/runtime/backgrounds/car-patrol-town-v1.webp" mode="scaleToFill" @load="backgroundReady = true" @error="assetFailed = true"></image>
@@ -12,13 +12,13 @@
       <image v-for="cone in cones" :key="cone.id" class="cone tap-content" src="/static/images/runtime/car-patrol/cone-v1.svg" mode="aspectFit" :style="{ left: cone.x + '%', top: cone.y + '%', width: cone.size + 'px', height: cone.size + 'px', opacity: cone.opacity * (cone.hit ? 0.4 : 1) }"></image>
       <image class="player-car tap-content" :class="elapsed < flashUntil ? 'car-bump' : ''" src="/static/images/runtime/car-patrol/car-rear-v1.webp" mode="aspectFit" :style="{ left: carLeft + '%', width: carSize + 'px', height: carSize + 'px' }" @load="carReady = true" @error="assetFailed = true"></image>
       <text v-if="state == 'running' && elapsed < flashUntil" class="bump-feedback">碰到路锥啦</text>
-      <view v-if="state == 'ready' || state == 'demo-done'" class="scene-message">
+      <view v-if="state == 'ready' || state == 'demo-done'" class="scene-message training-preview-card">
         <text class="message-title">{{ state == 'demo-done' ? '躲开啦！' : '换条车道，躲开路锥' }}</text>
         <text v-if="assetFailed" class="message-note">图片未加载，请返回后重试</text>
-        <button class="primary" :disabled="!assetsReady" @click="begin">{{ assetsReady ? '开始巡逻' : '准备中…' }}</button>
-        <text v-if="assetsReady" class="replay" @click="startDemo">{{ state == 'demo-done' ? '再试一次' : '先试玩' }}</text>
+        <button class="primary training-preview-primary" :disabled="!assetsReady" @click="begin">{{ assetsReady ? '开始训练' : '准备中…' }}</button>
+        <text v-if="assetsReady" class="replay training-preview-secondary" @click="startDemo">{{ state == 'demo-done' ? '再试一次' : '先试玩' }}</text>
       </view>
-      <view v-if="state == 'demo'" class="demo-skip"><button class="demo-skip-button" @click="begin">开始巡逻</button></view>
+      <view v-if="state == 'demo'" class="demo-skip"><button class="demo-skip-button training-preview-primary" @click="begin">开始训练</button></view>
     </view>
     <view class="controls">
       <text class="control-hint">{{ state == 'demo' ? demoHint : state == 'running' ? '点车道换位置' : '跃跃和暖暖，出发！' }}</text>
@@ -233,4 +233,9 @@ training.setStartedCheck((): boolean => state.value == 'running' || state.value 
 .lane-arrow { color: #518b73; font-size: 36px; font-weight: 700; }
 .arrow-selected { color: #c09b36; font-size: 21px; }
 .session-stat { margin-top: 9px; color: #6c897d; text-align: center; font-size: 12px; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

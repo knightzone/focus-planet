@@ -3,8 +3,111 @@ import CoreGraphics
 import ImageIO
 import Vision
 import UIKit
+import StoreKit
 
 public class FocusFaceDetectorNative {
+    /// Read Apple's signed verification result, never reconstruct a JWS from client JSON.
+    @available(iOS 15.0, *)
+    public static func fetchSignedTransaction(_ transactionId: String, _ completed: @escaping (String, String) -> Void) {
+        Task {
+            for await result in Transaction.all {
+                switch result {
+                case .verified(let transaction):
+                    if String(transaction.id) == transactionId {
+                        let jws = result.jwsRepresentation
+                        await MainActor.run { completed(jws, "") }
+                        return
+                    }
+                case .unverified(let transaction, _):
+                    if String(transaction.id) == transactionId {
+                        await MainActor.run { completed("", "Apple 交易签名未通过本机校验，请恢复购买后重试") }
+                        return
+                    }
+                }
+            }
+            await MainActor.run { completed("", "未找到 Apple 签名交易，请恢复购买后重试") }
+        }
+    }
+
+    @available(iOS 15.0, *)
+    public static func fetchStoreProducts(_ productIds: [String], _ completed: @escaping (String) -> Void) {
+        Task {
+            do {
+                let products = try await Product.products(for: productIds)
+                var values: [[String: Any]] = []
+                for product in products {
+                    var periodUnit = ""
+                    var periodValue = 0
+                    var introAvailable = false
+                    var introEligible = false
+                    var introPaymentMode = ""
+                    var introDisplayPrice = ""
+                    var introPeriodUnit = ""
+                    var introPeriodValue = 0
+                    var introPeriodCount = 0
+                    if let subscription = product.subscription {
+                        periodUnit = unitName(subscription.subscriptionPeriod.unit)
+                        periodValue = subscription.subscriptionPeriod.value
+                        introEligible = await subscription.isEligibleForIntroOffer
+                        if let offer = subscription.introductoryOffer {
+                            introAvailable = true
+                            introPaymentMode = paymentModeName(offer.paymentMode)
+                            introDisplayPrice = offer.displayPrice
+                            introPeriodUnit = unitName(offer.period.unit)
+                            introPeriodValue = offer.period.value
+                            introPeriodCount = offer.periodCount
+                        }
+                    }
+                    values.append([
+                        "productId": product.id,
+                        "displayName": product.displayName,
+                        "displayPrice": product.displayPrice,
+                        "price": NSDecimalNumber(decimal: product.price).doubleValue,
+                        "periodUnit": periodUnit,
+                        "periodValue": periodValue,
+                        "introOfferAvailable": introAvailable,
+                        "introOfferEligible": introEligible,
+                        "introOfferPaymentMode": introPaymentMode,
+                        "introOfferDisplayPrice": introDisplayPrice,
+                        "introOfferPeriodUnit": introPeriodUnit,
+                        "introOfferPeriodValue": introPeriodValue,
+                        "introOfferPeriodCount": introPeriodCount
+                    ])
+                }
+                completeStoreProducts(["success": true, "products": values, "errorMessage": ""], completed)
+            } catch {
+                completeStoreProducts(["success": false, "products": [], "errorMessage": error.localizedDescription], completed)
+            }
+        }
+    }
+
+    @available(iOS 15.0, *)
+    private static func unitName(_ unit: Product.SubscriptionPeriod.Unit) -> String {
+        switch unit {
+        case .day: return "day"
+        case .week: return "week"
+        case .month: return "month"
+        case .year: return "year"
+        @unknown default: return ""
+        }
+    }
+
+    @available(iOS 15.0, *)
+    private static func paymentModeName(_ mode: Product.SubscriptionOffer.PaymentMode) -> String {
+        switch mode {
+        case .freeTrial: return "freeTrial"
+        case .payAsYouGo: return "payAsYouGo"
+        case .payUpFront: return "payUpFront"
+        default: return ""
+        }
+    }
+
+    private static func completeStoreProducts(_ value: [String: Any], _ completed: @escaping (String) -> Void) {
+        let data = try? JSONSerialization.data(withJSONObject: value)
+        let json = data == nil ? nil : String(data: data!, encoding: .utf8)
+        DispatchQueue.main.async { completed(json ?? "{\"success\":false,\"products\":[],\"errorMessage\":\"App Store data encoding failed\"}") }
+    }
+
     public static func openUpdateLink(_ link: String, _ completed: @escaping (Bool) -> Void) {
         guard let url = URL(string: link), url.scheme == "https" else { completed(false); return }
         DispatchQueue.main.async {

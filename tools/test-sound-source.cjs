@@ -1,5 +1,5 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict')
-const ts=require('/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js')
+const ts=require('/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js')
 const root=path.resolve(__dirname,'..')
 const lib=fs.readFileSync(path.join(root,'utils/sound-sources.uts'),'utf8').replace(/^export /gm,'')
 const page=fs.readFileSync(path.join(root,'pages/game/sound-location.uvue'),'utf8').match(/<script setup lang="uts">([\s\S]*?)<\/script>/)[1].replace(/^import .*$/gm,'')

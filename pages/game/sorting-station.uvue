@@ -1,15 +1,15 @@
 <template>
-  <TrainingFrame title="分类车站" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+  <TrainingFrame :difficulty="level" :preparing="!started" title="分类车站" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
     <view class="page">
       <image class="scene" src="/static/images/runtime/backgrounds/sorting-depot-v1.webp" mode="aspectFill"></image>
       <view class="content">
         <view class="header">
-          <view><text class="eyebrow">转换注意训练</text><text class="title">分类车站</text></view>
+          <view><text class="eyebrow">逻辑空间训练</text><text class="title">分类车站</text></view>
           <view class="counter"><text class="counter-text">{{ displayRound }}/{{ totalRounds }}</text></view>
         </view>
         <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
 
-        <view v-if="!started" class="instruction">
+        <view v-if="!started" class="instruction training-preview-card">
           <text class="demo-title">先试一下</text>
           <text class="demo-rule">点一点货物，再把它送进正确的车站</text>
           <view class="demo-stations">
@@ -23,8 +23,8 @@
             </view>
           </view>
           <text class="demo-hint">{{ demoHint }}</text>
-          <text v-if="demoDone" class="demo-replay" @click="resetDemo">再试一次</text>
-          <button class="primary" @click="begin">开始</button>
+          <text v-if="demoDone" class="demo-replay training-preview-secondary" @click="resetDemo">再试一次</text>
+          <button class="primary training-preview-primary" @click="begin">开始训练</button>
         </view>
 
         <template v-else>
@@ -298,4 +298,9 @@ training.setStartedCheck((): boolean => started.value)
 .cargo { position: absolute; width: 62px; height: 62px; border-radius: 15px; background-color: #ffffff; border-width: 2px; border-color: #eadfc8; align-items: center; justify-content: center; overflow: hidden; z-index: 3; }.cargo-image { width: 50px; height: 50px; border-radius: 10px; }.cargo-selected { border-color: #eda62c; background-color: #fff7e8; }
 .feedback { height: 34px; align-items: center; justify-content: center; }.good { color: #338e72; font-size: 12px; font-weight: 700; }.again { color: #c65b66; font-size: 12px; font-weight: 700; }
 .stats { margin-top: 2px; padding: 12px 8px; border-radius: 18px; background-color: rgba(255,255,255,0.94); flex-direction: row; }.stat { flex: 1; align-items: center; }.value { color: #25314a; font-size: 17px; font-weight: 700; }.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

@@ -6,6 +6,14 @@ export type GameObjectAsset = {
   color: string
 }
 
+export const RED_GREEN_BACKGROUND = '/static/images/runtime/backgrounds/red-green-park-v1.webp'
+export const FOREST_SEARCH_BACKGROUND = '/static/images/runtime/backgrounds/forest-clearing-v1.webp'
+export const NUMBER_TRACK_BACKGROUND = '/static/images/runtime/backgrounds/shadow-match-desk-v1.webp'
+export const SPOT_DIFFERENCE_BACKGROUND = '/static/images/runtime/backgrounds/shadow-match-desk-v1.webp'
+export const MEMORY_LINK_BACKGROUND = '/static/images/runtime/backgrounds/shadow-match-sky-v1.webp'
+export const ORDER_GUESS_BACKGROUND = '/static/images/runtime/backgrounds/shadow-match-desk-v1.webp'
+export const WATER_SORT_BACKGROUND = '/static/images/runtime/backgrounds/water-sort-lab-v1.webp'
+
 export const GAME_OBJECTS: GameObjectAsset[] = [
   { id: 'bunny', name: '小兔', path: '/static/images/runtime/game-objects/bunny-blue-card-v1.webp', kind: 'animal', color: 'blue' },
   { id: 'kitten', name: '小猫', path: '/static/images/runtime/game-objects/kitten-yellow-card-v1.webp', kind: 'animal', color: 'yellow' },

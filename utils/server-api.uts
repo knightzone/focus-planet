@@ -131,12 +131,51 @@ export function submitTrainingResult(planId: string, itemId: string, payload: UT
   apiRequest('/training/plans/items/best-result', 'POST', body, true, success, failure, submissionId)
 }
 
-export function getDailyReport(fromDate: string, toDate: string, success: ApiSuccess, failure: ApiFailure) {
-  apiRequest('/reports/daily', 'POST', { from: fromDate, to: toDate }, true, success, failure)
+// 服务端固定返回最近100条；选课、难度和课程恢复全部由客户端计算。
+export function getRecentTrainingResults(_limit: number, success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/training/records/latest', 'POST', {}, true, success, failure)
 }
 
-export function getOverviewReport(asOf: string, success: ApiSuccess, failure: ApiFailure) {
-  apiRequest('/reports/overview', 'POST', { asOf: asOf }, true, success, failure)
+// 历史页先读取服务端最新课程；lessonNo 为 null 时代表用户还没有任何课程记录。
+export function getMaxLessonTrainingResults(success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/training/records/max-lesson', 'POST', {}, true, success, failure)
+}
+
+// 单次成绩使用「用户 + 课程号 + 游戏」作为自然键；服务端只保留最高分。
+export function submitLessonTrainingResult(payload: UTSJSONObject, success: ApiSuccess, failure: ApiFailure) {
+  const completionValue = payload['completionCount'] == null ? payload['completedCount'] : payload['completionCount']
+  const body: UTSJSONObject = {
+    lessonNo: payload['lessonNo'] as number,
+    gameId: payload['gameId'] as string,
+    difficultyLevel: payload['difficultyLevel'] as number,
+    score: payload['score'] as number,
+    accuracy: payload['accuracy'] as number,
+    averageReactionMs: payload['averageReactionMs'] as number,
+    durationSeconds: payload['durationSeconds'] as number,
+    omissions: payload['omissions'] as number,
+    falseAlarms: payload['falseAlarms'] as number,
+    completionCount: completionValue == null ? 0 : completionValue as number,
+    scoreAlgorithmVersion: payload['scoreAlgorithmVersion'] as string,
+    clientCompletedAt: payload['clientCompletedAt'] as string
+  }
+  apiRequest('/training/records/sync', 'POST', body, true, success, failure)
+}
+
+
+export function getDailyReport(lessonNo: number, success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/reports/daily', 'POST', { lessonNo: lessonNo }, true, success, failure)
+}
+
+export function getOverviewReport(success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/reports/overview', 'POST', {}, true, success, failure)
+}
+
+export function getMembershipStatus(success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/vip/status', 'POST', {}, true, success, failure)
+}
+
+export function verifyAppleTransaction(signedTransaction: string, success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/vip/apple/verify', 'POST', { signedTransaction: signedTransaction }, true, success, failure)
 }
 
 export function submitCompanionSession(payload: UTSJSONObject, success: ApiSuccess, failure: ApiFailure) {

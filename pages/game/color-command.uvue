@@ -1,18 +1,18 @@
 <template>
-  <TrainingFrame title="颜色指令" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+  <TrainingFrame :difficulty="previewLevel" :preparing="!started" title="颜色指令" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
     <view class="page">
       <image class="scene" src="/static/images/runtime/backgrounds/shadow-match-sky-v1.webp" mode="aspectFill"></image>
       <view class="content">
         <view class="header">
           <view>
-            <text class="dimension">选择注意训练</text>
+            <text class="dimension">观察发现训练</text>
             <text class="title">{{ readingMode ? '点文字真正的颜色' : '点星星的颜色' }}</text>
           </view>
           <view v-if="started" class="counter"><text class="counter-text">{{ displayRound }}/{{ totalRounds }}</text></view>
         </view>
         <view v-if="started" class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
 
-        <view v-if="!started" class="instruction">
+        <view v-if="!started" class="instruction training-preview-card">
           <text class="demo-title">先试一下</text>
           <text class="rule-line">{{ readingMode ? '不管写了什么字，只点文字真正的颜色' : '看星星是什么颜色，点一样的颜色' }}</text>
           <view class="demo-stage">
@@ -26,8 +26,8 @@
             </view>
           </view>
           <text class="demo-hint">{{ demoHint }}</text>
-          <text v-if="demoDone" class="demo-replay" @click="resetDemo">再试一次</text>
-          <button class="primary" @click="begin">开始</button>
+          <text v-if="demoDone" class="demo-replay training-preview-secondary" @click="resetDemo">再试一次</text>
+          <button class="primary training-preview-primary" @click="begin">开始训练</button>
         </view>
 
         <template v-else>
@@ -66,7 +66,7 @@ import { useTrainingSession } from '../../utils/training-session.uts'
 import ActionSurface from '../../components/ActionSurface.uvue'
 import { ref, computed } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { getGameTuningAge } from '../../utils/difficulty.uts'
+import { getGameDifficulty, getGameTuningAge } from '../../utils/difficulty.uts'
 const training = useTrainingSession()
 const trainingClock = training.clock
 const trainingPaused = training.paused, trainingBusy = training.navigating
@@ -80,6 +80,7 @@ const COLORS: ColorOption[] = [
   { id: 'red', label: '红色', value: '#F17C8D' }
 ]
 
+const previewLevel = ref(1)
 const started = ref(false)
 const readingMode = ref(true)
 const availableColors = ref(COLORS.slice(0, 3))
@@ -131,6 +132,7 @@ const stimulusColorValue = computed((): string => optionById(stimulusColorId.val
 const wordLabel = computed((): string => optionById(wordColorId.value).label.substring(0, 1))
 
 function configureDifficulty() {
+  previewLevel.value = getGameDifficulty('color-command')
   const age = getGameTuningAge('color-command')
   readingMode.value = age >= 7
   if (age <= 6) { totalRounds.value = 10; availableColors.value = COLORS.slice(0, 2) }
@@ -247,4 +249,9 @@ training.setStartedCheck((): boolean => started.value)
 .stat { flex: 1; align-items: center; }
 .value { color: #25314a; font-size: 17px; font-weight: 700; }
 .label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

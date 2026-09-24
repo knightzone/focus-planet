@@ -2,12 +2,14 @@
   <view class="training-frame">
     <view class="training-status" :style="{ height: topInset + 'px' }"></view>
     <view class="training-toolbar">
-      <button class="training-back" :disabled="busy" @click="emit('back')">‹</button>
+      <button class="training-back" :disabled="busy || paused" @click="emit('back')">‹</button>
       <text class="training-nav-title">{{ title }}</text>
-      <button class="training-pause" :disabled="busy" @click="emit('pause')">Ⅱ 暂停</button>
+      <button v-if="preparing && introPath != ''" class="training-voice" @click="playIntro">🔊</button>
+      <text v-if="preparing" class="training-difficulty">难度 {{ difficulty }}</text>
+      <button v-else class="training-pause" :disabled="busy || paused" @click="emit('pause')">Ⅱ 暂停</button>
     </view>
-    <view class="training-game"><slot></slot>
-    <view v-if="paused" class="training-cover" @touchmove.stop="ignore" @click.stop="ignore">
+    <view class="training-game"><slot></slot></view>
+    <view v-if="paused" class="training-cover" @touchstart.stop="ignore" @touchmove.stop="ignore" @touchend.stop="ignore" @click.stop="ignore">
       <view class="training-card">
         <image class="training-star" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image>
         <text class="training-title">休息一下</text>
@@ -16,13 +18,31 @@
         <button class="training-action training-exit" :disabled="busy" @click.stop="emit('exit')">退出训练</button>
       </view>
     </view>
-    </view>
   </view>
 </template>
 <script setup lang="uts">
-defineProps<{ paused: boolean, busy: boolean, title: string }>()
+import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { GAMES, TrainingGame } from '../utils/catalog.uts'
+const props = defineProps<{ paused: boolean, busy: boolean, title: string, difficulty: number, preparing: boolean }>()
 const topInset = Math.max(0, uni.getWindowInfo().statusBarHeight)
 const emit = defineEmits(['pause', 'resume', 'restart', 'exit', 'back'])
+const introPath = computed((): string => {
+  const game = GAMES.find((item: TrainingGame): boolean => item.name == props.title)
+  return game == null ? '' : '/static/audio/training-intro/' + game.id + '.mp3'
+})
+let introAudio: InnerAudioContext | null = null
+function playIntro() {
+  if (!props.preparing || props.paused || introPath.value == '') return
+  if (introAudio == null) introAudio = uni.createInnerAudioContext()
+  introAudio!.stop()
+  introAudio!.src = introPath.value
+  introAudio!.play()
+}
+watch((): boolean => props.preparing, (preparing: boolean) => { if (!preparing && introAudio != null) introAudio!.stop() })
+watch((): boolean => props.paused, (paused: boolean) => { if (paused && introAudio != null) introAudio!.stop() })
+watch((): string => introPath.value, (path: string) => { if (path != '' && props.preparing) playIntro() })
+onMounted(() => { if (props.preparing) playIntro() })
+onUnmounted(() => { if (introAudio != null) { introAudio!.stop(); introAudio!.destroy(); introAudio = null } })
 function ignore() {}
 </script>
 <style>
@@ -31,9 +51,11 @@ function ignore() {}
 .training-toolbar { height: 44px; flex-shrink: 0; flex-direction: row; align-items: center; padding: 0 12px; }
 .training-back { margin: 0; width: 72px; height: 44px; line-height: 40px; padding: 0 8px; text-align: left; border-width: 0; background-color: transparent; color: #263951; font-size: 36px; }
 .training-nav-title { flex: 1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #263951; font-size: 18px; font-weight: 700; }
+.training-voice { margin: 0 5px 0 0; width: 34px; height: 34px; line-height: 34px; padding: 0; border-width: 0; border-radius: 17px; background-color: rgba(255,255,255,0.82); font-size: 16px; }
 .training-pause { margin: 0; width: 72px; height: 40px; line-height: 40px; padding: 0; border-width: 0; border-radius: 20px; background-color: #ffffff; color: #4f71ab; font-size: 14px; font-weight: 700; }
+.training-difficulty { width: 72px; height: 36px; line-height: 36px; text-align: center; border-radius: 18px; background-color: rgba(255,255,255,0.8); color: #7283a9; font-size: 12px; }
 .training-game { flex: 1; position: relative; }
-.training-cover { position: absolute; top: 0; bottom: 0; left: 0; right: 0; z-index: 1000; background-color: #edf4ff; align-items: center; justify-content: center; }
+.training-cover { position: absolute; top: 0; bottom: 0; left: 0; right: 0; z-index: 1000; background-color: rgba(0,0,0,0.45); align-items: center; justify-content: center; }
 .training-card { width: 84%; max-width: 360px; padding: 26px 22px 18px; border-radius: 32px; background-color: #ffffff; align-items: center; }
 .training-star { width: 96px; height: 96px; }
 .training-title { margin-top: 10px; margin-bottom: 12px; font-size: 23px; font-weight: 700; color: #30466c; }

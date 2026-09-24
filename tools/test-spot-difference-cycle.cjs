@@ -1,5 +1,5 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
-const root=path.resolve(__dirname,'..'),ts=require('/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
+const root=path.resolve(__dirname,'..'),ts=require('/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
 const code=['spot-difference-story','spot-difference-scenes','spot-difference-cycle'].map(n=>fs.readFileSync(path.join(root,'utils/'+n+'.uts'),'utf8').replace(/^import .*$/gm,'').replace(/^export /gm,'')).join('\n');
 const saved=new Map(),c={Math,JSON,localTestKey:k=>k,uni:{getStorageSync:k=>saved.get(k),setStorageSync:(k,v)=>saved.set(k,v)}};vm.createContext(c);vm.runInContext(ts.transpile(code+'\nglobalThis.api={chooseUnseenDifference,markDifferenceShown,differenceSessionPlan}',{target:ts.ScriptTarget.ES2020}),c);const a=c.api;
 const scenes=['low','medium','high'].flatMap(tier=>Array.from({length:50},(_,i)=>({id:tier+'-'+i,tier,imageA:'a',imageB:'b',regions:[]})));
@@ -9,4 +9,17 @@ for(let level=1;level<=10;level++)assert(a.differenceSessionPlan(level).length>=
 const before=JSON.stringify([...saved]);a.chooseUnseenDifference('low',scenes);assert.equal(JSON.stringify([...saved]),before,'selection/prefetch alone does not consume');
 const added={id:'low-new',tier:'low',imageA:'a',imageB:'b',regions:[]};for(const scene of scenes.filter(s=>s.tier==='low'))a.markDifferenceShown(scene,scenes);assert.equal(a.chooseUnseenDifference('low',scenes.concat(added)).id,added.id);
 assert.equal(a.chooseUnseenDifference('low',[]),null,'empty packs return null instead of undefined/crash');
-console.log('PASS: 50-per-tier cycles without repeats, last-item boundary protection, tier isolation, display-only marking, new content priority, empty-pack handling, 3–5 mixed rounds');
+saved.clear();
+const variable=[3,4,5,6,7].map((count,i)=>({id:'mixed-'+i,tier:'low',imageA:'a',imageB:'b',regions:Array.from({length:count},(_,j)=>({id:'d'+j,zone:j,x:j*12,y:0,w:10,h:10}))}));
+a.markDifferenceShown(variable[0],variable,2);
+for(let cycle=0;cycle<3;cycle++){
+ const visited=new Set();
+ for(let i=0;i<3;i++){
+  const scene=a.chooseUnseenDifference('low',variable,5);
+  assert(scene.regions.length>=5);assert(!visited.has(scene.id));
+  visited.add(scene.id);a.markDifferenceShown(scene,variable,5);
+ }
+ assert(saved.get('focus_difference_seen_v1_low').includes('mixed-0'),'high-level cycling preserves previously seen smaller scenes');
+}
+assert.equal(a.chooseUnseenDifference('low',variable,8),null);
+console.log('PASS: tier cycles, display-only marking, variable candidate eligibility, eligible-cycle reset without forgetting smaller scenes, 3–5 mixed rounds');

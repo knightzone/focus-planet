@@ -1,23 +1,23 @@
 <template>
-<TrainingFrame title="数字连点" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+<TrainingFrame :difficulty="difficultyLevel" :preparing="!started" title="数字连点" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="page">
     <image class="cloud-background" src="/static/images/runtime/backgrounds/shadow-match-sky-v1.webp" mode="aspectFill"></image>
     <view class="page-content">
     <view class="header">
-      <view><text class="dimension">集中注意训练</text><text class="title">数字连点</text></view>
+      <view><text class="dimension">观察发现训练</text><text class="title">数字连点</text></view>
       <view v-if="started" class="next"><text class="next-label">下一个</text><text class="next-value">{{ current > itemCount ? '✓' : current.toString() }}</text></view>
     </view>
     <view v-if="started" class="round-row"><text class="round-label">第 {{ displayRound }}/3 组</text><text class="target-label">每组目标 {{ Math.round(timeLimit / 3 * 10) / 10 }}s · 均分100过关</text></view>
     <view v-if="started" class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
 
-    <view v-if="!started" class="instruction">
+    <view v-if="!started" class="instruction training-preview-card">
       <text class="demo-title">先试一下</text>
       <view class="demo-grid">
         <button v-for="number in demoNumbers" :key="'demo-' + number" class="tap-target demo-button" :class="number < demoCurrent ? 'demo-done' : ''" @click="tapDemo(number)">{{ number < demoCurrent ? '✓' : number.toString() }}</button>
       </view>
       <text class="demo-hint">{{ demoHint }}</text>
       <text v-if="demoCurrent > 4" class="demo-replay" @click="resetDemo">再试一次</text>
-      <button class="tap-target primary" @click="begin">开始</button>
+      <button class="tap-target primary training-preview-primary" @click="begin">开始训练</button>
     </view>
 
     <view v-else class="grid">
@@ -102,7 +102,7 @@ function finish() {
   const accuracy = Math.round((correctTotal / Math.max(correctTotal, correctTotal + errors.value)) * 100)
   const duration = Math.max(1, Math.round(elapsedMs.value / 1000))
   const passed = errors.value == 0 && elapsedMs.value <= timeLimit.value * 1000
-  uni.redirectTo({ url: '/pages/result/result?gameId=number-tap&dimensionId=focused&score=' + (passed ? '100' : '0') + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + duration.toString() + '&falseAlarms=' + errors.value.toString() + '&completed=' + correctTotal.toString() + '&total=' + correctTotal.toString() + '&passed=' + (passed ? '1' : '0') + '&targetDuration=' + timeLimit.value.toString() + scoreQuery(roundScores) })
+  uni.redirectTo({ url: '/pages/result/result?gameId=number-tap&dimensionId=selective&score=' + (passed ? '100' : '0') + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + duration.toString() + '&falseAlarms=' + errors.value.toString() + '&completed=' + correctTotal.toString() + '&total=' + correctTotal.toString() + '&passed=' + (passed ? '1' : '0') + '&targetDuration=' + timeLimit.value.toString() + scoreQuery(roundScores) })
 }
 function prepareRound() { scoreRoundBegan = trainingClock.now(); scoreRoundErrors = errors.value; current.value = 1; numbers.value = shuffleNumbers(itemCount.value); accepting.value = true; feedback.value = ''; feedbackGood.value = true }
 function completeRound() {
@@ -146,4 +146,9 @@ training.setStartedCheck((): boolean => started.value)
 .demo-done { background-color: #e5f6ef; color: #338e72; }
 .demo-hint { margin-top: 14px; color: #557bc4; font-size: 13px; }
 .demo-replay { padding: 10px 18px; color: #557bc4; font-size: 12px; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

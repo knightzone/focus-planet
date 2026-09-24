@@ -1,5 +1,6 @@
 import { LOCAL_TEST_MODE, localTestKey } from './local-test.uts'
 import { calculateAge } from './profile-options.uts'
+import { getGameDimensionId } from './catalog.uts'
 
 export type ChildProfile = {
   nickname: string,
@@ -29,7 +30,13 @@ export type TrainingRecord = {
   interferenceErrors?: number,
   completedCount?: number,
   totalCount?: number,
-  completedAt: number
+  completedAt: number,
+  lessonNo?: number,
+  slotNo?: number,
+  localSyncId?: string,
+  // 兼容已安装测试版本留下的旧本地字段；轻量成绩接口从不接收该字段。
+  submissionId?: string,
+  lessonSyncPending?: boolean
 }
 
 const PROFILE_KEY = localTestKey('focus_planet_profile')
@@ -80,14 +87,37 @@ export function getRecords(): TrainingRecord[] {
   ensureSchema()
   const value = uni.getStorageSync(accountRecordsKey())
   if (value == null || value == '') return [] as TrainingRecord[]
-  const records = JSON.parse<TrainingRecord[]>(JSON.stringify(value))
+  // iOS 原生存储对自定义类型数组的可选字段还原不稳定；新数据统一保存为 JSON 字符串。
+  // 读取时仍兼容旧版本直接存入的数组。
+  const records = typeof value == 'string' ? JSON.parse<TrainingRecord[]>(value as string) : JSON.parse<TrainingRecord[]>(JSON.stringify(value))
   return records == null ? [] as TrainingRecord[] : records
 }
 
 export function addRecord(record: TrainingRecord) {
+  const category = getGameDimensionId(record.gameId)
+  if (category != '') record.dimensionId = category
   const records = getRecords()
-  records.unshift(record)
-  uni.setStorageSync(accountRecordsKey(), records)
+  // 同一课同一游戏只有一条本地最佳成绩；再次训练较低分不增加记录数。
+  const existingIndex = record.lessonNo == null ? -1 : records.findIndex((item: TrainingRecord): boolean => item.lessonNo == record.lessonNo && item.gameId == record.gameId)
+  if (existingIndex >= 0) {
+    if (record.score > records[existingIndex].score) records[existingIndex] = record
+  } else records.unshift(record)
+  saveRecords(records)
+  const stored = getRecords().find((item: TrainingRecord): boolean => item.lessonNo == record.lessonNo && item.gameId == record.gameId)
+  console.log('[lesson-sync] storage write game=' + record.gameId + ' lesson=' + (record.lessonNo == null ? 'missing' : record.lessonNo!.toString()) + ' replaced=' + (existingIndex >= 0 && stored != null && stored!.id == record.id).toString() + ' restoredLesson=' + (stored == null || stored!.lessonNo == null ? 'missing' : stored!.lessonNo!.toString()) + ' records=' + records.length.toString())
+}
+
+export function saveRecords(records: TrainingRecord[]) {
+  uni.setStorageSync(accountRecordsKey(), JSON.stringify(records))
+}
+
+export function markLessonRecordSynced(localSyncId: string) {
+  if (localSyncId == '') return
+  const records = getRecords()
+  const record = records.find((item: TrainingRecord): boolean => item.localSyncId == localSyncId)
+  if (record == null) return
+  record!.lessonSyncPending = false
+  saveRecords(records)
 }
 
 export function clearTrainingRecords() {

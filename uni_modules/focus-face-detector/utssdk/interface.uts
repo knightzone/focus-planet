@@ -13,3 +13,27 @@ export type FaceFrameResult = {
 }
 
 export type DetectFaceFrame = (rgba: ArrayBuffer, width: number, height: number) => FaceFrameResult
+
+export type AppleStoreProduct = {
+  productId: string,
+  displayName: string,
+  displayPrice: string,
+  price: number,
+  periodUnit: string,
+  periodValue: number,
+  introOfferAvailable: boolean,
+  introOfferEligible: boolean,
+  introOfferPaymentMode: string,
+  introOfferDisplayPrice: string,
+  introOfferPeriodUnit: string,
+  introOfferPeriodValue: number,
+  introOfferPeriodCount: number
+}
+
+export type AppleStoreProductsResult = {
+  success: boolean,
+  products: AppleStoreProduct[],
+  errorMessage: string
+}
+
+export type FetchAppleStoreProducts = (productIds: string[], completed: (result: AppleStoreProductsResult) => void) => void

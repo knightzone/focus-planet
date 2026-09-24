@@ -1,10 +1,10 @@
 <template>
-  <TrainingFrame title="拼图工坊" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+  <TrainingFrame :difficulty="level" :preparing="!started" title="拼图工坊" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
     <view class="page">
       <image class="scene" src="/static/images/runtime/backgrounds/shadow-match-desk-v1.webp" mode="aspectFill"></image>
       <view class="content">
         <view class="header">
-          <view><text class="eyebrow">选择注意训练</text><text class="title">拼图工坊</text></view>
+          <view><text class="eyebrow">逻辑空间训练</text><text class="title">拼图工坊</text></view>
           <view class="counter"><text class="counter-text">{{ started ? displayRound + '/' + totalRounds : '试玩' }}</text></view>
         </view>
         <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
@@ -48,8 +48,8 @@
           <view class="stat"><text class="value">{{ elapsedLabel }}</text><text class="label">{{ started ? '本轮用时' : '试玩不计分' }}</text></view>
         </view>
 
-        <button v-if="!started" class="primary" @click="begin">开始</button>
-        <text v-if="!started && demoReplay" class="demo-replay" @click="resetDemo">再试一次</text>
+        <button v-if="!started" class="primary training-preview-primary" @click="begin">开始训练</button>
+        <text v-if="!started && demoReplay" class="demo-replay training-preview-secondary" @click="resetDemo">再试一次</text>
       </view>
 
       <view v-if="dragPiece >= 0" class="drag-layer" :style="{ left: dragLeft.toString() + 'px', top: dragTop.toString() + 'px' }">
@@ -566,7 +566,7 @@ function finishGame() {
   for (let i = 0; i < roundTimes.value.length; i++) sum += roundTimes.value[i]
   const average = roundTimes.value.length == 0 ? 0 : Math.round(sum / roundTimes.value.length)
   const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
-  uni.redirectTo({ url: '/pages/result/result?gameId=puzzle&dimensionId=selective&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&completed=' + passedRounds.value.toString() + '&total=' + totalRounds.value.toString() + scoreQuery(roundScores) })
+  uni.redirectTo({ url: '/pages/result/result?gameId=puzzle&dimensionId=alternating&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&completed=' + passedRounds.value.toString() + '&total=' + totalRounds.value.toString() + scoreQuery(roundScores) })
 }
 
 onResize(() => layout())
@@ -626,4 +626,9 @@ training.setStartedCheck((): boolean => started.value)
 .demo-replay { margin-top: 10px; padding: 6px 16px; color: #2f7fa8; font-size: 12px; font-weight: 700; }
 .drag-layer { position: absolute; z-index: 20; }
 .drag-box { border-radius: 8px; border-width: 2px; border-style: solid; border-color: #3f95d1; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

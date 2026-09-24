@@ -29,7 +29,7 @@
 已通过：
 
 - `node tools/test-training-pause.cjs`：24 页接入覆盖、剩余延迟、重复暂停、活动时长、取消/卸载、音频/插值冻结、返回拦截、重开参数保留和导航失败。
-- `node tools/test-bird-cloud.cjs`、`node tools/test-car-patrol.cjs`、`node tools/test-sky-watcher.cjs`、`node tools/test-sound-source.cjs`：原游戏难度和计分、暂停恢复、声音回调回归。
+- `node tools/test-bird-cloud.cjs`、`node tools/test-car-patrol.cjs`、`node tools/test-sky-watcher.cjs`、`node tools/test-sound-source.cjs`、`node tools/test-listen-find.cjs`：原游戏难度和计分、暂停恢复、声音回调回归。
 - `node tools/test-action-surface.cjs`、`node tools/test-local-login.cjs`、`node tools/check-runtime-assets.mjs`。
 - 浏览器近似布局与继续/重开交互检查。Android/iOS HBuilderX 5.25 Vapor 编译导出通过，Xcode 资源已同步且新鲜度校验通过。
 

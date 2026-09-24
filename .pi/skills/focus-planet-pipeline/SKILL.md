@@ -24,13 +24,14 @@ node tools/test-*.cjs                  # 按改动面挑相关的跑，全跑也
 | 影子配对 / 找茬 | `test-spot-difference-*.cjs` `test-spot-change*.cjs` |
 | 听音节奏 | `test-audio-match.cjs` `test-audio-match-assets.cjs` |
 | 语音、反馈音 | `test-training-feedback.cjs` `test-result-expressions.cjs` `test-sound-source.cjs` |
+| 听声捉图形（原听声找图） | `test-listen-find.cjs` |
 | 小鸟穿云 / 小车 / 天空 / 呼吸 | `test-bird-cloud.cjs` `test-car-patrol.cjs` `test-sky-watcher.cjs` `test-breathing-planet.cjs` |
 | 故事图运行时 | `test-story-runtime.cjs` |
 | 通用按钮组件 | `test-action-surface.cjs`（**当前已知失败**：断言 ≥14，实际 12，属在研改动，不要改断言） |
 
 `tools/preview-*.cjs` 是浏览器近似视觉预览脚本，会临时调用 HBuilderX 内置 TypeScript/Vue：
 
-- `TYPESCRIPT_PATH`（默认 `/Applications/HBuilderX-Alpha.app/.../unicloud/node_modules/typescript/lib/typescript.js`）
+- `TYPESCRIPT_PATH`（默认 `/Applications/HBuilderX.app/.../unicloud/node_modules/typescript/lib/typescript.js`）
 - `VUE_BROWSER_PATH`（默认同上 `uniapp-cli-vite/node_modules/vue/dist/vue.global.js`）
 
 HBuilderX 装在别处时用这两个环境变量覆盖。
@@ -106,7 +107,7 @@ node tools/generate-story-pair.cjs
 改动 `.uvue` / `.uts` / `pages.json` / `manifest.json` / 插件 / `static/` 之后，运行 Xcode 前必须：
 
 ```bash
-bash ios/scripts/prepare-xcode.sh    # 5.25 资源导出 → 同步 → 插件按需重编 → 校验
+bash ios/scripts/prepare-xcode.sh    # 5.26 资源导出 → 同步 → 插件按需重编 → 校验
 bash ios/scripts/verify.sh           # 只做输入校验，不导出
 ```
 

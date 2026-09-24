@@ -1,6 +1,10 @@
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm'), assert = require('node:assert/strict');
-const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
+const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
 const root = path.resolve(__dirname, '..');
+function readJson(file) {
+  try { return JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch (error) { throw new Error(`无法解析 ${file}: ${error.message}`); }
+}
 const logic = fs.readFileSync(path.join(root, 'utils/car-patrol.uts'), 'utf8').replace(/^export /gm, '');
 const page = fs.readFileSync(path.join(root, 'pages/game/car-patrol.uvue'), 'utf8');
 const script = page.match(/<script setup lang="uts">([\s\S]*?)<\/script>/)[1].replace(/^import .*$/gm, '');
@@ -58,7 +62,7 @@ for (let level = 1; level <= 10; level++) {
   t.resumeGame(); assert.equal(h.timers.size, 1); h.step(1000); assert.equal(t.trainingPaused.value, true);
   t.resumeGame(); h.lifecycle.unload(); assert.equal(h.timers.size, 0);
 }
-const routes = JSON.parse(fs.readFileSync(path.join(root, 'pages.json'), 'utf8'));
+const routes = readJson(path.join(root, 'pages.json'));
 // 正式训练无需先通过试玩；跳过途中试玩必须重置计时/成绩并只留一个计时器。
 for (const demoFirst of [false, true]) {
   const h = harness(8), t = h.t;

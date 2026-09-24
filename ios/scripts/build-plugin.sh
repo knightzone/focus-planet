@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 IOS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PLUGIN_ROOT="$IOS_DIR/Plugins/Source/unimoduleFocusFaceDetector"
-DERIVED_DIR="$IOS_DIR/.derived/plugin-5.25"
+DERIVED_DIR="$IOS_DIR/.derived/plugin-5.26"
 PRODUCT="$DERIVED_DIR/Build/Products/Release-iphoneos/unimoduleFocusFaceDetector.framework"
 DESTINATION="$IOS_DIR/Plugins/unimoduleFocusFaceDetector.framework"
 

@@ -1,9 +1,9 @@
 <template>
-<TrainingFrame title="呼吸小星球" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+<TrainingFrame :difficulty="level" :preparing="!started" title="呼吸小星球" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="page">
     <image class="sky tap-content" src="/static/images/runtime/backgrounds/shadow-match-sky-v1.webp" mode="aspectFill"></image>
     <scroll-view class="scroll" direction="vertical" show-scrollbar="false"><view class="content">
-      <view class="header"><view><text class="eyebrow">慢慢来，点亮小宇宙</text><text class="title">给星球一点光</text></view><text class="badge">{{ trial ? '试玩' : started ? (cycleIndex + 1) + ' / ' + config.cycles : '难度 ' + level }}</text></view>
+      <view class="header"><view><text class="eyebrow">慢慢来，点亮小宇宙</text><text class="title">给星球一点光</text></view><text class="badge">{{ trial ? '试玩' : started ? (cycleIndex + 1) + ' / ' + config.cycles : '试玩' }}</text></view>
       <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
       <view class="board">
         <text class="phase-title">{{ phase == 'trial-done' ? '体验完成' : !started ? '和星球一起，慢慢呼吸' : cue }}</text>
@@ -21,9 +21,9 @@
           </view>
           <image v-if="releasedAt >= 0 && phase != 'reward'" class="flying-star tap-content" :style="{ transform: flightTransform, opacity: flightOpacity }" src="/static/images/runtime/game-objects/star-four-point-gold-v1.svg" mode="aspectFit"></image>
         </view>
-        <view v-if="!started || phase == 'trial-done'" class="intro"><text class="duration">{{ phase == 'trial-done' ? feedback : config.cycles * 8 + ' 秒 · ' + config.cycles + ' 轮' }}</text><button class="primary" @click="begin">开始训练</button><button class="trial-button" @click="beginTrial">{{ phase == 'trial-done' ? '再试一轮' : '先试一轮' }}</button><text class="comfort">自然呼吸就好，不用憋气</text></view>
+        <view v-if="!started || phase == 'trial-done'" class="intro"><text class="duration">{{ phase == 'trial-done' ? feedback : config.cycles * 8 + ' 秒 · ' + config.cycles + ' 轮' }}</text><button class="primary training-preview-primary" @click="begin">开始训练</button><button class="trial-button training-preview-secondary" @click="beginTrial">{{ phase == 'trial-done' ? '再试一轮' : '先试一轮' }}</button><text class="comfort">自然呼吸就好，不用憋气</text></view>
         <view v-else class="play-footer"><text class="feedback">{{ feedback }}</text><view class="phase-track"><view class="phase-fill" :style="{ width: phaseProgress }"></view></view><text class="comfort">{{ guided ? '按住吸气，松开呼气 · 轻松跟随' : '按自己的舒适节奏，轻松跟随' }}</text></view>
-      <button v-if="trial && phase != 'trial-done'" class="trial-button" @click="begin">直接开始训练</button></view>
+      <button v-if="trial && phase != 'trial-done'" class="trial-button training-preview-primary" @click="begin">直接开始训练</button></view>
       <view v-if="!trial" class="rewards"><view class="reward"><text class="reward-number">{{ completed }}</text><text class="reward-label">星光</text></view><view class="reward"><text class="reward-number">{{ rings }}</text><text class="reward-label">星环</text></view><view class="reward"><text class="reward-number">{{ links }}</text><text class="reward-label">连线</text></view></view>
       <text class="footnote">只记录操作节奏，不测量呼吸</text>
     </view></scroll-view>
@@ -47,6 +47,13 @@ const cycleIndex = ref(0), completed = ref(0), rings = ref(0), links = ref(0), s
 const pressedAt = ref(-1), releasedAt = ref(-1), feedback = ref('点亮一颗属于你的星星')
 const reactions: number[] = []
 let timer = 0, cycleBegan = 0, gameBegan = 0
+let cueAudio: InnerAudioContext | null = null
+function playBreathCue(name: string) {
+  if (cueAudio == null) cueAudio = trainingClock.createAudio()
+  cueAudio!.stop()
+  cueAudio!.src = '/static/audio/training-intro/breathing-' + name + '.mp3'
+  cueAudio!.play()
+}
 const flight = useTrainingTween(trainingClock, 0)
 const satellites = [{x: 15, y: 21}, {x: 36, y: 8}, {x: 61, y: 8}, {x: 81, y: 24}, {x: 83, y: 61}, {x: 62, y: 80}, {x: 34, y: 80}, {x: 12, y: 60}]
 const starLines = [{x: 25.5, y: 14.5, width: 24.7, angle: -32}, {x: 48.5, y: 8, width: 25, angle: 0}, {x: 71, y: 16, width: 25.6, angle: 39}, {x: 82, y: 42.5, width: 37, angle: 87}, {x: 72.5, y: 70.5, width: 28, angle: -42}, {x: 48, y: 80, width: 28, angle: 0}, {x: 23, y: 70, width: 29.7, angle: 42}]
@@ -77,6 +84,7 @@ function release() {
 function resetCycle() {
   cycleBegan = trainingClock.now(); elapsed.value = 0; phase.value = 'inhale'
   held.value = false; pressedAt.value = -1; releasedAt.value = -1; flight.move(0, 0)
+  playBreathCue('inhale')
 }
 function finish() {
   if (trial.value) { trainingClock.clearInterval(timer); timer = 0; held.value = false; phase.value = 'trial-done'; return }
@@ -96,7 +104,7 @@ function tick() {
     if (quality == 2) { rings.value += 1; streak.value += 1; if (streak.value % 3 == 0) links.value = Math.min(7, links.value + 1) }
     else streak.value = 0
     feedback.value = quality == 2 ? (streak.value % 3 == 0 ? '星座连起来啦！' : '节奏很稳，多一圈星环') : quality == 1 ? '收到星光啦，慢慢来' : '没关系，下一轮一起试'
-  } else if (elapsed.value >= 3000 && phase.value == 'inhale') phase.value = 'exhale'
+  } else if (elapsed.value >= 3000 && phase.value == 'inhale') { phase.value = 'exhale'; playBreathCue('exhale') }
   if (elapsed.value >= 8000) { if (trial.value || cycleIndex.value + 1 >= config.value.cycles) finish(); else { cycleIndex.value += 1; resetCycle() } }
 }
 function resetSession() {
@@ -115,7 +123,7 @@ function begin() {
 // 物理触摸在暂停后失效；恢复时重做未结算轮，不扣分、不重复发奖。
 watch(trainingPaused, (paused: boolean) => { if (paused) held.value = false; else if (started.value && phase.value != 'reward' && phase.value != 'finished' && phase.value != 'trial-done') resetCycle() })
 onLoad(() => { level.value = getGameDifficulty('breathing-planet') })
-onUnload(() => { trainingClock.clearInterval(timer); held.value = false; phase.value = 'finished' })
+onUnload(() => { trainingClock.clearInterval(timer); if (cueAudio != null) { trainingClock.destroyAudio(cueAudio); cueAudio = null }; held.value = false; phase.value = 'finished' })
 training.setStartedCheck((): boolean => started.value && !trial.value)
 </script>
 <style>
@@ -128,4 +136,9 @@ training.setStartedCheck((): boolean => started.value && !trial.value)
 .trial-button { margin-top: 12px; width: 200px; height: 42px; line-height: 42px; padding: 0; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; }
 .intro, .play-footer { width: 100%; align-items: center; }.duration { color: #8a97b2; font-size: 12px; }.primary { margin-top: 15px; width: 200px; height: 50px; line-height: 50px; border-radius: 25px; border-width: 0; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; }.comfort { margin-top: 15px; color: #96a2b9; font-size: 11px; }.feedback { height: 26px; color: #8a80b3; font-size: 14px; }.phase-track { width: 70%; height: 5px; background-color: #e5eaf5; border-radius: 3px; overflow: hidden; margin-top: 10px; }.phase-fill { height: 5px; background-color: #b6aade; }
 .rewards { margin-top: 20px; flex-direction: row; padding: 14px; border-radius: 24px; background-color: rgba(255,255,255,0.55); }.reward { flex: 1; align-items: center; }.reward-number { font-size: 22px; font-weight: 700; color: #7c87ba; }.reward-label { margin-top: 4px; color: #92a0b8; font-size: 11px; }.footnote { margin-top: 16px; text-align: center; color: #929fb6; font-size: 10px; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

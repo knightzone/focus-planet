@@ -29,7 +29,11 @@
       "notes": "10处候选目检可见；主体构图保持，石壁及地表纹理有重绘，局部拼接坐标和边缘一致性待验证。",
       "runtimeCandidateCount": 9,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-021-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-021-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-021-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-022",
@@ -55,7 +59,11 @@
       "notes": "10处候选目检可见；树皮、地表存在纹理重绘，局部拼接区域及边缘一致性未验证。",
       "runtimeCandidateCount": 8,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-022-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-022-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-022-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-023",
@@ -81,7 +89,11 @@
       "notes": "10处候选目检可见；A为侧耳贴近岩壁的静态场面。岩石地表纹理重绘，区域拼接和边缘一致性待验证。",
       "runtimeCandidateCount": 8,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-023-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-023-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-023-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-024",
@@ -107,7 +119,11 @@
       "notes": "10处候选目检可见；角色自然，木桩和地面纹理有重绘，区域拼接及边缘一致性未验证。",
       "runtimeCandidateCount": 8,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-024-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-024-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-024-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-025",
@@ -134,7 +150,11 @@
       "notes": "A初稿橘色虎斑已修正为主题黄猫。10处候选目检可见；手持叶与影子保留，布纸及地面有纹理重绘，区域拼接未验证。",
       "runtimeCandidateCount": 7,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-025-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-025-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-025-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-026",
@@ -160,7 +180,11 @@
       "notes": "10处候选目检可见；A跃跃已接住松果举起，栗栗调整轻斜托盘。前景叶片似重叠多叶，宜整簇作为单候选。木纹和地面重绘，局部拼接验证待做。",
       "runtimeCandidateCount": 5,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-026-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-026-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-026-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-027",
@@ -186,7 +210,11 @@
       "notes": "10处候选目检可见，藏藏动作与角色保持；树桩、地面和草叶存在重绘，区域坐标及拼接验证待做。",
       "runtimeCandidateCount": 6,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-027-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-027-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-027-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-028",
@@ -212,7 +240,11 @@
       "notes": "10处候选目检可见；一敲一听动作清楚。木桩地表和毛发有重绘，区域拼接未验证。",
       "runtimeCandidateCount": 6,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-028-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-028-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-028-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-029",
@@ -238,7 +270,11 @@
       "notes": "10处候选可见；纸屏叶影保留，纸纹与地面细节重绘，局部拼接待验证。",
       "runtimeCandidateCount": 6,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-029-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-029-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-029-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-030",
@@ -264,7 +300,11 @@
       "notes": "10处候选目检可见，三角色姿态保持；石壁地表及毛发有重绘，区域拼接待验证。",
       "runtimeCandidateCount": 5,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-030-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-030-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-030-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     }
   ],
   "runtimeStatus": "selected-regions-installed-source-full-differences-still-partial",

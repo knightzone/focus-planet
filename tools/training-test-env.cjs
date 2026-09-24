@@ -1,6 +1,6 @@
 // 给旧页面回归注入真实暂停能力，保留各测试原有的可控时钟。
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
-const ts=require(process.env.TYPESCRIPT_PATH||'/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
+const ts=require(process.env.TYPESCRIPT_PATH||'/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
 const root=path.resolve(__dirname,'..');
 const code=['game-scoring','spot-change','training-clock','training-session','training-tween'].map(name=>fs.readFileSync(path.join(root,'utils',name+'.uts'),'utf8').replace(/^import .*$/gm,'').replace(/^export /gm,'')).join('\n');
 exports.install=ctx=>{

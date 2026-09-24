@@ -1,4 +1,4 @@
-import { DetectFaceFrame, FaceFrameResult } from '../interface.uts'
+import { AppleStoreProductsResult, DetectFaceFrame, FaceFrameResult, FetchAppleStoreProducts } from '../interface.uts'
 
 export function openUpdateLink(url: string, completed: (success: boolean) => void) {
   FocusFaceDetectorNative.openUpdateLink(url, completed)
@@ -20,4 +20,17 @@ export const detectFaceFrame: DetectFaceFrame = function (rgba: ArrayBuffer, wid
     confidence: 0,
     errorMessage: 'iOS 检测结果解析失败'
   }
+}
+
+export const fetchAppleStoreProducts: FetchAppleStoreProducts = function (productIds: string[], completed: (result: AppleStoreProductsResult) => void) {
+  FocusFaceDetectorNative.fetchStoreProducts(productIds, (json: string) => {
+    const value = JSON.parse<AppleStoreProductsResult>(json)
+    if (value != null) { completed(value!); return }
+    completed({ success: false, products: [], errorMessage: 'App Store 商品信息解析失败' })
+  })
+}
+
+// StoreKit's JSON representation is not a signed JWS. Read the verification result instead.
+export function fetchAppleSignedTransaction(transactionId: string, completed: (jws: string, error: string) => void) {
+  FocusFaceDetectorNative.fetchSignedTransaction(transactionId, completed)
 }

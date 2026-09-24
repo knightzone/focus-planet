@@ -1,2 +1,2 @@
-export { detectFaceFrame } from '../index.uts'
-export type { FaceFrameResult } from '../interface.uts'
+export { detectFaceFrame, fetchAppleStoreProducts } from '../index.uts'
+export type { AppleStoreProduct, AppleStoreProductsResult, FaceFrameResult } from '../interface.uts'

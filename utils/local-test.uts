@@ -1,5 +1,5 @@
 // 临时测试开关：登录联调及发布前必须设为 false 并重新编译同步。
-export const LOCAL_TEST_MODE = true
+export const LOCAL_TEST_MODE = false
 export function localTestKey(key: string): string {
   return LOCAL_TEST_MODE ? key + '_local_test' : key
 }

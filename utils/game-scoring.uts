@@ -1,7 +1,8 @@
 export const SCORE_VERSION = 'goal-v2'
-// 只有明确衡量速度的任务获得超额分；声音辨识、呼吸、固定流程不奖励抢快。
+// 明确衡量速度或尝试效率的任务可获得超额分；声音辨识、呼吸、固定流程不奖励抢快。
 export function gameScoreMax(gameId: string): number {
-  return ['star-catcher','number-tap','shape-match','forest-search','spot-change','symbol-detective','memory-search','spot-difference','puzzle','color-command','magic-rule','number-track','sorting-station'].indexOf(gameId) >= 0 ? 200 : 100
+  // dual-track（上天入海）起始分 150、最高就是 150，必须走 200 档，否则 0—150 的口径会被夹成 100。
+  return ['star-catcher','number-tap','shape-match','forest-search','spot-change','symbol-detective','memory-search','memory-link','order-guess','spot-difference','puzzle','color-command','magic-rule','number-track','sorting-station','dual-track'].indexOf(gameId) >= 0 ? 200 : 100
 }
 export function timedRoundScore(success: boolean, elapsedMs: number, targetMs: number, mistakes: number = 0): number {
   if (!success || !Number.isFinite(elapsedMs) || !Number.isFinite(targetMs) || elapsedMs <= 0 || targetMs <= 0) return 0

@@ -1,5 +1,5 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
-const ts=require(process.env.TYPESCRIPT_PATH||'/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
+const ts=require(process.env.TYPESCRIPT_PATH||'/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
 const root=path.resolve(__dirname,'..'),page=fs.readFileSync(path.join(root,'pages/game/bird-cloud.uvue'),'utf8');
 const source=fs.readFileSync(path.join(root,'utils/bird-cloud.uts'),'utf8').replace(/^export /gm,'')+'\n'+page.match(/<script setup lang="uts">([\s\S]*?)<\/script>/)[1].replace(/^import .*$/gm,'');
 const names='trainingPaused,getBirdConfig,nextBirdGap,state,config,bodyReady,wingReady,begin,startDemo,flap,pauseGame,resumeGame,birdY,birdVelocity,bodyAngle,wingAngle,wingScale,elapsed,gateX,gapCenter,gateResolved,passed,hits,roundIndex,resolveGate,resetGate';

@@ -1,0 +1,168 @@
+<template>
+<TrainingFrame :difficulty="level" :preparing="!started" title="记忆连线" :paused="trainingPaused" :busy="trainingBusy" @back="training.back()" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+  <view class="page">
+    <image class="background tap-content" :src="MEMORY_LINK_BACKGROUND" mode="aspectFill"></image>
+    <scroll-view class="scroll" direction="vertical" show-scrollbar="false"><view class="content">
+      <view class="header"><text class="heading">{{ phase == 'memory' ? '记住它的数字' : phase == 'answer' ? '连起好朋友' : phase == 'review' || phase == 'trial-done' ? feedback : '图形和数字，配成一对' }}</text><text class="badge">{{ started ? remaining + ' 秒' : '试玩' }}</text></view>
+      <view class="card">
+        <text class="cue">{{ phase == 'memory' ? countdown + ' 秒后藏起连线' : phase == 'shuffle' ? '图片换个位置' : phase == 'answer' ? '点图形，再点数字 · 也可以拖着连' : phase == 'review' ? '看看正确的朋友' : '先记住，再连线' }}</text>
+        <view id="memory-link-board" class="board" :style="{ width: boardWidth + 'px', height: items.length * rowHeight + 'px' }">
+          <view v-for="(line, index) in lines" :key="'line-' + index" class="link tap-content" :style="line"></view>
+          <view v-for="(item, index) in items" :key="item.path" class="shape" :class="selected == shapeRow(index) ? 'selected' : ''" :style="{ top: shapeTop(index) + 'px', height: (rowHeight - 8) + 'px' }" @click="selectShape(shapeRow(index))" @touchstart="dragStart(shapeRow(index))" @touchend="dragEnd" @touchcancel="cancelDrag">
+            <image class="art tap-content" :src="item.path" mode="aspectFit"></image>
+          </view>
+          <view v-for="(number, row) in displayNumbers" :key="'number-' + row" class="number" :style="{ top: row * rowHeight + 'px', height: (rowHeight - 8) + 'px' }" @click="connect(number)"><text class="digit tap-content">{{ number }}</text></view>
+        </view>
+        <text v-if="phase == 'answer'" class="detail">{{ connected }} / {{ items.length }}　·　{{ countdown }} 秒</text>
+        <button v-if="phase == 'answer'" class="check-button" :disabled="connected < items.length" @click="submit">连好了</button>
+        <view v-if="!started" class="actions">
+          <button class="training-preview-primary" @click="begin">开始训练</button>
+          <button v-if="phase == 'ready' || phase == 'trial-done'" class="training-preview-secondary" @click="beginTrial">{{ phase == 'trial-done' ? '再试一次' : '先试一轮' }}</button>
+        </view>
+      </view>
+      <text v-if="started" class="footer">完成 {{ completed }} 轮 · 连续未通过 {{ failures }} / {{ config.failureLimit }}</text>
+      <text v-else class="footer">{{ config.count }} 个图形 · {{ config.durationMs / 1000 }} 秒</text>
+    </view></scroll-view>
+  </view>
+</TrainingFrame>
+</template>
+<script setup lang="uts">
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { ref, computed, watch } from 'vue'
+import { onLoad, onUnload, onResize } from '@dcloudio/uni-app'
+import { useTrainingSession } from '../../utils/training-session.uts'
+import { useTrainingTween } from '../../utils/training-tween.uts'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { averageRoundScore, scoreQuery } from '../../utils/game-scoring.uts'
+import { MEMORY_LINK_BACKGROUND } from '../../utils/game-assets.uts'
+import { MemoryLinkItem, memoryLinkConfig, memoryLinkRound, memoryLinkOrder, memoryLinkAssign, memoryLinkMatches, memoryLinkScore } from '../../utils/memory-link.uts'
+const training = useTrainingSession(), trainingClock = training.clock
+const shuffleMotion = useTrainingTween(trainingClock, 0)
+const trainingPaused = training.paused, trainingBusy = training.navigating
+const level = ref(1), started = ref(false), phase = ref('ready'), selected = ref(-1)
+const items = ref([] as MemoryLinkItem[]), order = ref([] as number[]), answers = ref([] as number[])
+const completed = ref(0), failures = ref(0), remaining = ref(60), countdown = ref(0), feedback = ref('')
+const boardWidth = ref(280), rowHeight = ref(56)
+const config = computed(() => memoryLinkConfig(level.value))
+const connected = computed((): number => answers.value.filter((n: number): boolean => n > 0).length)
+const displayNumbers = computed((): number[] => items.value.map((item: MemoryLinkItem): number => item.number))
+function shapeRow(index: number): number { return phase.value == 'ready' || phase.value == 'memory' ? index : order.value.indexOf(index) }
+function shapeTop(index: number): number {
+  const target = shapeRow(index)
+  return (phase.value == 'shuffle' ? index + (target - index) * shuffleMotion.value.value : target) * rowHeight.value
+}
+const lines = computed((): string[] => {
+  const result: string[] = []
+  if (phase.value == 'shuffle') return result
+  const memory = phase.value == 'memory' || phase.value == 'ready'
+  const reveal = phase.value == 'review' || phase.value == 'trial-done'
+  for (let row = 0; row < items.value.length; row++) {
+    const number = memory ? items.value[row].number : reveal ? items.value[order.value[row]].number : answers.value[row]
+    if (number <= 0) continue
+    const y = row * rowHeight.value + (rowHeight.value - 8) / 2
+    const dy = (displayNumbers.value.indexOf(number) - row) * rowHeight.value, dx = boardWidth.value - 112
+    result.push('left:56px;top:' + y + 'px;width:' + Math.sqrt(dx * dx + dy * dy) + 'px;transform:rotate(' + Math.atan2(dy, dx) * 180 / Math.PI + 'deg);')
+  }
+  return result
+})
+let timer = 0, phaseEnd = 0, sessionEnd = 0, gameStart = 0, answerStart = 0, dragRow = -1
+let totalCorrect = 0, totalPairs = 0, reactionTotal = 0, suppressClickUntil = 0
+const roundScores: number[] = []
+function cancelDrag() { dragRow = -1; selected.value = -1 }
+function resize() { boardWidth.value = Math.max(220, Math.min(360, uni.getWindowInfo().windowWidth - 76)); rowHeight.value = 56 }
+function finish(early: boolean) {
+  if (!started.value || phase.value == 'finished') return
+  trainingClock.clearInterval(timer); timer = 0; phase.value = 'finished'; cancelDrag()
+  // 耗尽连续失败容错时不能靠前面高分升级。
+  const scores = early ? roundScores.map((s: number): number => Math.min(99, s)) : roundScores.slice()
+  const score = averageRoundScore(scores)
+  uni.redirectTo({ url: '/pages/result/result?gameId=memory-link&dimensionId=focused&score=' + score + '&accuracy=' + (totalPairs == 0 ? 0 : Math.round(totalCorrect * 100 / totalPairs)) + '&reaction=' + (completed.value == 0 ? 0 : Math.round(reactionTotal / completed.value)) + '&duration=' + Math.max(1, Math.round((trainingClock.now() - gameStart) / 1000)) + scoreQuery(scores) })
+}
+function prepareRound(count: number) {
+  shuffleMotion.move(0, 0)
+  items.value = memoryLinkRound(count, Math.random)
+  order.value = memoryLinkOrder(count, Math.random); answers.value = items.value.map((_item: MemoryLinkItem): number => 0)
+  cancelDrag(); phase.value = 'memory'
+  const ms = started.value ? config.value.memoryMs : memoryLinkConfig(1).memoryMs
+  phaseEnd = trainingClock.now() + ms; countdown.value = Math.ceil(ms / 1000)
+}
+function judge() {
+  if (trainingPaused.value || phase.value != 'answer') return
+  const elapsed = trainingClock.now() - answerStart
+  const correct = memoryLinkMatches(items.value, order.value, answers.value)
+  const success = correct == items.value.length
+  training.playFeedback(success ? 'correct' : 'wrong'); cancelDrag()
+  feedback.value = success ? '都记住啦！' : '再记一次，慢慢来'
+  if (started.value) {
+    completed.value += 1; totalCorrect += correct; totalPairs += items.value.length; reactionTotal += elapsed
+    roundScores.push(memoryLinkScore(correct, items.value.length, elapsed))
+    failures.value = success ? 0 : failures.value + 1
+  }
+  phase.value = 'review'; phaseEnd = trainingClock.now() + 1800
+}
+function tick() {
+  if (trainingPaused.value || phase.value == 'finished') return
+  const now = trainingClock.now()
+  if (started.value) {
+    remaining.value = Math.max(0, Math.ceil((sessionEnd - now) / 1000))
+    if (now >= sessionEnd) { finish(failures.value >= config.value.failureLimit); return }
+  }
+  countdown.value = Math.max(0, Math.ceil((phaseEnd - now) / 1000))
+  if (now < phaseEnd) return
+  if (phase.value == 'memory') { cancelDrag(); phase.value = 'shuffle'; shuffleMotion.move(1, 700); phaseEnd = now + 800 }
+  else if (phase.value == 'shuffle') { phase.value = 'answer'; answerStart = now; phaseEnd = now + (started.value ? config.value.answerMs : memoryLinkConfig(1).answerMs); countdown.value = Math.ceil((phaseEnd - now) / 1000) }
+  else if (phase.value == 'answer') judge()
+  else if (phase.value == 'review') {
+    if (!started.value) { phase.value = 'trial-done'; trainingClock.clearInterval(timer); timer = 0 }
+    else if (failures.value >= config.value.failureLimit) finish(true)
+    else prepareRound(config.value.count)
+  }
+}
+function startTicker() { trainingClock.clearInterval(timer); timer = trainingClock.setInterval(() => tick(), 100) }
+function beginTrial() {
+  if (trainingPaused.value || started.value) return
+  prepareRound(3); startTicker()
+}
+function begin() {
+  if (trainingPaused.value || started.value) return
+  started.value = true; completed.value = 0; failures.value = 0; roundScores.length = 0
+  totalCorrect = 0; totalPairs = 0; reactionTotal = 0
+  gameStart = trainingClock.now(); sessionEnd = gameStart + config.value.durationMs; remaining.value = config.value.durationMs / 1000
+  prepareRound(config.value.count); startTicker()
+}
+function selectShape(row: number) {
+  if (trainingPaused.value || phase.value != 'answer' || trainingClock.now() < suppressClickUntil) return
+  selected.value = row
+}
+function connect(number: number) {
+  if (trainingPaused.value || phase.value != 'answer' || selected.value < 0) return
+  answers.value = memoryLinkAssign(answers.value, selected.value, number); selected.value = -1
+}
+function submit() { if (trainingPaused.value || phase.value != 'answer' || connected.value < items.value.length) return; judge() }
+function dragStart(row: number) { if (trainingPaused.value || phase.value != 'answer') return; dragRow = row; selected.value = row }
+function dragEnd(event: UniTouchEvent) {
+  if (trainingPaused.value || phase.value != 'answer' || dragRow < 0 || event.changedTouches.length == 0) { dragRow = -1; return }
+  const element = uni.getElementById('memory-link-board')
+  if (element != null) {
+    const rect = element.getBoundingClientRect(), touch = event.changedTouches[0]
+    const x = touch.clientX - rect.left, y = touch.clientY - rect.top
+    if (x >= boardWidth.value - 64 && x <= boardWidth.value && y >= 0 && y < items.value.length * rowHeight.value) {
+      selected.value = dragRow; connect(displayNumbers.value[Math.floor(y / rowHeight.value)]); suppressClickUntil = trainingClock.now() + 300
+    }
+  }
+  dragRow = -1
+}
+watch(trainingPaused, () => cancelDrag())
+onResize(() => { cancelDrag(); resize() })
+onLoad(() => { level.value = getGameDifficulty('memory-link'); resize(); items.value = memoryLinkRound(3, Math.random); order.value = memoryLinkOrder(3, Math.random); answers.value = [0,0,0] })
+onUnload(() => { trainingClock.clearInterval(timer); cancelDrag(); phase.value = 'finished' })
+training.setStartedCheck((): boolean => started.value)
+</script>
+<style>
+.page { flex: 1; position: relative; background-color: #eef1fc; }.background { position: absolute; width: 100%; height: 100%; }.scroll { flex: 1; position: relative; }.content { padding: 18px 18px 26px; }
+.header { flex-direction: row; justify-content: space-between; align-items: center; }.heading { flex: 1; font-size: 20px; font-weight: 700; color: #495a82; }.badge { padding: 8px 12px; border-radius: 18px; background-color: rgba(255,255,255,0.8); color: #7283a9; font-size: 12px; }
+.card { margin-top: 18px; padding: 18px 12px; border-radius: 30px; background-color: rgba(255,255,255,0.65); align-items: center; }.cue { font-size: 12px; color: #7b88a5; margin-bottom: 18px; }.board { position: relative; }.shape { position: absolute; left: 0; width: 56px; border-radius: 15px; background-color: #ffffff; align-items: center; justify-content: center; border-width: 2px; border-color: #ffffff; }.selected { border-color: #9b8ed7; background-color: #f0eaff; }.art { width: 44px; height: 44px; }.number { position: absolute; right: 0; width: 56px; background-color: #ffffff; border-radius: 15px; align-items: center; justify-content: center; }.digit { font-size: 24px; color: #6574ae; font-weight: 700; }.link { position: absolute; height: 3px; background-color: #b0a6d9; transform-origin: left center; }.detail { margin-top: 8px; color: #8a97b2; font-size: 12px; }.footer { margin-top: 16px; text-align: center; color: #8190a8; font-size: 12px; }.actions { width: 100%; align-items: center; }
+.check-button { margin-top: 14px; width: 180px; height: 44px; line-height: 44px; padding: 0; border-radius: 22px; background-color: #8d9bdb; color: #ffffff; border-width: 0; font-size: 16px; }
+.training-preview-primary { margin-top: 16px; width: 200px; height: 50px; line-height: 50px; padding: 0; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; }
+.training-preview-secondary { margin-top: 12px; width: 200px; height: 42px; line-height: 42px; padding: 0; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; }
+</style>

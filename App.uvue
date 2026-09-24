@@ -1,12 +1,15 @@
 <script setup lang="uts">
-import { initializeOfflineSync, flushResults, refreshReports } from './utils/offline-sync.uts'
+import { initializeOfflineSync, resumeOfflineSync } from './utils/offline-sync.uts'
 import { initializeAppUpdate, resumeAppUpdate, pauseAppUpdate } from './utils/app-update.uts'
+import { resumeMembership } from './utils/membership.uts'
 onLaunch(() => {
   initializeOfflineSync()
   initializeAppUpdate()
   console.log('专注星伴启动')
 })
-onShow(() => { resumeAppUpdate(); flushResults(); refreshReports() })
+// 回到前台：resumeOfflineSync 会重建 iOS 挂起后失效的 30 秒轮询并补传成绩；报告只在进入报告页时查询。
+// resumeMembership 按 5 分钟节流主动拉一次 /vip/status：续费、退费、宽限期或换设备登录都可能在后台发生。
+onShow(() => { resumeAppUpdate(); resumeOfflineSync(); resumeMembership() })
 onHide(() => pauseAppUpdate())
 </script>
 

@@ -1,9 +1,9 @@
 <template>
-<TrainingFrame title="声音从哪来" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+<TrainingFrame :difficulty="level" :preparing="!started" title="声音从哪来" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="page">
     <image class="background" src="/static/images/runtime/backgrounds/shadow-match-sky-v1.webp" mode="aspectFill"></image>
     <scroll-view class="scroll" direction="vertical"><view class="content">
-      <view class="header"><view><text class="eyebrow">集中注意</text><text class="title">声音从哪来</text></view><text v-if="started" class="counter">{{ Math.min(roundIndex + 1, totalRounds) }}/{{ totalRounds }}</text></view>
+      <view class="header"><view><text class="eyebrow">记忆辨识</text><text class="title">声音从哪来</text></view><text v-if="started" class="counter">{{ Math.min(roundIndex + 1, totalRounds) }}/{{ totalRounds }}</text></view>
       <view v-if="started" class="track"><view class="fill" :style="{ width: progressWidth }"></view></view>
       <view class="board">
         <text class="prompt">{{ !started ? '先试一下' : '谁在发出声音？' }}</text>
@@ -16,7 +16,7 @@
               <view v-if="answered && item.id == target.id" class="check"><text class="check-text">✓</text></view>
             </view>
           </view>
-          <button v-if="!started" class="primary" @click="begin">开始</button>
+          <button v-if="!started" class="primary training-preview-primary" @click="begin">开始训练</button>
         </view>
       </view>
       <view v-if="started" class="stats"><text class="stat">✓ {{ correct }}</text><text class="stat">重听 {{ replays }}</text><text class="stat">难度 {{ level }}</text></view>
@@ -137,4 +137,9 @@ training.setStartedCheck((): boolean => started.value)
 
 <style>
 .page{flex:1;background-color:#eaf3ff;position:relative}.background{position:absolute;width:100%;height:100%;top:0;left:0;opacity:0.45}.scroll{flex:1}.content{padding:20px;padding-bottom:36px}.header{flex-direction:row;align-items:center;justify-content:space-between}.eyebrow{font-size:12px;color:#637caf;font-weight:700}.title{font-size:25px;color:#253755;font-weight:700;margin-top:5px}.counter{background-color:#ffffff;padding:10px 15px;border-radius:18px;color:#5374b7;font-size:14px;font-weight:700}.track{height:7px;background-color:#d5e2fa;border-radius:4px;overflow:hidden;margin-top:17px}.fill{height:7px;background-color:#728fed;border-radius:4px}.board{margin-top:20px;padding:18px 12px 22px;background-color:#f7faff;border-radius:28px}.prompt{font-size:18px;font-weight:700;color:#354966;text-align:center;margin-bottom:15px}.listen{width:142px;height:108px;padding:10px;margin:0 auto;border-radius:28px;background-color:#778de9;align-items:center;justify-content:center;border-width:0}.listening{background-color:#9a88df}.music{font-size:38px;color:#ffffff;line-height:45px}.listen-label{font-size:14px;color:#ffffff;font-weight:700}.hint{font-size:13px;color:#667897;text-align:center;margin-top:14px;margin-bottom:14px;min-height:20px}.choices{flex-direction:row;flex-wrap:wrap;justify-content:space-around}.choice{width:46%;height:140px;margin-bottom:12px;border-radius:22px;background-color:#edf3ff;border-width:3px;border-color:#edf3ff;align-items:center;justify-content:center;position:relative}.small{width:30%;height:120px}.picture{width:90%;height:100px}.small-picture{height:78px}.label{font-size:13px;font-weight:700;color:#4a5b74;margin-top:3px}.right{border-color:#49b897;background-color:#e0f6ea}.wrong{border-color:#e1b371;background-color:#fff2dd}.check{position:absolute;right:4px;top:4px;width:24px;height:24px;border-radius:12px;background-color:#49b897;align-items:center;justify-content:center}.check-text{color:white;font-size:17px;font-weight:700}.primary{margin:14px auto 0;width:180px;height:48px;line-height:48px;border-radius:18px;background-color:#6889e6;color:white;font-size:17px;font-weight:700}.pause{padding:50px 0}.stats{flex-direction:row;justify-content:space-around;margin-top:20px}.stat{font-size:13px;color:#617597}.credits{text-align:center;font-size:11px;color:#7184a3;margin-top:20px}
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

@@ -1,0 +1,425 @@
+// 红绿指令（矩形循环车道驾驶）：纯逻辑层。
+//
+// 玩法：小车沿一条圆角矩形车道**匀速**循环行驶（不加速、不变速）；车道上分布若干红绿灯，
+// 玩家只有「暂停 / 启动」两个操作。红灯必须停在**安全区**内（安全区在停车线之前，画在路面上），
+// 绿灯必须在**起步窗口**内出发。
+//
+// 刻度统一用「沿车道的弧长 s」做一维坐标：车、停车线、安全区都在同一条数轴上，
+// 判定与出题都不需要二维几何，逻辑可测。
+//
+// 关键设计（避免「卡点半过路口」）：
+//   1) 每次切换前都有 3 秒倒数，玩家一定提前知道要变灯；
+//   2) 停车是瞬时的（没有刹车距离），按下即停，所以 3 秒足够反应；
+//   3) 若某盏灯即将转红时，小车正处在「来不及停、又还没过线」的决策窗口内，
+//      则把这次转红顺延（最多两次），保证转红那一刻小车要么离线够远、要么已经过线 —— 不会出现两难。
+//
+// 参数：难度只由三个旋钮决定 —— 红绿灯数量、停车容差（安全区长度）、绿灯起步窗口。
+// 车速固定（按周长比例），不随难度变化。
+
+export type RedGreenConfig = {
+  level: number,
+  lights: number,
+  laps: number,
+  speedFactor: number,
+  stopTolerance: number,
+  startWindow: number,
+  green: number,
+  red: number,
+  countdown: number,
+  carLength: number
+}
+
+export type RedGreenLight = { s: number, phase: string, timer: number, deferLeft: number }
+
+export type RedGreenEvent = { kind: string, light: number, detail: string }
+
+export type RedGreenState = {
+  lights: RedGreenLight[],
+  carS: number,
+  moving: boolean,
+  stoppedAt: number,
+  stoppedFor: number,
+  lap: number,
+  elapsed: number,
+  deductions: number,
+  passed: number,
+  penalized: number[],
+  events: RedGreenEvent[]
+}
+
+// 灯态：green 绿灯 / warnRed 倒数转红 / red 红灯 / warnGreen 倒数转绿
+const GREEN = 'green', WARN_RED = 'warnRed', RED = 'red', WARN_GREEN = 'warnGreen'
+
+// 扣分表（设计：闯红灯扣双倍）
+const DEDUCTION_RUN_RED = 12
+const DEDUCTION_OVER_LINE = 8
+const DEDUCTION_WRONG_STOP = 6
+const DEDUCTION_GREEN_TIMEOUT = 6
+
+export function redGreenConfig(level: number): RedGreenConfig {
+  const index = Math.max(0, Math.min(9, Math.round(level) - 1))
+  return {
+    level: index + 1,
+    lights: [2, 2, 3, 3, 3, 4, 4, 4, 5, 5][index],
+    laps: 3,
+    // 车速固定：每秒走周长的 11%（约 9 秒一圈），与难度无关。
+    speedFactor: 0.11,
+    // 停车容差：安全区长度 = 容差 × 车速，随难度收紧。
+    stopTolerance: [0.55, 0.50, 0.45, 0.40, 0.34, 0.30, 0.26, 0.22, 0.18, 0.15][index],
+    // 绿灯起步窗口：超时未起步按「非红灯停车」计。
+    startWindow: [3.5, 3.2, 2.8, 2.5, 2.2, 2.0, 1.8, 1.6, 1.4, 1.2][index],
+    green: 4.0,
+    red: 2.6,
+    countdown: 3.0,
+    carLength: 34
+  }
+}
+
+export function redGreenDeduction(kind: string): number {
+  if (kind == 'runRed') return DEDUCTION_RUN_RED
+  if (kind == 'overLine') return DEDUCTION_OVER_LINE
+  if (kind == 'stopWrong') return DEDUCTION_WRONG_STOP
+  if (kind == 'greenTimeout') return DEDUCTION_GREEN_TIMEOUT
+  return 0
+}
+
+// 达标口径与仓库一致：扣分 ≤20 记满分 100（「达标给满分」），再多则按实际扣分给分。
+export function redGreenScore(deductions: number): number {
+  const raw = Math.max(0, 100 - Math.max(0, deductions))
+  return raw >= 80 ? 100 : raw
+}
+
+// ---------- 车道几何（圆角矩形中心线，顺时针） ----------
+
+export type RedGreenLayout = {
+  width: number,
+  height: number,
+  inset: number,
+  radius: number,
+  straightA: number,
+  straightB: number,
+  arc: number,
+  pathLength: number
+}
+
+export function redGreenLayout(width: number, height: number, inset: number, radius: number): RedGreenLayout {
+  const r = Math.max(6, Math.min(radius, Math.min(width, height) / 2 - inset - 2))
+  const a = Math.max(10, width - inset * 2 - r * 2)
+  const b = Math.max(10, height - inset * 2 - r * 2)
+  const arc = Math.PI * r / 2
+  return { width: width, height: height, inset: inset, radius: r, straightA: a, straightB: b, arc: arc, pathLength: 2 * a + 2 * b + 4 * arc }
+}
+
+// 弧长 s → 车道中心线上的点与朝向（角度制，0 = 向右，顺时针增大）
+export function redGreenPointAt(layout: RedGreenLayout, s: number): { x: number, y: number, angle: number } {
+  const p = layout.pathLength
+  let at = s % p
+  if (at < 0) at += p
+  const a = layout.straightA, b = layout.straightB, arc = layout.arc, r = layout.radius, inset = layout.inset
+  const s1 = a, s2 = s1 + arc, s3 = s2 + b, s4 = s3 + arc, s5 = s4 + a, s6 = s5 + arc, s7 = s6 + b
+  const rightX = layout.width - inset, bottomY = layout.height - inset
+
+  if (at < s1) return { x: inset + r + at, y: inset, angle: 0 }
+  if (at < s2) {
+    const t = (at - s1) / r
+    return { x: rightX - r + r * Math.sin(t), y: inset + r - r * Math.cos(t), angle: t * 180 / Math.PI }
+  }
+  if (at < s3) return { x: rightX, y: inset + r + (at - s2), angle: 90 }
+  if (at < s4) {
+    const t = (at - s3) / r
+    return { x: rightX - r + r * Math.cos(t), y: bottomY - r + r * Math.sin(t), angle: 90 + t * 180 / Math.PI }
+  }
+  if (at < s5) return { x: rightX - r - (at - s4), y: bottomY, angle: 180 }
+  if (at < s6) {
+    const t = (at - s5) / r
+    return { x: inset + r - r * Math.sin(t), y: bottomY - r + r * Math.cos(t), angle: 180 + t * 180 / Math.PI }
+  }
+  if (at < s7) return { x: inset, y: bottomY - r - (at - s6), angle: 270 }
+  const t = (at - s7) / r
+  return { x: inset + r - r * Math.cos(t), y: inset + r - r * Math.sin(t), angle: 270 + t * 180 / Math.PI }
+}
+
+// 红绿灯位置：先按**周长均分**算出理想弧长，再吸附到最近的直道。
+// 这样任何灯数下间距都接近周长/灯数，不会出现“2 盏灯挨在一起”的情况
+// （早期版本按边轮流分配，2 盏会落到相邻的上边与右边）。
+// 只落在直道上，这样停车线与安全区都是轴对齐矩形，不会跨圆角。
+export type RedGreenSpot = { s: number, x: number, y: number, angle: number, edge: string }
+
+export function redGreenSpots(layout: RedGreenLayout, count: number): RedGreenSpot[] {
+  const p = layout.pathLength
+  const a = layout.straightA, b = layout.straightB, arc = layout.arc
+  const names = ['top', 'right', 'bottom', 'left']
+  const froms = [0, a + arc, a + b + 2 * arc, 2 * a + b + 3 * arc]
+  const tos = [a, a + arc + b, 2 * a + b + 2 * arc, 2 * a + 2 * b + 3 * arc]
+  const spots = [] as RedGreenSpot[]
+  for (let i = 0; i < count; i++) {
+    const ideal = p * (i + 0.5) / count
+    let best = 0, bestGap = p + 1, bestS = 0
+    for (let k = 0; k < 4; k++) {
+      const clamped = Math.max(froms[k] + 2, Math.min(tos[k] - 2, ideal))
+      const gap = Math.abs(clamped - ideal)
+      if (gap < bestGap) { bestGap = gap; best = k; bestS = clamped }
+    }
+    const point = redGreenPointAt(layout, bestS)
+    spots.push({ s: bestS, x: point.x, y: point.y, angle: point.angle, edge: names[best] })
+  }
+  return spots
+}
+
+// ---------- 状态与推进 ----------
+
+// 把各灯的初始相位错开，避免同时变灯；错开时顺带避开小车起步位置附近的灯。
+function initialTimer(index: number, count: number, config: RedGreenConfig): { phase: string, timer: number } {
+  const cycle = config.green + config.red + config.countdown * 2
+  let offset = cycle * (index + 0.5) / Math.max(1, count)
+  if (offset < config.green) return { phase: GREEN, timer: config.green - offset }
+  offset -= config.green
+  if (offset < config.countdown) return { phase: WARN_RED, timer: config.countdown - offset }
+  offset -= config.countdown
+  if (offset < config.red) return { phase: RED, timer: config.red - offset }
+  return { phase: WARN_GREEN, timer: config.countdown - (offset - config.red) }
+}
+
+// 可注入的随机源（轻微抖动灯的初始相位，避免背节奏）。
+export function redGreenSeededRand(seed: number): () => number {
+  let state = Math.floor(seed) % 2147483647
+  if (state <= 0) state += 2147483646
+  return (): number => {
+    state = (state * 16807) % 2147483647
+    return (state - 1) / 2147483646
+  }
+}
+
+export function redGreenCreate(config: RedGreenConfig, layout: RedGreenLayout, rand: () => number): RedGreenState {
+  const spots = redGreenSpots(layout, config.lights)
+  const lights = [] as RedGreenLight[]
+  for (let i = 0; i < spots.length; i++) {
+    const start = initialTimer(i, spots.length, config)
+    // ±0.6 秒抖动：每局节奏不完全一样，也避免背下顺序
+    const jitter = (rand() - 0.5) * 1.2
+    lights.push({ s: spots[i].s, phase: start.phase, timer: Math.max(0.25, start.timer + jitter), deferLeft: 2 })
+  }
+  return {
+    lights: lights,
+    carS: 0,
+    moving: true,
+    stoppedAt: -1,
+    stoppedFor: 0,
+    lap: 0,
+    elapsed: 0,
+    deductions: 0,
+    passed: 0,
+    penalized: [] as number[],
+    events: [] as RedGreenEvent[]
+  }
+}
+
+export function redGreenSpeed(config: RedGreenConfig, layout: RedGreenLayout): number {
+  return layout.pathLength * config.speedFactor
+}
+
+export function redGreenSafeZone(config: RedGreenConfig, layout: RedGreenLayout): number {
+  return redGreenSpeed(config, layout) * config.stopTolerance
+}
+
+// 弧长从 prevS 推进到 s 的过程中，是否越过了 at（处理环绕）
+export function redGreenCrossed(prevS: number, s: number, pathLength: number, at: number): boolean {
+  if (s >= prevS) return at > prevS && at <= s
+  return at > prevS || at <= s
+}
+
+// 对「能不能进入路口」而言：红灯与**红灯闪烁的倒数段**都算红；绿灯闪烁段（warnRed）仍算绿。
+// 这样“红灯闪你冲出去就是闯红灯”，绿灯闪时还能过。
+export function redGreenBlocks(phase: string): boolean {
+  return phase == RED || phase == WARN_GREEN
+}
+
+// 对「能不能合法停车」而言：红灯、红灯闪烁段，以及**绿灯闪烁段**都算有效停车时机。
+// 绿灯闪烁是转红前的 3 秒预告：玩家既可以照常开过去（redGreenBlocks 为假，不算闯红灯），
+// 也可以选择停进安全区 —— 两种选择都不该扣分。
+export function redGreenMayStop(phase: string): boolean {
+  return phase == RED || phase == WARN_GREEN || phase == WARN_RED
+}
+
+// 相对停车线的**有符号**距离：车头/车身在**线前**为负（还差多少），**过线后**为正（过去多少）。
+// 不能直接用 (s - lineS) mod p 比较大小：车还在线前时它会环绕到接近周长，
+// 会被误判成「已完全过线」，下面的顺延判定就永远不会触发。
+function lineGap(s: number, lineS: number, p: number): number {
+  let d = (s - lineS) % p
+  if (d < 0) d += p
+  return d < p / 2 ? d : d - p
+}
+
+// 车是否已完全越过某盏灯的停车线（车尾过去才算完全开过去）
+function fullyCleared(state: RedGreenState, config: RedGreenConfig, layout: RedGreenLayout, lineS: number): boolean {
+  return lineGap(state.carS, lineS, layout.pathLength) >= config.carLength / 2
+}
+export function redGreenFront(state: RedGreenState, config: RedGreenConfig, layout: RedGreenLayout): number {
+  const p = layout.pathLength
+  let front = (state.carS + config.carLength / 2) % p
+  if (front < 0) front += p
+  return front
+}
+
+// 前方最近的一盏灯（按弧长向前找）
+export function redGreenAheadLight(state: RedGreenState, config: RedGreenConfig, layout: RedGreenLayout): number {
+  const p = layout.pathLength
+  const front = redGreenFront(state, config, layout)
+  let best = -1
+  let bestGap = p + 1
+  for (let i = 0; i < state.lights.length; i++) {
+    let gap = state.lights[i].s - front
+    if (gap < 0) gap += p
+    if (gap < bestGap) { bestGap = gap; best = i }
+  }
+  return best
+}
+
+// 身后最近一盏「尚未闯过」的灯（本圈已判过闯红灯的灯跳过，这样闯红灯后的停车按下一盏灯算）
+function behindLight(state: RedGreenState, config: RedGreenConfig, layout: RedGreenLayout): number {
+  const p = layout.pathLength
+  const front = redGreenFront(state, config, layout)
+  let best = -1
+  let bestGap = p + 1
+  for (let i = 0; i < state.lights.length; i++) {
+    if (state.penalized.indexOf(i * 1000 + 1) >= 0) continue
+    let gap = front - state.lights[i].s
+    if (gap < 0) gap += p
+    if (gap < bestGap) { bestGap = gap; best = i }
+  }
+  return best
+}
+
+function pushEvent(state: RedGreenState, kind: string, light: number, detail: string) {
+  state.events.push({ kind: kind, light: light, detail: detail })
+  state.deductions += redGreenDeduction(kind)
+}
+
+// 每盏灯按自己的计时器循环：绿 → 倒数转红 → 红 → 倒数转绿 → 绿
+function advanceLights(state: RedGreenState, dt: number, config: RedGreenConfig, layout: RedGreenLayout) {
+  const front = redGreenFront(state, config, layout)
+  const p = layout.pathLength
+  const safe = redGreenSafeZone(config, layout)
+  for (let i = 0; i < state.lights.length; i++) {
+    const light = state.lights[i]
+    light.timer -= dt
+    while (light.timer <= 0) {
+      if (light.phase == GREEN) { light.phase = WARN_RED; light.timer += config.countdown; continue }
+      if (light.phase == WARN_RED) {
+        // 避免卡点：若此刻小车正处在「来不及停、又还没完全过线」的冲突区内，顺延这次转红。
+        // 注意「还没完全过线」包含车身跨在停车线上的情况（因为闯红灯按车尾算）。
+        const gap = lineGap(front, light.s, p)
+        // 车头还在线前、且已经进了安全区：顺延一下，玩家按暂停就能停在安全区里。
+        const tooClose = gap > -safe && gap < 0
+        // 车身正跨在停车线上：此刻停下算「停车过线」，继续开又要按车尾判「完全过线」→ 两难，必须顺延。
+        const straddling = gap >= 0 && !fullyCleared(state, config, layout, light.s)
+        if ((tooClose || straddling) && light.deferLeft > 0) { light.deferLeft -= 1; light.timer += 0.45; continue }
+        light.phase = RED; light.timer += config.red; light.deferLeft = 2; continue
+      }
+      if (light.phase == RED) { light.phase = WARN_GREEN; light.timer += config.countdown; continue }
+      // WARN_GREEN
+      light.phase = GREEN; light.timer += config.green
+      state.penalized = state.penalized.filter((value: number): boolean => value != i * 1000 + 1 && value != i * 1000 + 2)
+    }
+  }
+}
+
+// 绿灯起步窗口：**只要车停着**，就按它前方最近那盏灯的绿灯超时判罚 —— 不管停在哪儿。
+// （否则停在路中间就能一直躲过超时扣分。）窗口从绿灯亮起那刻算，每盏灯每个绿灯周期最多记一次。
+function checkGreenTimeout(state: RedGreenState, config: RedGreenConfig, layout: RedGreenLayout) {
+  if (state.moving) return
+  const ahead = redGreenAheadLight(state, config, layout)
+  if (ahead < 0) return
+  const light = state.lights[ahead]
+  if (light.phase != GREEN) return
+  const greenElapsed = config.green - light.timer
+  if (greenElapsed <= config.startWindow) return
+  const mark = ahead * 1000 + 2
+  if (state.penalized.indexOf(mark) >= 0) return
+  state.penalized.push(mark)
+  pushEvent(state, 'greenTimeout', ahead, '绿灯了，该出发啦')
+}
+
+// 主推进：dt 秒。返回本步新产生的事件。
+export function redGreenStep(state: RedGreenState, dt: number, config: RedGreenConfig, layout: RedGreenLayout): RedGreenEvent[] {
+  state.events = [] as RedGreenEvent[]
+  const p = layout.pathLength
+  advanceLights(state, dt, config, layout)
+
+  if (state.moving) {
+    const prev = state.carS
+    state.carS = (state.carS + redGreenSpeed(config, layout) * dt) % p
+    if (state.carS < prev) { state.lap += 1; state.penalized = [] as number[] }
+    // 以**车尾**完全越过停车线为准：车头越线只算“进了路口”，不算闯红灯；
+    // 若此时停下，会在 redGreenPause 里判「红灯停车过线」。
+    const prevRear = ((prev - config.carLength / 2) % p + p) % p
+    const rear = ((state.carS - config.carLength / 2) % p + p) % p
+    for (let i = 0; i < state.lights.length; i++) {
+      const light = state.lights[i]
+      if (!redGreenCrossed(prevRear, rear, p, light.s)) continue
+      if (redGreenBlocks(light.phase)) {
+        const mark = i * 1000 + 1
+        if (state.penalized.indexOf(mark) < 0) { state.penalized.push(mark); pushEvent(state, 'runRed', i, '闯红灯了') }
+      } else {
+        state.passed += 1
+        state.events.push({ kind: 'pass', light: i, detail: '' })
+      }
+    }
+    state.stoppedFor = 0
+  } else {
+    state.stoppedFor += dt
+    checkGreenTimeout(state, config, layout)
+  }
+
+  state.elapsed += dt
+  return state.events
+}
+
+// 玩家按「暂停」：判定这次停车对不对
+export function redGreenPause(state: RedGreenState, config: RedGreenConfig, layout: RedGreenLayout): RedGreenEvent[] {
+  state.events = [] as RedGreenEvent[]
+  if (!state.moving) return state.events
+  state.moving = false
+  state.stoppedFor = 0
+  const p = layout.pathLength
+  const front = redGreenFront(state, config, layout)
+  const safe = redGreenSafeZone(config, layout)
+  const ahead = redGreenAheadLight(state, config, layout)
+  let gap = p + 1
+  if (ahead >= 0) {
+    gap = state.lights[ahead].s - front
+    if (gap < 0) gap += p
+  }
+  const aheadOk = ahead >= 0 && redGreenMayStop(state.lights[ahead].phase)
+  if (aheadOk && gap <= safe) {
+    // 正确停车：红灯（含红灯闪烁的倒数段）或绿灯闪烁的倒数段，且车头落在安全区内
+    state.stoppedAt = ahead
+    state.events.push({ kind: 'stopGood', light: ahead, detail: '' })
+    return state.events
+  }
+  // 停在红灯的线后（已过线）
+  const behind = behindLight(state, config, layout)
+  if (behind >= 0 && redGreenBlocks(state.lights[behind].phase)) {
+    state.stoppedAt = -1
+    pushEvent(state, 'overLine', behind, '停过线了，要停在安全区里')
+    return state.events
+  }
+  state.stoppedAt = -1
+  const detail = aheadOk ? '再往前一点点，停在安全区里' : '现在还不能停，路中间不能停车'
+  pushEvent(state, 'stopWrong', ahead, detail)
+  return state.events
+}
+
+// 玩家按「启动」：绿灯窗口内出发即可
+export function redGreenGo(state: RedGreenState, config: RedGreenConfig): RedGreenEvent[] {
+  state.events = [] as RedGreenEvent[]
+  if (state.moving) return state.events
+  state.moving = true
+  state.stoppedAt = -1
+  state.stoppedFor = 0
+  return state.events
+}
+
+export function redGreenFinished(state: RedGreenState, config: RedGreenConfig): boolean {
+  return state.lap >= config.laps
+}

@@ -1,5 +1,5 @@
 <template>
-<TrainingFrame title="听音节奏" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+<TrainingFrame :difficulty="level" :preparing="!started" title="听音节奏" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="page">
     <image class="night tap-content" src="/static/images/runtime/backgrounds/star-catcher-sky-v1.webp" mode="aspectFill"></image>
     <scroll-view class="scroll" direction="vertical" show-scrollbar="false"><view class="content">
@@ -10,7 +10,7 @@
         <view v-if="!started || phase == 'trial-done'" class="intro">
           <text class="intro-title">{{ phase == 'trial-done' ? feedback : '记住声音，找到它' }}</text>
           <text class="hint">目标只放 2 次，选项可以试听</text>
-          <button class="primary" @click="begin">开始训练</button><button class="trial-button" @click="beginTrial">{{ phase == 'trial-done' ? '再试一题' : '先试一题' }}</button>
+          <button class="primary training-preview-primary" @click="begin">开始训练</button><button class="trial-button training-preview-secondary" @click="beginTrial">{{ phase == 'trial-done' ? '再试一题' : '先试一题' }}</button>
         </view>
         <view v-else class="play-area">
           <view class="target-display" :class="phase == 'target' ? 'target-active' : ''">
@@ -28,7 +28,7 @@
             </view>
           </view>
           <text v-if="feedback != ''" class="feedback">{{ feedback }}</text>
-          <button v-if="phase == 'error'" class="primary" @click="retryAfterError">重新开始</button><button v-if="trial" class="trial-button" @click="begin">直接开始训练</button>
+          <button v-if="phase == 'error'" class="primary" @click="retryAfterError">重新开始</button><button v-if="trial" class="trial-button training-preview-primary" @click="begin">直接开始训练</button>
         </view>
       </view>
       <text v-if="started && !trial" class="footer">已找到 {{ correct }} 个</text>
@@ -70,7 +70,7 @@ function finish() {
   const accuracy = Math.round(correct.value / 8 * 100)
   const sum = reactions.reduce((a: number, b: number): number => a + b, 0)
   const reaction = reactions.length == 0 ? 0 : Math.round(sum / reactions.length)
-  uni.redirectTo({ url: '/pages/result/result?gameId=audio-sequence&dimensionId=sustained&score=' + accuracy + '&accuracy=' + accuracy + '&reaction=' + reaction + '&duration=' + Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000)) + '&completed=' + correct.value + '&total=8&falseAlarms=' + errors.value })
+  uni.redirectTo({ url: '/pages/result/result?gameId=audio-sequence&dimensionId=focused&score=' + accuracy + '&accuracy=' + accuracy + '&reaction=' + reaction + '&duration=' + Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000)) + '&completed=' + correct.value + '&total=8&falseAlarms=' + errors.value })
 }
 function audioFailed(isTarget: boolean) {
   stopAudio()
@@ -181,4 +181,9 @@ training.setStartedCheck((): boolean => started.value && !trial.value)
 .choose { margin: 0; width: 68px; height: 44px; line-height: 44px; padding: 0; border-width: 0; border-radius: 17px; background-color: #eef1fc; color: #667dc8; font-size: 12px; font-weight: 700; }
 .feedback { margin-top: 15px; text-align: center; font-size: 15px; color: #638f84; }
 .footer { margin-top: 15px; text-align: center; color: #e9e8ff; font-size: 12px; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

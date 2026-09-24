@@ -19,7 +19,7 @@ function puzzleSeenIds(): string[] {
   }
 }
 
-// 每轮随机取一张没看过的场景图；A/B 随机取一版。
+// 每轮随机取一个没看过的场景，固定使用完整 A 图。
 export function chooseUnseenPuzzleSource(scenes: DifferenceScene[]): PuzzleSource | null {
   if (scenes.length == 0) return null
   const seen = puzzleSeenIds()
@@ -30,7 +30,7 @@ export function chooseUnseenPuzzleSource(scenes: DifferenceScene[]): PuzzleSourc
     available = scenes.filter((scene: DifferenceScene): boolean => scenes.length == 1 || scene.id != last)
   }
   const picked = available[Math.floor(Math.random() * available.length)]
-  return { sceneId: picked.id, image: Math.random() < 0.5 ? picked.imageA : picked.imageB }
+  return { sceneId: picked.id, image: picked.imageA }
 }
 
 // 图片真正显示出来后调用；加载失败或预加载都不算看过。

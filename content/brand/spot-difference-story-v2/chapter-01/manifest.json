@@ -17,7 +17,11 @@
       "bSource": "/Users/kangzhou/.codex/generated_images/01a04d02-1c21-7433-990d-7a9e514b1b70/exec-b2dbeaa3-66a4-4007-96ef-db511c992eaf.png",
       "runtimeCandidateCount": 8,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-001-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-001-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-001-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-002",
@@ -31,7 +35,11 @@
       "supersededFile": "/Users/kangzhou/Documents/Codex/2026-08-29/wo/outputs/focus-planet-mvp/content/brand/spot-difference-story-v2/chapter-01/sd2-002-a.png",
       "runtimeCandidateCount": 6,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-002-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-002-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-002-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-003",
@@ -44,7 +52,11 @@
       "bSource": "/Users/kangzhou/.codex/generated_images/01a04d02-1c21-7433-990d-7a9e514b1b70/exec-b61124d2-eb2d-446b-8f57-e1fdc88bc482.png",
       "runtimeCandidateCount": 5,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-003-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-003-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-003-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-004",
@@ -57,7 +69,11 @@
       "bSource": "/Users/kangzhou/.codex/generated_images/01a04d02-1c21-7433-990d-7a9e514b1b70/exec-f404b5bd-fe2f-4c6c-9735-e69edbc17b0f.png",
       "runtimeCandidateCount": 6,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-004-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-004-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-004-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-005",
@@ -70,7 +86,11 @@
       "bSource": "/Users/kangzhou/.codex/generated_images/01a04d02-1c21-7433-990d-7a9e514b1b70/exec-98393f95-6b10-41cd-a82d-1628ac67d769.png",
       "runtimeCandidateCount": 5,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-005-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-005-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-005-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-006",
@@ -83,7 +103,11 @@
       "bSource": "/Users/kangzhou/.codex/generated_images/01a04d02-1c21-7433-990d-7a9e514b1b70/exec-a60ebd63-934e-4c38-be00-ebe5c6c2db2b.png",
       "runtimeCandidateCount": 8,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-006-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-006-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-006-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-007",
@@ -96,7 +120,11 @@
       "bSource": "/Users/kangzhou/.codex/generated_images/01a04d02-1c21-7433-990d-7a9e514b1b70/exec-533138cb-4030-413e-a0a9-fbf2884fd069.png",
       "runtimeCandidateCount": 6,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-007-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-007-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-007-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-008",
@@ -109,7 +137,11 @@
       "bSource": "/Users/kangzhou/.codex/generated_images/01a04d02-1c21-7433-990d-7a9e514b1b70/exec-65c8cea4-545a-4f2f-8761-f66910656d27.png",
       "runtimeCandidateCount": 6,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-008-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-008-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-008-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-009",
@@ -122,7 +154,11 @@
       "bSource": "/Users/kangzhou/.codex/generated_images/01a04d02-1c21-7433-990d-7a9e514b1b70/exec-82bf4ccc-aca6-4b65-8497-c35c3d9df8c6.png",
       "runtimeCandidateCount": 7,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-009-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-009-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-009-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     },
     {
       "id": "SD2-010",
@@ -135,7 +171,11 @@
       "bSource": "/Users/kangzhou/.codex/generated_images/01a04d02-1c21-7433-990d-7a9e514b1b70/exec-0646cd7d-062a-48e6-91e2-48be3f423b0e.png",
       "runtimeCandidateCount": 5,
       "runtimeImageA": "/static/images/runtime/spot-difference/story-v2/sd2-010-a.webp",
-      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-010-b.webp"
+      "runtimeImageB": "/static/images/runtime/spot-difference/story-v2/sd2-010-b.webp",
+      "runtimeInstalled": true,
+      "runtimeRegionValidation": "manual-reviewed-local-composite",
+      "runtimeCompositeStrategy": "manual-reviewed-local-composite",
+      "runtimeMaximumTargets": 5
     }
   ],
   "rejected": {

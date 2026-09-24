@@ -1,0 +1,48 @@
+<template>
+  <scroll-view class="page" direction="vertical" show-scrollbar="false">
+    <view class="cover-card">
+      <image class="cover-image" :src="thumbnail" mode="aspectFill"></image>
+    </view>
+    <view class="info-card">
+      <text class="dimension-label">{{ dimensionName }}</text>
+      <text class="game-name">{{ gameName }}</text>
+      <text class="game-summary">{{ gameSummary }}</text>
+    </view>
+    <view class="bottom-space"></view>
+  </scroll-view>
+</template>
+
+<script setup lang="uts">
+import { ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+import { DIMENSIONS, GAMES, getGameThumbnail, TrainingGame } from '../../utils/catalog.uts'
+
+const gameName = ref('训练图鉴')
+const gameSummary = ref('')
+const dimensionName = ref('五维专注力')
+const thumbnail = ref('/static/images/runtime/brand/duo-star-v1.webp')
+
+onLoad((options: UTSJSONObject) => {
+  const value = options['gameId']
+  if (value == null) return
+  const id = value as string
+  const game = GAMES.find((item: TrainingGame): boolean => item.id == id)
+  if (game == null) return
+  gameName.value = game.name
+  gameSummary.value = game.summary
+  thumbnail.value = getGameThumbnail(id)
+  const dimension = DIMENSIONS.find((item): boolean => item.id == game.dimensionId)
+  if (dimension != null) dimensionName.value = dimension.name
+})
+</script>
+
+<style>
+.page { height: 100%; background-color: #f3f7ff; }
+.cover-card { margin: 22px 18px 0; border-radius: 25px; overflow: hidden; background-color: #dbe8ff; }
+.cover-image { width: 100%; height: 220px; }
+.info-card { margin: 17px 18px 0; padding: 22px; border-radius: 24px; background-color: #ffffff; }
+.dimension-label { color: #5b8def; font-size: 13px; font-weight: 700; }
+.game-name { margin-top: 9px; color: #263650; font-size: 27px; font-weight: 700; }
+.game-summary { margin-top: 12px; color: #63718a; font-size: 15px; line-height: 23px; }
+.bottom-space { height: 32px; }
+</style>

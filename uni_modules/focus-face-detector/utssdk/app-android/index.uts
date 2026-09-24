@@ -1,4 +1,4 @@
-import { DetectFaceFrame, FaceFrameResult } from '../interface.uts'
+import { AppleStoreProductsResult, DetectFaceFrame, FaceFrameResult, FetchAppleStoreProducts } from '../interface.uts'
 import { FocusFaceDetectorNative } from 'uts.focusdetector.android'
 import Intent from 'android.content.Intent'
 import Uri from 'android.net.Uri'
@@ -32,4 +32,8 @@ export const detectFaceFrame: DetectFaceFrame = function (rgba: ArrayBuffer, wid
     confidence: 0,
     errorMessage: 'Android 检测结果解析失败'
   }
+}
+
+export const fetchAppleStoreProducts: FetchAppleStoreProducts = function (_productIds: string[], completed: (result: AppleStoreProductsResult) => void) {
+  completed({ success: false, products: [], errorMessage: '请在 iPhone 上读取 App Store 商品信息' })
 }

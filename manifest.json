@@ -34,7 +34,8 @@
 			"modules": {
 				"uni-oauth": {
 					"apple": {}
-				}
+				},
+				"uni-virtualPayment": {}
 			},
 			"icons": {},
 			"splashScreens": {}

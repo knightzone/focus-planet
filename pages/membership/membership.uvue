@@ -1,0 +1,300 @@
+<template>
+  <scroll-view class="page" direction="vertical" show-scrollbar="false">
+    <view class="top-bar"><view class="back" @click="goBack"><text class="back-text">‹</text></view><text class="top-title">星伴会员</text><view class="top-space"></view></view>
+    <view class="hero"><view class="hero-copy"><text class="hero-kicker">专注成长，每天相伴</text><text class="hero-title">星伴 VIP</text><text class="hero-subtitle">解锁训练与成长报告</text></view><image class="hero-image" src="/static/images/runtime/brand/duo-star-v1.webp" mode="aspectFit"></image></view>
+    <view v-if="membership.active" class="active-card"><text class="active-title">会员已开通</text><text class="active-meta">{{ membership.expiresAt == '' ? 'VIP 权益已生效' : '有效期至 ' + membership.expiresAt.substring(0, 10) }}</text></view>
+    <view v-else>
+      <text class="section-title">选择方案</text>
+      <view v-for="plan in plans" :key="plan.productId" class="plan-card" :class="planClass(plan)" @click="selectPlan(plan.productId)">
+        <view class="plan-main">
+          <text class="plan-name" :class="plan.available ? '' : 'plan-name-off'">{{ plan.name }}</text>
+          <text class="plan-note">{{ plan.note }}</text>
+          <text v-if="plan.hint != ''" class="plan-hint">{{ plan.hint }}</text>
+        </view>
+        <view class="plan-side"><text class="plan-price" :class="plan.available ? '' : 'plan-price-off'">{{ plan.available ? plan.displayPrice : '暂不可购买' }}</text></view>
+      </view>
+      <view class="benefits"><text class="benefit">✓ 专注力小游戏畅玩</text><text class="benefit">✓ 成长报告与训练记录</text></view>
+      <button class="subscribe-button" :disabled="paying || loading || !ready || selectedId == ''" @click="purchase">{{ paying ? '正在处理…' : loading ? '正在加载…' : '开通会员' }}</button>
+      <text class="purchase-note">{{ renewalText() }}</text>
+    </view>
+    <text v-if="message != ''" class="product-message">{{ message }}</text>
+    <view class="restore-link" @click="reload"><text class="restore-text">刷新会员与商品</text></view>
+    <view class="restore-link" @click="restore"><text class="restore-text">恢复购买</text></view>
+    <view class="bottom-space"></view>
+  </scroll-view>
+</template>
+
+<script setup lang="uts">
+import { ref } from 'vue'
+import { onShow, onUnload } from '@dcloudio/uni-app'
+import { MembershipState, VipProduct, cachedMembership, refreshMembership } from '../../utils/membership.uts'
+import { verifyAppleTransaction } from '../../utils/server-api.uts'
+import { getAuthSession, requireLogin } from '../../utils/auth.uts'
+import { fetchAppleStoreProducts } from '@/uni_modules/focus-face-detector'
+import { AppleStoreProduct, AppleStoreProductsResult } from '../../uni_modules/focus-face-detector/utssdk/interface.uts'
+// #ifdef APP-IOS
+import { fetchAppleSignedTransaction } from '../../uni_modules/focus-face-detector/utssdk/app-ios/index.uts'
+// #endif
+
+type Plan = { productId: string, name: string, type: string, displayPrice: string, note: string, hint: string, available: boolean }
+const membership = ref(cachedMembership())
+const plans = ref([] as Plan[])
+const selectedId = ref('')
+const paying = ref(false)
+const loading = ref(false)
+const ready = ref(false)
+const message = ref('')
+let serial = 0
+
+function userId(): string { const session = getAuthSession(); return session == null ? '' : session!.userId }
+onShow(() => { if (!paying.value) reload() })
+onUnload(() => { serial += 1 })
+
+function reload() {
+  if (paying.value) return
+  ready.value = false
+  plans.value = []
+  membership.value = cachedMembership()
+  if (!requireLogin()) return
+  const account = userId()
+  serial += 1
+  const request = serial
+  loading.value = true
+  message.value = ''
+  setTimeout(() => {
+    if (request != serial || !loading.value) return
+    serial += 1
+    loading.value = false
+    message.value = '连接 App Store 或会员服务超时，请点击刷新重试'
+  }, 20000)
+  refreshMembership((state: MembershipState) => {
+    if (request != serial || userId() != account) return
+    membership.value = state
+    if (state.appAccountToken == '' || state.products.length == 0) {
+      loading.value = false
+      message.value = '会员商品暂未配置，请稍后重试'
+      return
+    }
+    const ids: string[] = []
+    state.products.forEach((p: VipProduct) => ids.push(p.productId))
+    fetchAppleStoreProducts(ids, (result: AppleStoreProductsResult) => {
+      if (request != serial || userId() != account) return
+      loading.value = false
+      if (!result.success) { message.value = result.errorMessage; return }
+      // Every product the server lists is rendered, even when StoreKit does not return it,
+      // so a missing entry always shows its own reason instead of silently disappearing.
+      const built: Plan[] = []
+      let buyable = 0
+      let blocked = 0
+      state.products.forEach((p: VipProduct) => {
+        const item = result.products.find((row: AppleStoreProduct): boolean => row.productId == p.productId)
+        if (item == null) {
+          blocked += 1
+          built.push({ productId: p.productId, name: p.name, type: p.type, displayPrice: '', note: 'App Store 未返回 ' + p.productId, hint: '核对商品 ID 拼写、订阅组、销售范围与商品状态', available: false })
+          return
+        }
+        const apple = item!
+        // Subscription duration and offer eligibility come from Apple, never from SKU naming.
+        if (p.type == 'subscription' && apple.periodUnit == '') {
+          blocked += 1
+          built.push({ productId: p.productId, name: p.name, type: p.type, displayPrice: apple.displayPrice, note: 'App Store 中此商品不是自动续期订阅', hint: '商品类型与配置不一致', available: false })
+          return
+        }
+        if (p.type == 'non_consumable' && apple.periodUnit != '') {
+          blocked += 1
+          built.push({ productId: p.productId, name: p.name, type: p.type, displayPrice: apple.displayPrice, note: 'App Store 中此商品是订阅，不是一次性购买', hint: '商品类型与配置不一致', available: false })
+          return
+        }
+        let note = p.type == 'non_consumable' ? '一次购买，永久解锁' : '每' + apple.periodValue.toString() + unitLabel(apple.periodUnit) + '自动续订'
+        let hint = ''
+        if (p.type == 'subscription') {
+          if (apple.introOfferAvailable && apple.introOfferEligible && apple.introOfferPaymentMode == 'freeTrial') {
+            note = '符合资格可免费试用' + (apple.introOfferPeriodValue * apple.introOfferPeriodCount).toString() + unitLabel(apple.introOfferPeriodUnit) + '，之后' + note
+          } else if (apple.introOfferAvailable && apple.introOfferEligible && apple.introOfferDisplayPrice != '') {
+            // Discounted intro offers (pay upfront or pay as you go) reuse the same Apple-provided price.
+            if (apple.introOfferPaymentMode == 'payAsYouGo') {
+              note = '新用户前' + (apple.introOfferPeriodValue * apple.introOfferPeriodCount).toString() + unitLabel(apple.introOfferPeriodUnit) + '每期 ' + apple.introOfferDisplayPrice + '，之后' + note
+            } else {
+              note = '新用户首期 ' + apple.introOfferDisplayPrice + '，之后' + note
+            }
+          } else if (!apple.introOfferAvailable) {
+            hint = 'App Store 未配置引入优惠'
+          } else if (!apple.introOfferEligible) {
+            hint = '当前 Apple ID 不符合优惠资格'
+          }
+        }
+        buyable += 1
+        built.push({ productId: p.productId, name: apple.displayName, type: p.type, displayPrice: apple.displayPrice, note: note, hint: hint, available: true })
+      })
+      plans.value = built
+      ready.value = buyable > 0
+      if (buyable == 0) { selectedId.value = ''; message.value = 'App Store 暂无可购买的已配置商品'; return }
+      const selectedPlan = built.find((p: Plan): boolean => p.productId == selectedId.value && p.available)
+      if (selectedPlan == null) {
+        const firstPlan = built.find((p: Plan): boolean => p.available)
+        selectedId.value = firstPlan == null ? '' : firstPlan!.productId
+      }
+      if (blocked > 0) message.value = '有 ' + blocked.toString() + ' 个方案在当前 App Store 环境不可购买，原因见方案卡片'
+    })
+  }, (text: string, _code: string) => {
+    if (request != serial || userId() != account) return
+    loading.value = false
+    message.value = text
+  })
+}
+
+function unitLabel(unit: string): string {
+  if (unit == 'day') return '天'
+  if (unit == 'week') return '周'
+  if (unit == 'month') return '个月'
+  if (unit == 'year') return '年'
+  return ''
+}
+function planClass(plan: Plan): string {
+  if (!plan.available) return 'plan-disabled'
+  return selectedId.value == plan.productId ? 'plan-selected' : ''
+}
+function selectPlan(id: string) {
+  if (paying.value) return
+  const plan = plans.value.find((p: Plan): boolean => p.productId == id && p.available)
+  if (plan == null) return
+  selectedId.value = id
+}
+function goBack() { if (!paying.value) uni.navigateBack() }
+function renewalText(): string {
+  const plan = plans.value.find((p: Plan): boolean => p.productId == selectedId.value)
+  if (plan == null) return '价格及优惠以 App Store 确认页面为准'
+  return plan!.type == 'non_consumable' ? '一次性购买，不会自动续费。' : plan!.note + '，续订价格为 ' + plan!.displayPrice + '。可在系统订阅中取消。'
+}
+
+// #ifdef APP-IOS
+function verifyTransaction(transaction: AppleIAPTransactionOptions, account: string, done: (ok: boolean) => void) {
+  if (userId() != account) { message.value = '登录账号已变更，请切回购买账号恢复购买'; done(false); return }
+  fetchAppleSignedTransaction(transaction.transactionIdentifier, (jws: string, error: string) => {
+    if (userId() != account) { message.value = '登录账号已变更'; done(false); return }
+    if (jws == '') { message.value = error; done(false); return }
+    verifyAppleTransaction(jws, (_data: UTSJSONObject) => {
+      if (userId() != account) { message.value = '登录账号已变更'; done(false); return }
+      // Verify returns only entitlement fields. Refresh status for the account token and products.
+      uni.getVirtualPaymentManager().finishTransaction({
+        transaction: transaction,
+        success: (_result) => done(true),
+        fail: (_error) => { message.value = '验单成功，交易结束待重试，请恢复购买'; done(false) }
+      })
+    }, (text: string, _code: string) => { message.value = text + '，请稍后恢复购买'; done(false) })
+  })
+}
+
+function completeVerification(account: string, hadFailure: boolean) {
+  if (userId() != account) { paying.value = false; return }
+  refreshMembership((state: MembershipState) => {
+    paying.value = false
+    membership.value = state
+    if (!hadFailure) message.value = state.active ? '会员权益已生效' : '交易已核验，当前没有有效 VIP 权益'
+  }, (text: string, _code: string) => { paying.value = false; message.value = '会员状态刷新失败：' + text })
+}
+
+function restoreNext(transactions: AppleIAPTransactionOptions[], index: number, account: string, hadFailure: boolean) {
+  if (userId() != account) { paying.value = false; message.value = '登录账号已变更'; return }
+  if (index >= transactions.length) { completeVerification(account, hadFailure); return }
+  const transaction = transactions[index]
+  // Ignore unrelated products and never claim or finish another app account's transactions.
+  if (!membership.value.products.some((p: VipProduct): boolean => p.productId == transaction.productId)) { restoreNext(transactions, index + 1, account, hadFailure); return }
+  if (transaction.appAccountToken == null || transaction.appAccountToken!.toLowerCase() != membership.value.appAccountToken.toLowerCase()) {
+    message.value = '部分购买不属于当前账号，请登录原购买账号恢复'
+    restoreNext(transactions, index + 1, account, true)
+    return
+  }
+  verifyTransaction(transaction, account, (ok: boolean) => restoreNext(transactions, index + 1, account, hadFailure || !ok))
+}
+// #endif
+
+function purchase() {
+  if (paying.value || loading.value || !requireLogin()) return
+  if (!ready.value || selectedId.value == '') { reload(); return }
+  // #ifndef APP-IOS
+  message.value = '当前仅支持 iPhone 购买'
+  return
+  // #endif
+  // #ifdef APP-IOS
+  const account = userId()
+  const product = selectedId.value
+  paying.value = true
+  message.value = ''
+  refreshMembership((state: MembershipState) => {
+    membership.value = state
+    if (userId() != account || state.appAccountToken == '' || !state.products.some((p: VipProduct): boolean => p.productId == product)) {
+      paying.value = false; ready.value = false; message.value = '账号或商品配置已变化，请刷新后重试'; return
+    }
+    uni.requestVirtualPayment({
+      apple: { productId: product, appAccountToken: state.appAccountToken, quantity: 1 },
+      success: (result) => {
+        if (result.apple == null) { paying.value = false; message.value = '未获取到交易，请恢复购买'; return }
+        verifyTransaction(result.apple!, account, (ok: boolean) => completeVerification(account, !ok))
+      },
+      fail: (error) => { paying.value = false; if (error.errCode != 700601) message.value = error.errMsg }
+    })
+  }, (text: string, _code: string) => { paying.value = false; message.value = text })
+  // #endif
+}
+
+function restore() {
+  if (paying.value || loading.value || !requireLogin()) return
+  // #ifndef APP-IOS
+  message.value = '当前仅支持 iPhone 恢复购买'
+  return
+  // #endif
+  // #ifdef APP-IOS
+  const account = userId()
+  paying.value = true
+  message.value = ''
+  refreshMembership((state: MembershipState) => {
+    membership.value = state
+    uni.getVirtualPaymentManager().restoreTransactions({
+      success: (result) => restoreNext(result.transactions, 0, account, false),
+      fail: (error) => { paying.value = false; message.value = error.errMsg }
+    })
+  }, (text: string, _code: string) => { paying.value = false; message.value = text })
+  // #endif
+}
+</script>
+
+<style>
+.page { height: 100%; background-color: #f2f6ff; }
+.top-bar { padding: 48px 18px 8px; height: 94px; flex-direction: row; align-items: center; justify-content: space-between; }
+.back, .top-space { width: 48px; height: 48px; align-items: center; justify-content: center; }
+.back { border-radius: 24px; background-color: #ffffff; }
+.back-text { margin-top: -4px; color: #53698f; font-size: 34px; }
+.top-title { color: #2b3853; font-size: 17px; font-weight: 700; }
+.hero { margin: 8px 16px 0; height: 178px; padding: 24px; border-radius: 28px; background-color: #5b8def; flex-direction: row; align-items: center; overflow: hidden; }
+.hero-copy { flex: 1; }
+.hero-kicker { color: #fff2a9; font-size: 13px; font-weight: 700; }
+.hero-title { margin-top: 7px; color: #ffffff; font-size: 28px; font-weight: 700; }
+.hero-subtitle { margin-top: 8px; color: #e6edff; font-size: 12px; }
+.hero-image { width: 142px; height: 150px; }
+.section-title { margin: 24px 20px 11px; color: #2b3853; font-size: 18px; font-weight: 700; }
+.plan-card { margin: 10px 16px 0; min-height: 88px; padding: 16px 18px; border-radius: 21px; border-width: 2px; border-color: #e3e8f2; background-color: #ffffff; flex-direction: row; align-items: center; }
+.plan-selected { border-color: #5b8def; background-color: #f7f9ff; }
+.plan-disabled { border-color: #e8ebf2; background-color: #f8f9fc; }
+.plan-name-off { color: #9aa3b4; }
+.plan-price-off { color: #aab2c0; }
+.plan-hint { margin-top: 4px; color: #b06a5c; font-size: 10px; }
+.plan-main { flex: 1; }
+.plan-name { color: #2e3b56; font-size: 16px; font-weight: 700; }
+.plan-note { margin-top: 5px; color: #8a95a8; font-size: 11px; }
+.plan-side { align-items: flex-end; }
+.recommend { padding: 3px 8px; border-radius: 9px; background-color: #fff0b5; color: #9a7016; font-size: 9px; font-weight: 700; }
+.trial-tag { padding: 3px 8px; border-radius: 9px; background-color: #e3f7ee; color: #287b61; font-size: 9px; font-weight: 700; }
+.plan-price { margin-top: 5px; color: #5b73a4; font-size: 11px; }
+.product-message { margin: 10px 22px 0; color: #b06a5c; font-size: 10px; line-height: 15px; text-align: center; }
+.benefits { margin: 18px 25px 0; }
+.benefit { margin-top: 9px; color: #58657d; font-size: 12px; }
+.subscribe-button { margin: 24px 16px 0; height: 54px; line-height: 54px; border-radius: 27px; background-color: #5b8def; color: #ffffff; font-size: 16px; font-weight: 700; }
+.purchase-note { margin: 12px 25px 0; color: #929bab; font-size: 10px; line-height: 16px; text-align: center; }
+.restore-link { margin-top: 8px; min-height: 48px; align-items: center; justify-content: center; }
+.restore-text { color: #5b78b2; font-size: 12px; }
+.active-card { margin: 22px 16px 0; padding: 24px; border-radius: 22px; background-color: #e3f7ee; align-items: center; }
+.active-title { color: #287b61; font-size: 20px; font-weight: 700; }
+.active-meta { margin-top: 7px; color: #609584; font-size: 12px; }
+.bottom-space { height: 36px; }
+</style>

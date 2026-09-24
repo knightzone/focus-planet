@@ -1,20 +1,79 @@
 <template>
-<TrainingFrame title="奇偶轨道" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
-  <view class="page">
-    <view class="game-header"><view><text class="round-label">转换注意训练</text><text class="game-title">奇偶轨道</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
-    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-    <view class="rule-card" :class="reversed ? 'reversed-card' : ''"><text class="rule-title">{{ reversed ? '偶数走左 · 奇数走右' : '奇数走左 · 偶数走右' }}</text><text v-if="justSwitched" class="switch-badge">换轨</text></view>
-    <view class="number-stage">
-      <view v-if="!started" class="instruction"><view class="sample-numbers"><text class="sample-number">3</text><text class="sample-number">8</text></view><button class="tap-target primary" @click="begin">开始</button></view>
-      <view v-else class="challenge"><text class="number">{{ currentNumber }}</text><text class="number-kind">判断后选择轨道</text><text class="feedback" :class="feedback == '轨道正确' ? 'good' : 'again'">{{ feedback }}</text></view>
+  <TrainingFrame :difficulty="level" :preparing="!started" title="奇偶轨道" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+    <view class="nt-page">
+      <image class="nt-scene" :src="NUMBER_TRACK_BACKGROUND" mode="aspectFill"></image>
+      <view class="nt-content">
+        <view class="nt-header">
+          <view>
+            <text class="nt-eyebrow">切换兼顾训练</text>
+            <text class="nt-title">奇偶轨道</text>
+          </view>
+          <view class="nt-header-right">
+            <view v-if="started" class="nt-level"><text class="nt-level-text">难度 {{ level }}</text></view>
+            <view class="nt-counter"><text class="nt-counter-text">{{ started ? displayRound.toString() + '/' + totalRounds.toString() : '试玩' }}</text></view>
+          </view>
+        </view>
+        <view class="nt-progress"><view class="nt-progress-fill" :style="{ width: progressWidth }"></view></view>
+
+        <view v-if="!started" class="nt-intro training-preview-card">
+          <text class="nt-demo-title">先试一下</text>
+          <text class="nt-demo-hint">{{ demoHint }}</text>
+          <view class="nt-rule-card">
+            <text class="nt-rule-title">{{ demoRule }}</text>
+          </view>
+          <view class="nt-stage">
+            <text class="nt-number">{{ demoSymbol }}</text>
+            <view v-if="level <= 3" class="nt-pairs"><view v-for="dot in demoNumber" :key="dot" class="nt-pair-dot"></view></view>
+            <text class="nt-number-kind">{{ demoQuestion }}</text>
+          </view>
+          <view class="nt-tracks">
+            <ActionSurface class="nt-track nt-track-left" @click="answerDemo('left')">
+              <text class="nt-track-label tap-content">左轨</text>
+              <text class="nt-track-rule tap-content">{{ firstLabel }}</text>
+            </ActionSurface>
+            <ActionSurface class="nt-track nt-track-right" @click="answerDemo('right')">
+              <text class="nt-track-label tap-content">右轨</text>
+              <text class="nt-track-rule tap-content">{{ secondLabel }}</text>
+            </ActionSurface>
+          </view>
+          <text v-if="demoDone" class="nt-demo-replay training-preview-secondary" @click="resetDemo">再试一次</text>
+          <button class="nt-start training-preview-primary" @click="begin">开始训练</button>
+        </view>
+
+        <view v-else class="nt-play">
+          <view class="nt-rule-card" :class="reversed ? 'nt-rule-reversed' : ''">
+            <text class="nt-rule-title">{{ reversed ? secondLabel + '走左 · ' + firstLabel + '走右' : firstLabel + '走左 · ' + secondLabel + '走右' }}</text>
+            <text v-if="justSwitched" class="nt-switch-badge">换规则</text>
+          </view>
+          <view class="nt-stage">
+            <text class="nt-number">{{ switchingRule ? '↔' : currentSymbol }}</text>
+            <view v-if="!switchingRule && symbolMode == 'number' && level <= 3" class="nt-pairs"><view v-for="dot in currentNumber" :key="dot" class="nt-pair-dot"></view></view>
+            <text class="nt-number-kind">{{ switchingRule ? '先看新的左右规则' : symbolMode == 'number' && level <= 3 ? '两两配对，剩一个吗？' : '判断后选择轨道' }}</text>
+            <text class="nt-feedback" :class="feedback == '轨道正确' ? 'nt-good' : 'nt-again'">{{ feedback }}</text>
+          </view>
+          <view class="nt-tracks">
+            <ActionSurface class="nt-track nt-track-left" :disabled="!accepting" @click="answer('left')">
+              <text class="nt-track-label tap-content">左轨</text>
+              <text class="nt-track-rule tap-content">{{ reversed ? secondLabel : firstLabel }}</text>
+            </ActionSurface>
+            <ActionSurface class="nt-track nt-track-right" :disabled="!accepting" @click="answer('right')">
+              <text class="nt-track-label tap-content">右轨</text>
+              <text class="nt-track-rule tap-content">{{ reversed ? firstLabel : secondLabel }}</text>
+            </ActionSurface>
+          </view>
+          <view class="nt-stats">
+            <view class="nt-stat"><text class="nt-stat-value">{{ correct }}</text><text class="nt-stat-label">正确</text></view>
+            <view class="nt-stat"><text class="nt-stat-value">{{ errors }}</text><text class="nt-stat-label">错误</text></view>
+            <view class="nt-stat"><text class="nt-stat-value">{{ switchErrors }}</text><text class="nt-stat-label">切换错误</text></view>
+          </view>
+        </view>
+      </view>
     </view>
-    <view v-if="started" class="tracks"><ActionSurface class="tap-target track left" :disabled="!accepting" @click="answer('left')"><text class="track-label tap-content">左轨</text><text class="track-rule tap-content">{{ reversed ? '偶数' : '奇数' }}</text></ActionSurface><ActionSurface class="tap-target track right" :disabled="!accepting" @click="answer('right')"><text class="track-label tap-content">右轨</text><text class="track-rule tap-content">{{ reversed ? '奇数' : '偶数' }}</text></ActionSurface></view>
-    <view class="footer-stats"><view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view><view class="footer-stat"><text class="footer-value">{{ errors }}</text><text class="footer-label">错误</text></view><view class="footer-stat"><text class="footer-value">{{ switchErrors }}</text><text class="footer-label">切换错误</text></view></view>
-  </view>
-</TrainingFrame>
+  </TrainingFrame>
 </template>
 
 <script setup lang="uts">
+import { NUMBER_TRACK_BACKGROUND } from '../../utils/game-assets.uts'
 import { timedRoundScore, scoreQuery, searchTargetMs } from '../../utils/game-scoring.uts'
 const roundScores: number[] = []
 import TrainingFrame from '../../components/TrainingFrame.uvue'
@@ -22,32 +81,183 @@ import { useTrainingSession } from '../../utils/training-session.uts'
 import ActionSurface from '../../components/ActionSurface.uvue'
 import { ref, computed } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { getGameTuningAge } from '../../utils/difficulty.uts'
+import { getGameTuningAge, getGameDifficulty } from '../../utils/difficulty.uts'
+import { getProfile } from '../../utils/storage.uts'
 const training = useTrainingSession()
 const trainingClock = training.clock
 const trainingPaused = training.paused, trainingBusy = training.navigating
 
-const started = ref(false), accepting = ref(false), reversed = ref(false), justSwitched = ref(false), useTwoDigits = ref(false)
+const level = ref(1)
+const started = ref(false), accepting = ref(false), reversed = ref(false), justSwitched = ref(false), switchingRule = ref(false), useTwoDigits = ref(false)
 const totalRounds = ref(14), blockSize = ref(4), roundIndex = ref(0), currentNumber = ref(1)
+const symbolMode = ref('number'), currentSymbol = ref('1'), currentIsFirst = ref(true)
+const firstLabel = computed((): string => symbolMode.value == 'letter' ? '大写' : '单数')
+const secondLabel = computed((): string => symbolMode.value == 'letter' ? '小写' : '双数')
+const demoNumber = computed((): number => demoStep.value == 0 ? 3 : 8)
+const demoSymbol = computed((): string => demoNumber.value.toString())
+const demoRule = computed((): string => '单数走左 · 双数走右')
+const demoQuestion = computed((): string => level.value <= 3 ? '两个一组，剩一个就是单数' : '判断它是单数还是双数')
 const correct = ref(0), errors = ref(0), switchErrors = ref(0), feedback = ref(''), reactions = ref([] as number[])
-let appearedAt = 0, gameStartedAt = 0, nextTimer = 0
+let appearedAt = 0, gameStartedAt = 0, nextTimer = 0, ruleTimer = 0
 const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
 const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
-function configure() { const age = getGameTuningAge('number-track'); if (age <= 6) { totalRounds.value = 10; blockSize.value = 5 } else if (age <= 9) { totalRounds.value = 14; blockSize.value = 4 } else if (age <= 12) { totalRounds.value = 18; blockSize.value = 3; useTwoDigits.value = true } else { totalRounds.value = 22; blockSize.value = 2; useTwoDigits.value = true } }
-function clearTimer() { if (nextTimer > 0) trainingClock.clearTimeout(nextTimer) }
-function finish() { clearTimer(); const accuracy = Math.round((correct.value / totalRounds.value) * 100); const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length); const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000)); uni.redirectTo({ url: '/pages/result/result?gameId=number-track&dimensionId=alternating&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&switchErrors=' + switchErrors.value.toString() + scoreQuery(roundScores) }) }
-function prepare() { if (roundIndex.value >= totalRounds.value) { finish(); return }; justSwitched.value = roundIndex.value > 0 && roundIndex.value % blockSize.value == 0; if (justSwitched.value) reversed.value = !reversed.value; currentNumber.value = useTwoDigits.value ? 10 + Math.floor(Math.random() * 90) : 1 + Math.floor(Math.random() * 9); feedback.value = ''; accepting.value = true; appearedAt = trainingClock.now() }
-function begin() { if (trainingPaused.value) return; started.value = true; gameStartedAt = trainingClock.now(); prepare() }
-function expected(): string { const odd = currentNumber.value % 2 == 1; const goesLeft = reversed.value ? !odd : odd; return goesLeft ? 'left' : 'right' }
-function answer(side: string) { if (trainingPaused.value) return; if (!accepting.value) return; accepting.value = false; roundScores.push(timedRoundScore(side == expected(), trainingClock.now() - appearedAt, searchTargetMs('number-track', getGameTuningAge('number-track') - 4))); reactions.value.push(trainingClock.now() - appearedAt); if (side == expected()) { { correct.value += 1; training.playFeedback('correct') } feedback.value = '轨道正确' } else { { errors.value += 1; training.playFeedback('wrong') } if (justSwitched.value) switchErrors.value += 1; feedback.value = '先看颜色规则' }; nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepare() }, 520) }
-onLoad((_options: OnLoadOptions) => configure()); onUnload(() => clearTimer())
+
+// 试玩：先给 3（单数走左），再给 8（双数走右），把两条轨道都走一遍；不计分不计时。
+const demoStep = ref(0)
+const demoHint = ref('')
+const demoDone = computed((): boolean => demoStep.value >= 2)
+function demoCorrectSide(): string { return demoStep.value == 0 ? 'left' : 'right' }
+function resetDemo() {
+  demoStep.value = 0
+  demoHint.value = '两个一组，剩一个是单数；都配对是双数'
+}
+function answerDemo(side: string) {
+  if (trainingPaused.value || demoDone.value) return
+  if (side == demoCorrectSide()) {
+    if (demoStep.value == 0) { demoStep.value = 1; demoHint.value = '对了！再试一次' }
+    else { demoStep.value = 2; demoHint.value = '太棒啦！你已经会分轨道了' }
+  } else {
+    demoHint.value = demoStep.value == 0 ? '3 剩下一个，是单数，点左边' : '8 刚好配对，是双数，点右边'
+  }
+}
+
+function configure() {
+  level.value = getGameDifficulty('number-track')
+  const profile = getProfile()
+  symbolMode.value = 'number'
+  const age = profile == null ? getGameTuningAge('number-track') : profile.age
+  if (age <= 6) totalRounds.value = 10
+  else if (age <= 9) totalRounds.value = 14
+  else if (age <= 12) totalRounds.value = 18
+  else totalRounds.value = 22
+  blockSize.value = [6,6,5,5,4,4,3,2,2,1][level.value - 1]
+  useTwoDigits.value = level.value >= 4
+}
+function clearTimer() { if (nextTimer > 0) trainingClock.clearTimeout(nextTimer); if (ruleTimer > 0) trainingClock.clearTimeout(ruleTimer) }
+function finish() {
+  clearTimer()
+  const accuracy = Math.round((correct.value / totalRounds.value) * 100)
+  const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0)
+  const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length)
+  const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
+  uni.redirectTo({ url: '/pages/result/result?gameId=number-track&dimensionId=divided&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&switchErrors=' + switchErrors.value.toString() + scoreQuery(roundScores) })
+}
+function prepare() {
+  if (roundIndex.value >= totalRounds.value) { finish(); return }
+  justSwitched.value = roundIndex.value > 0 && roundIndex.value % blockSize.value == 0
+  if (justSwitched.value) reversed.value = !reversed.value
+  symbolMode.value = level.value >= 4 && Math.floor(roundIndex.value / blockSize.value) % 2 == 1 ? 'letter' : 'number'
+  if (symbolMode.value == 'letter') {
+    currentIsFirst.value = Math.random() < 0.5
+    const letter = String.fromCharCode(65 + Math.floor(Math.random() * 26))
+    currentSymbol.value = currentIsFirst.value ? letter : letter.toLowerCase()
+  } else {
+    currentNumber.value = useTwoDigits.value ? 10 + Math.floor(Math.random() * 90) : 1 + Math.floor(Math.random() * 9)
+    currentIsFirst.value = currentNumber.value % 2 == 1
+    currentSymbol.value = currentNumber.value.toString()
+  }
+  feedback.value = ''
+  switchingRule.value = justSwitched.value
+  accepting.value = !justSwitched.value
+  if (justSwitched.value) {
+    ruleTimer = trainingClock.setTimeout(() => {
+      ruleTimer = 0
+      switchingRule.value = false
+      accepting.value = true
+      appearedAt = trainingClock.now()
+    }, 700)
+  } else appearedAt = trainingClock.now()
+}
+function begin() {
+  if (trainingPaused.value) return
+  if (started.value) return
+  started.value = true
+  roundIndex.value = 0
+  reversed.value = false
+  switchingRule.value = false
+  correct.value = 0
+  errors.value = 0
+  switchErrors.value = 0
+  feedback.value = ''
+  reactions.value = [] as number[]
+  roundScores.length = 0
+  gameStartedAt = trainingClock.now()
+  prepare()
+}
+function expected(): string {
+  const goesLeft = reversed.value ? !currentIsFirst.value : currentIsFirst.value
+  return goesLeft ? 'left' : 'right'
+}
+function answer(side: string) {
+  if (trainingPaused.value) return
+  if (!accepting.value) return
+  accepting.value = false
+  roundScores.push(timedRoundScore(side == expected(), trainingClock.now() - appearedAt, searchTargetMs('number-track', getGameTuningAge('number-track') - 4)))
+  reactions.value.push(trainingClock.now() - appearedAt)
+  if (side == expected()) {
+    { correct.value += 1; training.playFeedback('correct') }
+    feedback.value = '轨道正确'
+  } else {
+    { errors.value += 1; training.playFeedback('wrong') }
+    if (justSwitched.value) switchErrors.value += 1
+    feedback.value = '先看轨道规则'
+  }
+  nextTimer = trainingClock.setTimeout(() => {
+    roundIndex.value += 1
+    prepare()
+  }, 520)
+}
+
+onLoad((_options: OnLoadOptions) => { configure(); resetDemo() })
+onUnload(() => clearTimer())
 // 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
 training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>
-.page { flex: 1; padding: 20px; }.game-header { flex-direction: row; justify-content: space-between; align-items: center; }.round-label { color: #8062bf; font-size: 12px; font-weight: 700; }.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #eee9fa; align-items: center; justify-content: center; }.counter-value { color: #785bb7; font-size: 13px; font-weight: 700; }
-.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; background-color: #9b7ede; }.rule-card { margin-top: 14px; padding: 15px; border-radius: 18px; background-color: #eaf0ff; position: relative; }.reversed-card { background-color: #f0eafa; }.rule-kicker { color: #7e87a0; font-size: 10px; }.rule-title { margin-top: 4px; color: #46526b; font-size: 15px; font-weight: 700; }.switch-badge { position: absolute; right: 12px; top: 16px; padding: 5px 9px; border-radius: 10px; background-color: #fff2cc; color: #a4730d; font-size: 9px; font-weight: 700; }
-.number-stage { margin-top: 14px; height: 290px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; }.instruction, .challenge { width: 100%; align-items: center; }.sample-numbers { flex-direction: row; }.sample-number { margin: 0 13px; color: #9b7ede; font-size: 58px; font-weight: 800; }.instruction-title { margin-top: 14px; color: #344059; font-size: 18px; font-weight: 700; }.instruction-copy { margin-top: 8px; width: 80%; color: #818a9f; font-size: 11px; line-height: 18px; text-align: center; }.primary { margin-top: 18px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #9b7ede; color: #ffffff; font-size: 14px; font-weight: 700; }.number { color: #4f3c76; font-size: 96px; font-weight: 800; }.number-kind { margin-top: 3px; color: #8992a5; font-size: 11px; }.feedback { margin-top: 14px; font-size: 11px; font-weight: 700; }.good { color: #338e72; }.again { color: #c65b66; }
-.tracks { margin-top: 12px; flex-direction: row; }.track { flex: 1; height: 68px; border-radius: 17px; align-items: center; justify-content: center; }.left { margin-right: 6px; background-color: #eaf0ff; }.right { margin-left: 6px; background-color: #f0eafa; }.track-label { color: #7b8599; font-size: 10px; }.track-rule { margin-top: 3px; color: #46526b; font-size: 16px; font-weight: 700; }.footer-stats { margin-top: 13px; flex-direction: row; }.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+.nt-page { flex: 1; position: relative; background-color: #e7efff; }
+.nt-scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.nt-content { position: relative; flex: 1; padding: 18px 20px 16px; }
+.nt-header { flex-direction: row; justify-content: space-between; align-items: center; }
+.nt-header-right { flex-direction: row; align-items: center; }
+.nt-eyebrow { color: #8062bf; font-size: 12px; font-weight: 700; }
+.nt-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.nt-level { margin-right: 8px; height: 38px; padding: 0 12px; border-radius: 19px; background-color: rgba(255, 255, 255, 0.92); align-items: center; justify-content: center; }
+.nt-level-text { color: #8062bf; font-size: 12px; font-weight: 700; }
+.nt-counter { width: 62px; height: 38px; border-radius: 19px; background-color: rgba(255, 255, 255, 0.92); align-items: center; justify-content: center; }
+.nt-counter-text { color: #785bb7; font-size: 13px; font-weight: 700; }
+.nt-progress { margin-top: 16px; height: 8px; border-radius: 4px; background-color: rgba(255, 255, 255, 0.65); overflow: hidden; }
+.nt-progress-fill { height: 8px; border-radius: 4px; background-color: #9b7ede; }
+.nt-intro { margin-top: 18px; align-items: center; }
+.nt-demo-title { color: #1f2a44; font-size: 18px; font-weight: 700; }
+.nt-demo-hint { margin-top: 8px; color: #69758d; font-size: 13px; text-align: center; }
+.nt-rule-card { margin-top: 14px; width: 100%; padding: 15px 17px; border-radius: 20px; background-color: rgba(234, 240, 255, 0.95); position: relative; }
+.nt-rule-reversed { background-color: rgba(240, 234, 250, 0.95); }
+.nt-rule-title { color: #46526b; font-size: 16px; font-weight: 700; }
+.nt-switch-badge { position: absolute; right: 12px; top: 16px; padding: 5px 10px; border-radius: 12px; background-color: #fff2cc; color: #a4730d; font-size: 10px; font-weight: 700; }
+.nt-stage { margin-top: 12px; width: 100%; height: 200px; border-radius: 24px; background-color: rgba(255, 255, 255, 0.92); align-items: center; justify-content: center; }
+.nt-number { color: #4f3c76; font-size: 88px; font-weight: 800; }
+.nt-pairs { width: 32px; flex-direction: row; flex-wrap: wrap; margin-top: -4px; }
+.nt-pair-dot { width: 12px; height: 12px; margin: 2px; border-radius: 6px; background-color: #a58cdb; }
+.nt-number-kind { margin-top: 4px; color: #8992a5; font-size: 12px; }
+.nt-feedback { margin-top: 10px; font-size: 13px; font-weight: 700; }
+.nt-good { color: #338e72; }
+.nt-again { color: #c65b66; }
+.nt-tracks { margin-top: 12px; width: 100%; flex-direction: row; }
+.nt-track { flex: 1; height: 68px; border-radius: 19px; align-items: center; justify-content: center; }
+.nt-track-left { margin-right: 6px; background-color: rgba(234, 240, 255, 0.95); }
+.nt-track-right { margin-left: 6px; background-color: rgba(240, 234, 250, 0.95); }
+.nt-track-label { color: #7b8599; font-size: 10px; }
+.nt-track-rule { margin-top: 3px; color: #46526b; font-size: 16px; font-weight: 700; }
+.nt-demo-replay { margin-top: 12px; padding: 8px 16px; color: #785bb7; font-size: 13px; font-weight: 700; }
+.nt-start { margin-top: 12px; width: 200px; height: 50px; line-height: 50px; border-radius: 25px; background-color: #9b7ede; color: #ffffff; font-size: 17px; font-weight: 700; }
+.nt-stats { margin-top: 14px; width: 100%; padding: 12px 8px; border-radius: 20px; background-color: rgba(255, 255, 255, 0.92); flex-direction: row; }
+.nt-stat { flex: 1; align-items: center; }
+.nt-stat-value { color: #25314a; font-size: 18px; font-weight: 700; }
+.nt-stat-label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

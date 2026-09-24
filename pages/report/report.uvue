@@ -83,22 +83,27 @@ function displayCachedReports() {
       const stats = JSON.parse<UTSJSONObject>(JSON.stringify(allTime))!
       if (stats['completedItems'] != null) totalSessions.value = stats['completedItems'] as number
     }
-    const raw = data['dimensions']
-    if (raw != null) {
+    const rawScopes = data['scopes']
+    if (rawScopes != null) {
+      const scopes = JSON.parse<UTSJSONObject[]>(JSON.stringify(rawScopes))!
+      const current = scopes.find((item: UTSJSONObject): boolean => item['scope'] as string == 'last30')
+      const raw = current == null ? null : current!['dimensions']
+      if (raw != null) {
       const values = JSON.parse<UTSJSONObject[]>(JSON.stringify(raw))!
       for (let i = 0; i < values.length; i++) {
-        const score = values[i]['currentScore']
+        const score = values[i]['abilityScore']
         if (score != null) remoteDimensionScores.value[values[i]['dimensionId'] as string] = Math.round(score as number)
+      }
       }
     }
   }
   const daily = cachedReport('daily')
-  if (daily != null && daily['days'] != null) {
-    const days = JSON.parse<UTSJSONObject[]>(JSON.stringify(daily['days']))!
-    for (let i = 0; i < days.length; i++) {
-      const summary = days[i]['summary'] == null ? {} : JSON.parse<UTSJSONObject>(JSON.stringify(days[i]['summary']))!
-      dailyRows.value.push({ date: days[i]['planDate'] as string, completed: days[i]['completedCount'] as number, total: days[i]['totalCount'] as number, minutes: summary['totalDurationSeconds'] == null ? 0 : Math.round((summary['totalDurationSeconds'] as number) / 60) })
-    }
+  if (daily != null && daily['lesson'] != null) {
+    const lesson = JSON.parse<UTSJSONObject>(JSON.stringify(daily['lesson']))!
+    const items = lesson['items'] == null ? [] as UTSJSONObject[] : JSON.parse<UTSJSONObject[]>(JSON.stringify(lesson['items']))!
+    let seconds = 0
+    for (let i = 0; i < items.length; i++) seconds += items[i]['durationSeconds'] == null ? 0 : items[i]['durationSeconds'] as number
+    dailyRows.value.push({ date: '第 ' + (lesson['lessonNo'] as number).toString() + ' 课', completed: lesson['completedCount'] as number, total: lesson['totalCount'] as number, minutes: Math.round(seconds / 60) })
   }
 }
 uni.$on('focus-reports-updated', displayCachedReports)

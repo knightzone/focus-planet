@@ -1,4 +1,4 @@
-import { DetectFaceFrame, FaceFrameResult } from './interface.uts'
+import { AppleStoreProductsResult, DetectFaceFrame, FaceFrameResult, FetchAppleStoreProducts } from './interface.uts'
 
 export const detectFaceFrame: DetectFaceFrame = function (_rgba: ArrayBuffer, _width: number, _height: number): FaceFrameResult {
   return {
@@ -14,4 +14,8 @@ export const detectFaceFrame: DetectFaceFrame = function (_rgba: ArrayBuffer, _w
     confidence: 0,
     errorMessage: '当前平台暂不支持端侧面部检测'
   }
+}
+
+export const fetchAppleStoreProducts: FetchAppleStoreProducts = function (_productIds: string[], completed: (result: AppleStoreProductsResult) => void) {
+  completed({ success: false, products: [], errorMessage: '请在 iPhone 上读取 App Store 商品信息' })
 }

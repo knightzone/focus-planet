@@ -1,5 +1,5 @@
 <template>
-<TrainingFrame title="影子配对" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+<TrainingFrame :difficulty="level" :preparing="!started" title="影子配对" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="sm-page">
     <image class="sm-background" src="/static/images/runtime/backgrounds/shadow-match-desk-v1.webp" mode="aspectFill"></image>
     <view class="sm-content">
@@ -9,7 +9,7 @@
     </view>
     <view v-if="started" class="sm-progress"><view class="sm-progress-fill" :style="{ width: progressWidth }"></view></view>
 
-    <view v-if="!started" class="sm-intro">
+    <view v-if="!started" class="sm-intro training-preview-card">
       <text class="sm-demo-title">先试一下</text>
       <view class="sm-demo-row">
         <view class="sm-demo-object" :class="demoSelected ? 'sm-demo-selected' : ''" @click="selectDemo">
@@ -25,8 +25,8 @@
         </view>
       </view>
       <text class="sm-demo-hint">{{ demoHint }}</text>
-      <text v-if="demoMatched" class="sm-demo-replay" @click="resetDemo">再试一次</text>
-      <button class="sm-start" @click="begin">开始</button>
+      <text v-if="demoMatched" class="sm-demo-replay training-preview-secondary" @click="resetDemo">再试一次</text>
+      <button class="sm-start training-preview-primary" @click="begin">开始训练</button>
     </view>
 
     <view v-else class="sm-board">
@@ -184,7 +184,7 @@ function finish(){
   clearTimer();const attempts=correct.value+errors.value,accuracy=attempts==0?0:Math.round(correct.value/attempts*100)
   const sum=times.value.reduce((s:number,v:number):number=>s+v,0),average=times.value.length==0?0:Math.round(sum/times.value.length)
   const duration=Math.max(1,Math.round((trainingClock.now()-gameStartedAt)/1000)),required=shadowCount.value*rounds.value
-  uni.redirectTo({url:'/pages/result/result?gameId=shape-match&dimensionId=focused&score='+accuracy.toString()+'&accuracy='+accuracy.toString()+'&reaction='+average.toString()+'&duration='+duration.toString()+'&completed='+correct.value.toString()+'&total='+required.toString() + scoreQuery(roundScores) })
+  uni.redirectTo({url:'/pages/result/result?gameId=shape-match&dimensionId=alternating&score='+accuracy.toString()+'&accuracy='+accuracy.toString()+'&reaction='+average.toString()+'&duration='+duration.toString()+'&completed='+correct.value.toString()+'&total='+required.toString() + scoreQuery(roundScores) })
 }
 function prepare(){
   if(round.value>=rounds.value){finish();return}
@@ -273,4 +273,9 @@ training.setStartedCheck((): boolean => started.value)
 .sm-demo-hint{margin-top:20px;color:#61758b;font-size:14px}
 .sm-demo-replay{padding:12px 20px;color:#5b8def;font-size:13px}
 .sm-stats{padding:12px 8px;border-radius:18px;background-color:rgba(255,255,255,.8)}
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

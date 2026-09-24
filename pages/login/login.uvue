@@ -19,7 +19,7 @@
 
         <view class="code-row">
           <input class="code-input" v-model="code" type="number" maxlength="6" placeholder="6 位验证码" />
-          <button class="code-button" :class="secondsLeft > 0 || sendingCode ? 'code-button-disabled' : ''" @click="sendCode">{{ codeButtonText }}</button>
+          <button class="code-button" :class="codeCooldownActive || sendingCode ? 'code-button-disabled' : ''" @click="sendCode">{{ codeButtonText }}</button>
         </view>
 
         <button class="primary-button" :class="canSubmit && !loggingIn ? '' : 'primary-disabled'" @click="phoneLogin">{{ loggingIn ? '登录中…' : '登录并继续' }}</button>
@@ -38,7 +38,7 @@
 <script setup lang="uts">
 import ActionSurface from '../../components/ActionSurface.uvue'
 import { ref, computed } from 'vue'
-import { onUnload } from '@dcloudio/uni-app'
+import { onShow, onUnload } from '@dcloudio/uni-app'
 import { requestPhoneCode, loginWithPhone, loginWithApple, AuthAttemptResult } from '../../utils/auth.uts'
 
 const phone = ref('')
@@ -48,13 +48,27 @@ const loggingIn = ref(false)
 const appleLogging = ref(false)
 const secondsLeft = ref(0)
 let countdownTimer = 0
+let countdownEndsAt = 0
+let countdownPhone = ''
+const CODE_COOLDOWN_END_KEY = 'focus_planet_login_code_cooldown_end'
+const CODE_COOLDOWN_PHONE_KEY = 'focus_planet_login_code_cooldown_phone'
 const canSubmit = computed((): boolean => phone.value.trim().length == 11 && code.value.trim().length == 6)
+const codeCooldownActive = computed((): boolean => phone.value.trim() == countdownPhone && secondsLeft.value > 0)
 const codeButtonText = computed((): string => {
   if (sendingCode.value) return '发送中…'
-  if (secondsLeft.value > 0) return secondsLeft.value.toString() + 's 后重发'
+  if (codeCooldownActive.value) return secondsLeft.value.toString() + 's 后重发'
   return '获取验证码'
 })
 
+onShow(() => {
+  const savedEnd = uni.getStorageSync(CODE_COOLDOWN_END_KEY)
+  const savedPhone = uni.getStorageSync(CODE_COOLDOWN_PHONE_KEY)
+  if (savedEnd != null && savedEnd != '' && savedPhone != null && savedPhone != '') {
+    countdownEndsAt = savedEnd as number
+    countdownPhone = savedPhone as string
+    refreshCountdown()
+  }
+})
 onUnload(() => { if (countdownTimer != 0) clearTimeout(countdownTimer) })
 
 function goBack() {
@@ -77,25 +91,36 @@ function showResult(result: AuthAttemptResult, needsProfile: boolean = false, su
   }
 }
 
-function runCountdown() {
-  secondsLeft.value = 60
-  const tick = () => {
-    secondsLeft.value -= 1
-    if (secondsLeft.value > 0) countdownTimer = setTimeout(tick, 1000)
-    else countdownTimer = 0
+function refreshCountdown() {
+  if (countdownTimer != 0) clearTimeout(countdownTimer)
+  countdownTimer = 0
+  secondsLeft.value = Math.max(0, Math.ceil((countdownEndsAt - Date.now()) / 1000))
+  if (secondsLeft.value > 0) countdownTimer = setTimeout(() => refreshCountdown(), 1000)
+  else {
+    countdownEndsAt = 0
+    countdownPhone = ''
+    uni.removeStorageSync(CODE_COOLDOWN_END_KEY)
+    uni.removeStorageSync(CODE_COOLDOWN_PHONE_KEY)
   }
-  countdownTimer = setTimeout(tick, 1000)
+}
+
+function runCountdown(phoneValue: string) {
+  countdownPhone = phoneValue
+  countdownEndsAt = Date.now() + 60000
+  uni.setStorageSync(CODE_COOLDOWN_END_KEY, countdownEndsAt)
+  uni.setStorageSync(CODE_COOLDOWN_PHONE_KEY, countdownPhone)
+  refreshCountdown()
 }
 
 function sendCode() {
-  if (sendingCode.value || secondsLeft.value > 0) return
+  if (sendingCode.value || codeCooldownActive.value) return
   const value = phone.value.trim()
   if (value.length != 11) { uni.showToast({ title: '请输入 11 位手机号', icon: 'none' }); return }
   sendingCode.value = true
   requestPhoneCode(value, (result: AuthAttemptResult, debugCode: string) => {
     sendingCode.value = false
     if (debugCode != '') code.value = debugCode
-    if (result.success) runCountdown()
+    if (result.success) runCountdown(value)
     uni.showToast({ title: result.message, icon: result.success ? 'success' : 'none', duration: 2500 })
   })
 }

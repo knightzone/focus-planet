@@ -1,12 +1,23 @@
 import { LOCAL_TEST_MODE } from './local-test.uts'
-import { getAccessToken } from './api-client.uts'
-import { submitTrainingResult, getOverviewReport, getDailyReport } from './server-api.uts'
-import { getLocalDayKey } from './storage.uts'
+import { getAccessToken, getRefreshToken, refreshAccessToken } from './api-client.uts'
+import { submitTrainingResult, submitLessonTrainingResult, getOverviewReport, getDailyReport } from './server-api.uts'
+import { getLocalDayKey, getRecords, saveRecords, markLessonRecordSynced, TrainingRecord } from './storage.uts'
+import { repairActiveLessonRecords } from './course-plan.uts'
 
-export type PendingResult = { id: string, planId: string, itemId: string, payload: UTSJSONObject, error: string }
+export type PendingResult = { id: string, planId: string, itemId: string, payload: UTSJSONObject, error: string, mode?: string }
 const TTL = 48 * 60 * 60 * 1000
+// 运行期间的重试节奏；iOS 挂起会暂停 JS 定时器，回前台由 resumeOfflineSync 重建。
+const POLL_INTERVAL_MS = 30000
+// API 请求自身 15 秒超时；额外兜底防止原生回调丢失时一条记录卡住整队。
+const ITEM_TIMEOUT_MS = 20 * 1000
 let uploading = false
+let uploadingSince = 0
+let uploadGeneration = 0
+let itemTimer = 0
 let initialized = false
+let pollTimer = 0
+let refreshingToken = false
+let unassignedDiagnosticsLogged = false
 
 export function syncOwner(): string {
   if (LOCAL_TEST_MODE) return ''
@@ -20,10 +31,15 @@ export function syncOwner(): string {
 function queueKey(owner: string): string { return 'focus_pending_results_' + owner }
 function readQueue(owner: string): PendingResult[] {
   const raw = uni.getStorageSync(queueKey(owner))
-  return raw == null || raw == '' ? [] as PendingResult[] : JSON.parse<PendingResult[]>(JSON.stringify(raw))!
+  if (raw == null || raw == '') return [] as PendingResult[]
+  return typeof raw == 'string' ? JSON.parse<PendingResult[]>(raw as string)! : JSON.parse<PendingResult[]>(JSON.stringify(raw))!
+}
+function writeQueue(owner: string, queue: PendingResult[]) {
+  // 与成绩记录相同：iOS 原生对象数组桥接可能丢失嵌套 payload 字段。
+  uni.setStorageSync(queueKey(owner), JSON.stringify(queue))
 }
 
-export function pendingResultCount(): number { return readQueue(syncOwner()).length }
+export function pendingResultCount(): number { return readQueue(syncOwner()).filter((item: PendingResult): boolean => validPendingItem(item)).length }
 
 // Persist before requesting; the original submission ID and play token survive restarts.
 export function enqueueResult(planId: string, itemId: string, payload: UTSJSONObject) {
@@ -32,10 +48,145 @@ export function enqueueResult(planId: string, itemId: string, payload: UTSJSONOb
   const queue = readQueue(owner)
   const id = payload['submissionId'] as string
   if (queue.find((item: PendingResult): boolean => item.id == id) == null) {
-    queue.push({ id: id, planId: planId, itemId: itemId, payload: payload, error: '' })
-    uni.setStorageSync(queueKey(owner), queue)
+    queue.push({ id: id, planId: planId, itemId: itemId, payload: payload, error: '', mode: 'server-plan' })
+    writeQueue(owner, queue)
   }
   flushResults()
+}
+
+export function enqueueLessonResult(payload: UTSJSONObject): boolean {
+  const owner = syncOwner()
+  if (owner == '') { console.error('[lesson-sync] CRITICAL enqueue without login session'); return false }
+  const queue = readQueue(owner)
+  const currentId = payload['localSyncId']
+  const id = currentId == null ? '' : currentId as string
+  const candidate: PendingResult = { id: id, planId: '', itemId: '', payload: payload, error: '', mode: 'client-lesson' }
+  if (!validPendingItem(candidate)) { console.error('[lesson-sync] CRITICAL new result payload invalid id=' + id); return false }
+  if (queue.find((item: PendingResult): boolean => item.id == id) == null) {
+    queue.push(candidate)
+    writeQueue(owner, queue)
+    console.log('[lesson-sync] queued id=' + id)
+  }
+  const restored = readQueue(owner).find((item: PendingResult): boolean => item.id == id)
+  console.log('[lesson-sync] queue readback id=' + id + ' present=' + (restored != null).toString() + ' lesson=' + (restored == null || restored!.payload['lessonNo'] == null ? 'missing' : (restored!.payload['lessonNo'] as number).toString()))
+  if (restored == null || !validPendingItem(restored!)) {
+    writeQueue(owner, readQueue(owner).filter((item: PendingResult): boolean => item.id != id))
+    console.error('[lesson-sync] CRITICAL queue readback invalid id=' + id)
+    return false
+  }
+  flushResults()
+  return true
+}
+
+function lessonPayload(record: TrainingRecord): UTSJSONObject | null {
+  if (record.lessonNo == null) return null
+  const localSyncId = record.localSyncId
+  if (localSyncId == null || localSyncId == '') return null
+  return {
+    localSyncId: localSyncId!,
+    lessonNo: record.lessonNo!,
+    gameId: record.gameId,
+    difficultyLevel: Math.max(1, Math.min(10, record.difficultyLevel == null ? 1 : Math.round(record.difficultyLevel!))),
+    score: Math.max(0, Math.min(200, Math.round(record.score))),
+    accuracy: Math.max(0, Math.min(100, Math.round(record.accuracy))),
+    averageReactionMs: Math.max(0, Math.min(60000, Math.round(record.averageReaction))),
+    durationSeconds: Math.max(1, Math.min(86400, Math.round(record.durationSeconds == null ? 1 : record.durationSeconds!))),
+    omissions: Math.max(0, Math.round(record.omissions == null ? 0 : record.omissions!)),
+    falseAlarms: Math.max(0, Math.round(record.falseAlarms == null ? 0 : record.falseAlarms!)),
+    completionCount: Math.max(0, Math.round(record.completedCount == null ? 0 : record.completedCount!)),
+    scoreAlgorithmVersion: record.scoreAlgorithmVersion == null || record.scoreAlgorithmVersion == '' ? 'goal-v2' : record.scoreAlgorithmVersion!,
+    clientCompletedAt: new Date(record.completedAt).toISOString()
+  }
+}
+
+// 旧版本或进程被杀时可能来不及留下队列。每个「课程 + 游戏」只恢复本地最高分，
+// 服务端仍按自然键兜底合并；已确认或明确无需同步的记录不会重复上传。
+export function recoverUnsyncedLessonResults() {
+  const owner = syncOwner()
+  if (owner == '') {
+    console.log('[lesson-sync] recovery skipped: no login session')
+    return
+  }
+  const repaired = repairActiveLessonRecords()
+  if (repaired > 0) console.log('[lesson-sync] repaired ' + repaired.toString() + ' legacy records')
+  const records = getRecords()
+  let lessonRecords = 0
+  let unassignedRecords = 0
+  for (let i = 0; i < records.length; i++) {
+    if (records[i].lessonNo == null) unassignedRecords += 1
+    else lessonRecords += 1
+  }
+  console.log('[lesson-sync] recovery scan records=' + records.length.toString() + ' assigned=' + lessonRecords.toString() + ' unassigned=' + unassignedRecords.toString() + ' repaired=' + repaired.toString())
+  if (repaired == 0 && unassignedRecords > 0 && !unassignedDiagnosticsLogged) {
+    unassignedDiagnosticsLogged = true
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i]
+      if (record.lessonNo == null) console.log('[lesson-sync] unassigned day=' + getLocalDayKey(record.completedAt) + ' game=' + record.gameId + ' score=' + record.score.toString())
+    }
+  }
+  let migratedIds = 0
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i]
+    if (record.lessonNo == null || record.lessonSyncPending == false) continue
+    if (record.localSyncId == null || record.localSyncId == '') {
+      record.localSyncId = 'recovered-' + record.id + '-' + record.gameId
+      record.lessonSyncPending = true
+      migratedIds += 1
+    }
+  }
+  if (migratedIds > 0) {
+    saveRecords(records)
+    console.log('[lesson-sync] assigned local IDs to ' + migratedIds.toString() + ' records')
+  }
+  const best = [] as TrainingRecord[]
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i]
+    const currentId = record.localSyncId
+    if (record.lessonNo == null || currentId == null || currentId == '') continue
+    const existingIndex = best.findIndex((item: TrainingRecord): boolean => item.lessonNo == record.lessonNo && item.gameId == record.gameId)
+    if (existingIndex < 0) best.push(record)
+    else if (record.score > best[existingIndex].score || (record.score == best[existingIndex].score && best[existingIndex].lessonSyncPending == false && record.lessonSyncPending != false)) best[existingIndex] = record
+  }
+  let queue = readQueue(owner)
+  const originalQueueLength = queue.length
+  if (unassignedRecords > 0) {
+    queue = queue.filter((item: PendingResult): boolean => {
+      if (item.mode != 'client-lesson' || item.payload == null) return false
+      return item.payload['lessonNo'] != null && item.payload['gameId'] != null && item.payload['localSyncId'] != null
+    })
+  }
+  if (queue.length != originalQueueLength) {
+    writeQueue(owner, queue)
+    console.log('[lesson-sync] removed deprecated queue entries=' + (originalQueueLength - queue.length).toString())
+  }
+  let changed = false
+  for (let i = 0; i < best.length; i++) {
+    const record = best[i]
+    if (record.lessonSyncPending == false) continue
+    const payload = lessonPayload(record)
+    if (payload == null) continue
+    const id = payload!['localSyncId'] as string
+    if (queue.find((item: PendingResult): boolean => item.id == id) != null) continue
+    queue.push({ id: id, planId: '', itemId: '', payload: payload!, error: '', mode: 'client-lesson' })
+    changed = true
+  }
+  if (changed) {
+    writeQueue(owner, queue)
+    console.log('[lesson-sync] recovered queue, pending=' + queue.length.toString())
+  }
+}
+
+export function hasPendingOlderThan(dayKey: string): boolean {
+  const queue = readQueue(syncOwner())
+  for (let i = 0; i < queue.length; i++) {
+    if (!validPendingItem(queue[i])) continue
+    const value = queue[i].payload['clientCompletedAt']
+    if (value != null) {
+      const timestamp = Date.parse(value as string)
+      if (Number.isFinite(timestamp) && getLocalDayKey(timestamp) < dayKey) return true
+    }
+  }
+  return false
 }
 
 export function cachedReport(kind: string): UTSJSONObject | null {
@@ -52,57 +203,216 @@ function saveReport(owner: string, kind: string, data: UTSJSONObject) {
   uni.setStorageSync('focus_report_' + owner + '_' + kind, { savedAt: Date.now(), data: data })
 }
 
+// 锁只保护当前这一次请求；到期后使旧回调失效，继续按队列逐项处理。
+function uploadInProgress(): boolean {
+  if (!uploading) return false
+  if (Date.now() - uploadingSince <= ITEM_TIMEOUT_MS) return true
+  if (itemTimer != 0) clearTimeout(itemTimer)
+  itemTimer = 0
+  uploadGeneration += 1
+  uploading = false
+  console.log('[lesson-sync] stale request released')
+  return false
+}
+
 export function refreshReports() {
+  // 仅旧版报告页显式调用；补传期间不缓存可能过期的报告。
+  if (uploadInProgress()) return
   const owner = syncOwner()
   if (owner == '' || getAccessToken() == '') return
-  const today = getLocalDayKey(Date.now())
-  getOverviewReport(today, (data: UTSJSONObject) => {
+  getOverviewReport((data: UTSJSONObject) => {
     saveReport(owner, 'overview', data)
     if (syncOwner() == owner) uni.$emit('focus-reports-updated')
   }, (_message: string, _code: string) => {})
-  getDailyReport(getLocalDayKey(Date.now() - 24 * 60 * 60 * 1000), today, (data: UTSJSONObject) => {
-    saveReport(owner, 'daily', data)
-    if (syncOwner() == owner) uni.$emit('focus-reports-updated')
-  }, (_message: string, _code: string) => {})
+  const records = getRecords()
+  let latestLessonNo = 0
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i] as TrainingRecord
+    if (record.lessonNo != null) latestLessonNo = Math.max(latestLessonNo, record.lessonNo!)
+  }
+  if (latestLessonNo > 0) {
+    getDailyReport(latestLessonNo, (data: UTSJSONObject) => {
+      saveReport(owner, 'daily', data)
+      if (syncOwner() == owner) uni.$emit('focus-reports-updated')
+    }, (_message: string, _code: string) => {})
+  }
 }
 
 export function flushResults() {
-  if (uploading || getAccessToken() == '') return
+  if (uploadInProgress()) {
+    console.log('[lesson-sync] upload deferred: request in progress ageMs=' + (Date.now() - uploadingSince).toString())
+    return
+  }
   const owner = syncOwner()
-  if (owner == '') return
+  if (owner == '') {
+    console.log('[lesson-sync] upload skipped: no login session')
+    return
+  }
+  if (getAccessToken() == '') {
+    if (getRefreshToken() != '' && !refreshingToken) {
+      refreshingToken = true
+      console.log('[lesson-sync] refreshing access token before upload')
+      refreshAccessToken(() => {
+        refreshingToken = false
+        flushResults()
+      }, (message: string, code: string) => {
+        refreshingToken = false
+        console.log('[lesson-sync] token refresh failed code=' + code + ' message=' + message)
+      })
+    } else if (getRefreshToken() == '') console.log('[lesson-sync] upload skipped: no access or refresh token')
+    return
+  }
   const batch = readQueue(owner)
-  if (batch.length == 0) return
+  if (batch.length == 0) {
+    console.log('[lesson-sync] upload queue empty')
+    return
+  }
   uploading = true
-  uploadNext(owner, batch, 0)
+  uploadingSince = Date.now()
+  uploadGeneration += 1
+  uploadNext(owner, batch, 0, uploadGeneration)
 }
 
-function uploadNext(owner: string, batch: PendingResult[], index: number) {
+function validPendingItem(item: PendingResult): boolean {
+  if (item.id == '') return false
+  if (item.mode == 'client-lesson') {
+    const payload = item.payload
+    if (payload == null) return false
+    if (payload['lessonNo'] == null || payload['gameId'] == null || payload['localSyncId'] == null || payload['difficultyLevel'] == null || payload['score'] == null || payload['accuracy'] == null || payload['averageReactionMs'] == null || payload['durationSeconds'] == null || payload['omissions'] == null || payload['falseAlarms'] == null || payload['completionCount'] == null || payload['scoreAlgorithmVersion'] == null || payload['clientCompletedAt'] == null) return false
+    const lessonNo = payload['lessonNo'] as number
+    const difficulty = payload['difficultyLevel'] as number
+    const score = payload['score'] as number
+    const accuracy = payload['accuracy'] as number
+    const reaction = payload['averageReactionMs'] as number
+    const duration = payload['durationSeconds'] as number
+    const completedAt = payload['clientCompletedAt'] as string
+    return Number.isFinite(lessonNo) && lessonNo >= 1 && (payload['gameId'] as string) != '' && (payload['localSyncId'] as string) == item.id && Number.isFinite(difficulty) && difficulty >= 1 && difficulty <= 10 && Number.isFinite(score) && score >= 0 && score <= 200 && Number.isFinite(accuracy) && accuracy >= 0 && accuracy <= 100 && Number.isFinite(reaction) && reaction >= 0 && reaction <= 60000 && Number.isFinite(duration) && duration >= 1 && duration <= 86400 && (payload['scoreAlgorithmVersion'] as string) != '' && Number.isFinite(Date.parse(completedAt))
+  }
+  return item.mode == 'server-plan' && item.planId != '' && item.itemId != '' && item.payload != null && (item.payload['submissionId'] as string) == item.id
+}
+
+function markQueueError(owner: string, id: string, code: string) {
+  const queue = readQueue(owner)
+  const entry = queue.find((value: PendingResult): boolean => value.id == id)
+  if (entry != null) entry.error = code
+  writeQueue(owner, queue)
+}
+
+function uploadNext(owner: string, batch: PendingResult[], index: number, generation: number) {
+  if (generation != uploadGeneration) return
   if (syncOwner() != owner || getAccessToken() == '') { uploading = false; return }
-  if (index >= batch.length) { uploading = false; refreshReports(); return }
+  if (index >= batch.length) {
+    uploading = false
+    if (itemTimer != 0) clearTimeout(itemTimer)
+    itemTimer = 0
+    const remaining = readQueue(owner)
+    console.log('[lesson-sync] upload pass complete remaining=' + remaining.length.toString())
+    // 本轮上传期间新入队的题目立即处理；本轮失败的旧题留待下次轮询，避免无限重试。
+    if (remaining.find((entry: PendingResult): boolean => batch.find((processed: PendingResult): boolean => processed.id == entry.id) == null) != null) flushResults()
+    return
+  }
   const item = batch[index]
-  if (item.planId == '' || item.itemId == '') { uploadNext(owner, batch, index + 1); return }
-  submitTrainingResult(item.planId, item.itemId, item.payload, (_data: UTSJSONObject) => {
+  if (!validPendingItem(item)) {
+    writeQueue(owner, readQueue(owner).filter((entry: PendingResult): boolean => entry.id != item.id))
+    console.log('[lesson-sync] discarded invalid queue id=' + item.id)
+    uploadNext(owner, batch, index + 1, generation)
+    return
+  }
+  let settled = false
+  uploadingSince = Date.now()
+  const advance = () => {
+    if (settled || generation != uploadGeneration) return
+    settled = true
+    if (itemTimer != 0) clearTimeout(itemTimer)
+    itemTimer = 0
+    uploadNext(owner, batch, index + 1, generation)
+  }
+  const acknowledged = (_data: UTSJSONObject) => {
+    if (settled || generation != uploadGeneration) return
     const remaining = readQueue(owner).filter((entry: PendingResult): boolean => entry.id != item.id)
-    uni.setStorageSync(queueKey(owner), remaining)
+    writeQueue(owner, remaining)
+    if (item.mode == 'client-lesson') markLessonRecordSynced(item.id)
+    if (item.mode == 'client-lesson') console.log('[lesson-sync] success id=' + item.id)
     if (syncOwner() == owner) uni.$emit('focus-results-synced')
-    uploadNext(owner, batch, index + 1)
-  }, (_message: string, code: string) => {
-    const queue = readQueue(owner)
-    const entry = queue.find((value: PendingResult): boolean => value.id == item.id)
-    if (entry != null) entry.error = code
-    uni.setStorageSync(queueKey(owner), queue)
-    if (code == 'NETWORK_ERROR' || code == 'UNAUTHORIZED') { uploading = false; return }
-    // One rejected/expired token must not block other valid records; retain it locally.
-    uploadNext(owner, batch, index + 1)
+    advance()
+  }
+  const rejected = (message: string, code: string) => {
+    if (settled || generation != uploadGeneration) return
+    markQueueError(owner, item.id, code)
+    if (item.mode == 'client-lesson') console.log('[lesson-sync] failed code=' + code + ' message=' + message)
+    // 失败项留在队列中，下一条继续；下一轮轮询才重试失败项，避免无限重试。
+    advance()
+  }
+  itemTimer = setTimeout(() => {
+    if (settled || generation != uploadGeneration) return
+    markQueueError(owner, item.id, 'REQUEST_TIMEOUT')
+    console.log('[lesson-sync] request timeout id=' + item.id)
+    advance()
+  }, ITEM_TIMEOUT_MS)
+  if (item.mode == 'client-lesson') {
+    const lessonValue = item.payload['lessonNo']
+    const gameValue = item.payload['gameId']
+    const scoreValue = item.payload['score']
+    const lessonText = lessonValue == null ? 'missing' : (lessonValue as number).toString()
+    const gameText = gameValue == null ? 'missing' : gameValue as string
+    const scoreText = scoreValue == null ? 'missing' : (scoreValue as number).toString()
+    console.log('[lesson-sync] uploading lesson=' + lessonText + ' game=' + gameText + ' score=' + scoreText)
+    submitLessonTrainingResult(item.payload, acknowledged, rejected)
+    return
+  }
+  submitTrainingResult(item.planId, item.itemId, item.payload, acknowledged, rejected)
+}
+
+// 先用系统网络类型复核一次再同步：iOS 回前台时 onNetworkStatusChange 可能给出过渡态或不完整的
+// 事件参数，复核可以避免漏传；复核失败（无法判断）按“可能有网”处理，交给请求结果决定。
+function whenNetworkAvailable(onAvailable: () => void) {
+  uni.getNetworkType({
+    success: (result) => { if (result.networkType != 'none') onAvailable() },
+    fail: (_error) => onAvailable()
   })
+}
+
+// 启动、登录及回前台只补传；报告仅由打开报告页时按需查询。
+export function syncNow() {
+  whenNetworkAvailable(() => {
+    flushResults()
+  })
+}
+
+// 30 秒轮询：重复调用只保留一个定时器。
+function ensurePolling() {
+  if (pollTimer != 0) clearInterval(pollTimer)
+  pollTimer = setInterval(() => flushResults(), POLL_INTERVAL_MS)
 }
 
 export function initializeOfflineSync() {
-  if (initialized) return
+  if (initialized) {
+    console.log('[lesson-sync] initialize skipped: already initialized')
+    return
+  }
   initialized = true
-  uni.$on('focus-auth-ready', () => { flushResults(); refreshReports() })
-  uni.onNetworkStatusChange((result) => {
-    if (result.isConnected) { flushResults(); refreshReports() }
+  console.log('[lesson-sync] initialize')
+  uni.$on('focus-auth-ready', () => {
+    console.log('[lesson-sync] auth ready')
+    recoverUnsyncedLessonResults()
+    syncNow()
   })
-  setInterval(() => flushResults(), 30000)
+  uni.onNetworkStatusChange((result) => {
+    if (result.isConnected) { syncNow(); return }
+    // isConnected=false 可能是回前台或切网瞬间的过渡回调，用它做一次网络类型复核再决定是否补传。
+    whenNetworkAvailable(() => syncNow())
+  })
+  ensurePolling()
+  // App 启动：登录态和队列都在本地，能同步就先补一次。
+  recoverUnsyncedLessonResults()
+  syncNow()
+}
+
+// App 回到前台：重建 iOS 挂起后可能失效的 30 秒轮询，并立即补传 + 刷新报告。重复调用安全，
+// 不受 initializeOfflineSync 的 initialized 守卫影响。
+export function resumeOfflineSync() {
+  console.log('[lesson-sync] resume')
+  ensurePolling()
+  recoverUnsyncedLessonResults()
+  syncNow()
 }

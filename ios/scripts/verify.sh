@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 IOS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 APP_ID="__UNI__B5780B0"
-EXPECTED_RUNTIME_VERSION="5.25"
+EXPECTED_RUNTIME_VERSION="5.26"
 resource_manifest="$IOS_DIR/FocusPlanet/FocusPlanet/uni-app-x/apps/$APP_ID/www/manifest.json"
 
 command -v xcodebuild >/dev/null || { echo "Xcode command-line tools are missing." >&2; exit 1; }

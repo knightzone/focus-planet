@@ -1,18 +1,18 @@
 <template>
-  <TrainingFrame title="规律小侦探" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+  <TrainingFrame :difficulty="level" :preparing="!started" title="规律小侦探" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
     <view class="pf-page">
       <image class="pf-scene" src="/static/images/runtime/backgrounds/shadow-match-sky-v1.webp" mode="aspectFill"></image>
       <view class="pf-content">
         <view class="pf-header">
-          <view><text class="pf-eyebrow">转换注意训练</text><text class="pf-title">规律小侦探</text></view>
+          <view><text class="pf-eyebrow">逻辑空间训练</text><text class="pf-title">规律小侦探</text></view>
           <view class="pf-header-right">
-            <view class="pf-level"><text class="pf-level-text">难度 {{ level }}</text></view>
+            <view v-if="started" class="pf-level"><text class="pf-level-text">难度 {{ level }}</text></view>
             <view class="pf-counter"><text class="pf-counter-text">{{ started ? (roundIndex + 1).toString() + '/' + rounds.length.toString() : '试玩' }}</text></view>
           </view>
         </view>
         <view class="pf-progress"><view class="pf-progress-fill" :style="{ width: progressWidth }"></view></view>
 
-        <view v-if="!started" class="pf-intro">
+        <view v-if="!started" class="pf-intro training-preview-card">
           <text class="pf-demo-title">{{ demoIsShadow ? '认识一下影子队员' : '先试一下' }}</text>
           <view class="pf-sequence">
             <view v-for="(cell, index) in demoCells" :key="'demo-' + index" class="pf-cell-holder">
@@ -26,8 +26,8 @@
               <image class="pf-option-image tap-content" :style="{ width: optionImage.toString() + 'px', height: optionImage.toString() + 'px' }" :src="option.path" mode="aspectFit"></image>
             </ActionSurface>
           </view>
-          <text v-if="demoSolved" class="pf-demo-replay" @click="resetDemo">再试一次</text>
-          <button class="pf-start" @click="begin">开始</button>
+          <text v-if="demoSolved" class="pf-demo-replay training-preview-secondary" @click="resetDemo">再试一次</text>
+          <button class="pf-start training-preview-primary" @click="begin">开始训练</button>
         </view>
 
         <view v-else class="pf-play">
@@ -284,4 +284,9 @@ training.setStartedCheck((): boolean => started.value)
 .pf-stat { flex: 1; align-items: center; }
 .pf-stat-value { color: #25314a; font-size: 18px; font-weight: 700; }
 .pf-stat-label { color: #8a93a7; font-size: 10px; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

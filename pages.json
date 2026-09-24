@@ -14,6 +14,13 @@
       }
     },
     {
+      "path": "pages/membership/membership",
+      "style": {
+        "navigationStyle": "custom",
+        "disableSwipeBack": false
+      }
+    },
+    {
       "path": "pages/companion/companion",
       "style": {
         "navigationStyle": "custom"
@@ -35,6 +42,12 @@
       "path": "pages/dimensions/dimensions",
       "style": {
         "navigationBarTitleText": "五维训练"
+      }
+    },
+    {
+      "path": "pages/dimensions/game-showcase",
+      "style": {
+        "navigationBarTitleText": "训练图鉴"
       }
     },
     {
@@ -94,14 +107,14 @@
       "path": "pages/game/dual-track",
       "style": {
         "navigationStyle": "custom",
-        "navigationBarTitleText": "双轨任务"
+        "navigationBarTitleText": "上天入海"
       }
     },
     {
       "path": "pages/game/listen-find",
       "style": {
         "navigationStyle": "custom",
-        "navigationBarTitleText": "听声找图"
+        "navigationBarTitleText": "听声捉图形"
       }
     },
     {
@@ -161,6 +174,13 @@
       }
     },
     {
+      "path": "pages/game/little-driver",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "一心二用小司机"
+      }
+    },
+    {
       "path": "pages/game/spot-difference",
       "style": {
         "navigationStyle": "custom",
@@ -210,6 +230,24 @@
       }
     },
     {
+      "path": "pages/game/memory-search",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "记忆与搜索"
+      }
+    },
+    {
+      "path": "pages/game/order-guess",
+      "style": { "navigationStyle": "custom", "navigationBarTitleText": "顺序猜猜" }
+    },
+    {
+      "path": "pages/game/memory-link",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "记忆连线"
+      }
+    },
+    {
       "path": "pages/game/bird-cloud",
       "style": {
         "navigationStyle": "custom",
@@ -223,13 +261,13 @@
       }
     },
     {
-      "path": "pages/report/report",
+      "path": "pages/report/report-v2",
       "style": {
         "navigationBarTitleText": "成长报告"
       }
     },
     {
-      "path": "pages/history/history",
+      "path": "pages/history/history-v2",
       "style": {
         "navigationBarTitleText": "训练历史"
       }

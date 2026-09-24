@@ -4,7 +4,7 @@
       <view class="top-row">
         <view>
           <text class="eyebrow">星陪伴</text>
-          <text class="title">专注一下</text>
+          <text class="title">番茄计时</text>
         </view>
         <image class="top-mascot" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image>
       </view>
@@ -37,14 +37,6 @@
         </view>
       </view>
 
-      <view class="camera-option" @click="toggleCameraAnalysis">
-        <view class="camera-option-copy">
-          <text class="camera-option-title">坐姿陪伴</text>
-          <text class="camera-option-desc">仅本机识别</text>
-        </view>
-        <view class="camera-toggle" :class="cameraEnabled ? 'camera-toggle-on' : ''"><view class="camera-toggle-knob" :class="cameraEnabled ? 'camera-toggle-knob-on' : ''"></view></view>
-      </view>
-
       <button class="tap-target start-button" @click="startFocus">开始专注</button>
       <view class="bottom-space"></view>
     </view>
@@ -57,14 +49,6 @@
         <text class="timer-label">{{ paused ? '已暂停' : (viewState == 'focus' ? '专注中' : '休息中') }}</text>
       </view>
       <view class="progress-track"><view class="progress-fill" :class="viewState == 'break' ? 'progress-fill-break' : ''" :style="{ width: progressWidth }"></view></view>
-      <!-- #ifdef APP-ANDROID || APP-IOS -->
-      <view v-if="viewState == 'focus' && cameraEnabled" class="observation-card">
-        <camera id="focusCamera" class="camera-preview" device-position="front" flash="off" resolution="low" frame-size="small" @initdone="onCameraInit" @error="onCameraError"></camera>
-        <view class="observation-copy">
-          <view class="observation-head"><view class="status-dot" :class="detectionLevel == 'good' ? 'status-good' : detectionLevel == 'warn' ? 'status-warn' : 'status-idle'"></view><text class="observation-title">{{ detectionStatus }}</text></view>
-        </view>
-      </view>
-      <!-- #endif -->
       <button class="tap-target primary-button" @click="togglePause">{{ paused ? '继续' : '暂停' }}</button>
       <button class="tap-target secondary-button" @click="finishPhaseEarly">{{ viewState == 'focus' ? '提前完成专注' : '跳过休息' }}</button>
       <text class="cancel-link" @click="cancelSession">取消本轮</text>
@@ -77,9 +61,8 @@
       <view class="complete-card">
         <view class="complete-stat"><text class="complete-value">{{ modeName }}</text><text class="complete-label">陪伴模式</text></view>
         <view class="complete-divider"></view>
-        <view class="complete-stat"><text class="complete-value">{{ reminderCountText }}</text><text class="complete-label">温和提醒</text></view>
+        <view class="complete-stat"><text class="complete-value">{{ breakMinutes }} 分钟</text><text class="complete-label">休息时间</text></view>
       </view>
-      <view v-if="cameraEnabled" class="complete-observation"><text class="complete-observation-title">端侧观察摘要</text><text class="complete-observation-copy">{{ observationSummary }}</text></view>
       <button class="tap-target start-button complete-button" @click="backToSetup">再来一轮</button>
       <button class="tap-target secondary-button" @click="goMine">查看我的记录</button>
     </view>
@@ -91,8 +74,6 @@ import { ref, computed } from 'vue'
 import { onShow, onHide, onUnload } from '@dcloudio/uni-app'
 import { getProfile } from '../../utils/storage.uts'
 import { addCompanionRecord, getCompanionModeName } from '../../utils/companion-storage.uts'
-import { detectFaceFrame } from '@/uni_modules/focus-face-detector'
-import { FaceFrameResult } from '../../uni_modules/focus-face-detector/utssdk/interface.uts'
 import { submitCompanionSession } from '../../utils/server-api.uts'
 import { getDeviceId } from '../../utils/api-client.uts'
 import { getAuthSession, requireLogin } from '../../utils/auth.uts'
@@ -104,28 +85,10 @@ const durationOptions = [1, 10, 15, 20, 25]
 const viewState = ref('setup')
 const remainingSeconds = ref(0)
 const paused = ref(false)
-const postureReminderShown = ref(false)
 const lastBreakCompleted = ref(false)
 const completedFocusSeconds = ref(0)
 const sessionStartedAt = ref(0)
-const cameraEnabled = ref(false)
-const cameraReady = ref(false)
-const detectionStatus = ref('等待相机启动')
-const detectionLevel = ref('idle')
-const detectionSamples = ref(0)
-const steadyPresenceSamples = ref(0)
-const awaySamples = ref(0)
-const tooCloseSamples = ref(0)
-const headTurnSamples = ref(0)
-const detectionReminderCount = ref(0)
-const hasDetectedFace = ref(false)
-const consecutiveMissingSamples = ref(0)
 let timer = 0
-let lastDetectionNoticeAt = 0
-let lastFrameAnalyzedAt = 0
-// #ifdef APP-ANDROID || APP-IOS
-let frameListener: CameraContextCameraFrameListener | null = null
-// #endif
 let phaseEndsAt = 0
 let focusTotalSeconds = 0
 let breakTotalSeconds = 0
@@ -134,9 +97,6 @@ let breakTotalSeconds = 0
 // dependent session callbacks before assigning their implementations below.
 let startTimer: () => void = (): void => {}
 let clearTimer: () => void = (): void => {}
-let startDetectionListener: () => void = (): void => {}
-let stopDetectionListener: () => void = (): void => {}
-let applyDetection: (result: FaceFrameResult) => void = (_result: FaceFrameResult): void => {}
 let tick: () => void = (): void => {}
 let beginBreak: (finishedPlannedFocus: boolean) => void = (_finishedPlannedFocus: boolean): void => {}
 let completeSession: (breakCompleted: boolean) => void = (_breakCompleted: boolean): void => {}
@@ -155,36 +115,10 @@ const progressWidth = computed((): string => {
   const progress = Math.max(0, Math.min(100, Math.round((total - remainingSeconds.value) * 100 / total)))
   return progress.toString() + '%'
 })
-const phaseTip = computed((): string => {
-  if (paused.value) return '准备好后继续，暂停期间不会消耗剩余时间。'
-  if (viewState.value == 'break') return '站起来活动一下，望向远处，让眼睛和肩颈休息。'
-  if (cameraEnabled.value) return detectionStatus.value + '。检测只用于本轮温和提醒。'
-  if (postureReminderShown.value) return '刚刚完成了一次坐姿自检：双脚放稳，肩膀放松。'
-  return '保持自然坐姿。时间过半时，星伴会提醒你自己检查一次。'
-})
 const completedMinutes = computed((): number => Math.max(1, Math.round(completedFocusSeconds.value / 60)))
-const reminderCountText = computed((): string => {
-  const count = cameraEnabled.value ? detectionReminderCount.value : (postureReminderShown.value ? 1 : 0)
-  return count.toString() + ' 次'
-})
-const observationSummary = computed((): string => {
-  if (cameraEnabled.value == false) return '本轮未开启端侧观察。'
-  if (detectionSamples.value == 0) return '本轮没有取得有效观察帧。'
-  const steadyRate = Math.round(steadyPresenceSamples.value * 100 / detectionSamples.value)
-  return '稳定在屏 ' + steadyRate.toString() + '% · 离开 ' + (awaySamples.value * 3).toString() + ' 秒 · 距离过近 ' + (tooCloseSamples.value * 3).toString() + ' 秒 · 明显偏头 ' + (headTurnSamples.value * 3).toString() + ' 秒'
-})
 
 function selectMode(mode: string) { selectedMode.value = mode }
 function selectDuration(minutes: number) { selectedMinutes.value = minutes }
-function toggleCameraAnalysis() {
-  // #ifdef APP-ANDROID || APP-IOS
-  cameraEnabled.value = cameraEnabled.value == false
-  // #endif
-  // #ifndef APP-ANDROID || APP-IOS
-  uni.showToast({ title: '端侧观察目前支持 Android 与 iOS', icon: 'none' })
-  // #endif
-}
-
 function startFocus() {
   if (!requireLogin()) return
   if (getProfile() == null) {
@@ -196,21 +130,7 @@ function startFocus() {
   remainingSeconds.value = focusTotalSeconds
   completedFocusSeconds.value = 0
   sessionStartedAt.value = Date.now()
-  postureReminderShown.value = false
   lastBreakCompleted.value = false
-  cameraReady.value = false
-  detectionStatus.value = cameraEnabled.value ? '等待相机授权' : '未开启端侧观察'
-  detectionLevel.value = 'idle'
-  detectionSamples.value = 0
-  steadyPresenceSamples.value = 0
-  awaySamples.value = 0
-  tooCloseSamples.value = 0
-  headTurnSamples.value = 0
-  detectionReminderCount.value = 0
-  hasDetectedFace.value = false
-  consecutiveMissingSamples.value = 0
-  lastDetectionNoticeAt = 0
-  lastFrameAnalyzedAt = 0
   paused.value = false
   viewState.value = 'focus'
   setCompanionUpdateBusy(true)
@@ -231,126 +151,9 @@ clearTimer = (): void => {
   }
 }
 
-// #ifdef APP-ANDROID || APP-IOS
-function onCameraInit(_event: UniCameraInitDoneEvent) {
-  cameraReady.value = true
-  detectionStatus.value = '正在进行端侧观察'
-  detectionLevel.value = 'idle'
-  const context = uni.createCameraContext()
-  frameListener = context?.onCameraFrame((frame: CameraContextOnCameraFrame) => {
-    if (paused.value || viewState.value != 'focus') return
-    const now = Date.now()
-    if (now - lastFrameAnalyzedAt < 3000) return
-    lastFrameAnalyzedAt = now
-    const rgba = frame.data
-    const frameWidth = frame.width
-    const frameHeight = frame.height
-    if (rgba == null || frameWidth == null || frameHeight == null || frameWidth <= 0 || frameHeight <= 0) return
-    const detection = detectFaceFrame(rgba, frameWidth, frameHeight)
-    applyDetection(detection)
-  })
-  startDetectionListener()
-}
-
-function onCameraError(_event: UniCameraErrorEvent) {
-  cameraReady.value = false
-  stopDetectionListener()
-  detectionStatus.value = '相机未授权，已改用定时提醒'
-  detectionLevel.value = 'warn'
-}
-// #endif
-
-startDetectionListener = (): void => {
-  // #ifdef APP-ANDROID || APP-IOS
-  if (cameraEnabled.value == false || cameraReady.value == false || paused.value || viewState.value != 'focus') return
-  frameListener?.start({
-    fail: (_error: any) => {
-      detectionStatus.value = '暂时无法读取相机帧'
-      detectionLevel.value = 'warn'
-    }
-  } as CameraContextCameraFrameListenerStartOptions)
-  // #endif
-}
-
-stopDetectionListener = (): void => {
-  // #ifdef APP-ANDROID || APP-IOS
-  frameListener?.stop({} as CameraContextCameraFrameListenerStopOptions)
-  // #endif
-}
-
-applyDetection = (result: FaceFrameResult): void => {
-  if (result.supported == false) {
-    detectionStatus.value = result.errorMessage == '' ? '当前设备暂不支持检测' : result.errorMessage
-    detectionLevel.value = 'warn'
-    stopDetectionListener()
-    return
-  }
-  detectionSamples.value += 1
-  let issueMessage = ''
-  if (result.detected == false || result.confidence < 0.3) {
-    consecutiveMissingSamples.value += 1
-    if (hasDetectedFace.value == false) {
-      detectionStatus.value = consecutiveMissingSamples.value < 3 ? '正在确认画面，请保持正对镜头' : '暂未识别到面部，请调整光线和距离'
-      detectionLevel.value = consecutiveMissingSamples.value < 3 ? 'idle' : 'warn'
-      if (consecutiveMissingSamples.value == 3) issueMessage = '请让面部完整进入画面，并保持光线充足'
-    } else if (consecutiveMissingSamples.value < 4) {
-      detectionStatus.value = '暂时无法判断姿态，请回正后保持一下'
-      detectionLevel.value = consecutiveMissingSamples.value < 2 ? 'idle' : 'warn'
-      if (consecutiveMissingSamples.value == 2) issueMessage = '请轻轻抬头并回正，星伴正在重新识别'
-    } else {
-      awaySamples.value += 1
-      detectionStatus.value = '已持续离开观察范围'
-      detectionLevel.value = 'warn'
-      issueMessage = '回到合适的位置，继续当前的小目标吧'
-    }
-  } else if (result.faceCount > 1) {
-    hasDetectedFace.value = true
-    consecutiveMissingSamples.value = 0
-    detectionStatus.value = '画面中出现多人'
-    detectionLevel.value = 'warn'
-  } else if (result.faceScale >= 0.58) {
-    hasDetectedFace.value = true
-    consecutiveMissingSamples.value = 0
-    tooCloseSamples.value += 1
-    detectionStatus.value = '距离屏幕有点近'
-    detectionLevel.value = 'warn'
-    issueMessage = '向后坐一点，让眼睛更舒服'
-  } else if (result.faceScale <= 0.11 || result.centerX < 0.20 || result.centerX > 0.80 || result.centerY < 0.18 || result.centerY > 0.86) {
-    hasDetectedFace.value = true
-    consecutiveMissingSamples.value = 0
-    awaySamples.value += 1
-    detectionStatus.value = '请回到画面中央'
-    detectionLevel.value = 'warn'
-    issueMessage = '调整一下位置，让星伴能看到你'
-  } else if (Math.abs(result.yaw) > 28 || Math.abs(result.roll) > 22 || Math.abs(result.pitch) > 25) {
-    hasDetectedFace.value = true
-    consecutiveMissingSamples.value = 0
-    headTurnSamples.value += 1
-    detectionStatus.value = '头部偏转有点久'
-    detectionLevel.value = 'warn'
-    issueMessage = '肩膀放松，把头摆正一些'
-  } else {
-    hasDetectedFace.value = true
-    consecutiveMissingSamples.value = 0
-    steadyPresenceSamples.value += 1
-    detectionStatus.value = '状态稳定，继续保持'
-    detectionLevel.value = 'good'
-  }
-  if (issueMessage != '' && Date.now() - lastDetectionNoticeAt >= 15000) {
-    lastDetectionNoticeAt = Date.now()
-    detectionReminderCount.value += 1
-    postureReminderShown.value = true
-    uni.showToast({ title: issueMessage, icon: 'none', duration: 2500 })
-  }
-}
-
 tick = (): void => {
   if (paused.value) return
   remainingSeconds.value = Math.max(0, Math.ceil((phaseEndsAt - Date.now()) / 1000))
-  if (viewState.value == 'focus' && cameraEnabled.value == false && postureReminderShown.value == false && remainingSeconds.value <= Math.round(focusTotalSeconds / 2)) {
-    postureReminderShown.value = true
-    uni.showToast({ title: '坐姿自检：肩膀放松，双脚放稳', icon: 'none', duration: 2500 })
-  }
   if (remainingSeconds.value <= 0) {
     clearTimer()
     if (viewState.value == 'focus') beginBreak(true)
@@ -363,12 +166,10 @@ function togglePause() {
     paused.value = false
     phaseEndsAt = Date.now() + remainingSeconds.value * 1000
     startTimer()
-    if (viewState.value == 'focus' && cameraEnabled.value && cameraReady.value) startDetectionListener()
   } else {
     tick()
     paused.value = true
     clearTimer()
-    stopDetectionListener()
   }
 }
 
@@ -389,7 +190,6 @@ function finishPhaseEarly() {
 }
 
 beginBreak = (finishedPlannedFocus: boolean): void => {
-  stopDetectionListener()
   completedFocusSeconds.value = finishedPlannedFocus ? focusTotalSeconds : Math.max(1, focusTotalSeconds - remainingSeconds.value)
   remainingSeconds.value = breakTotalSeconds
   paused.value = false
@@ -400,7 +200,6 @@ beginBreak = (finishedPlannedFocus: boolean): void => {
 
 completeSession = (breakCompleted: boolean): void => {
   clearTimer()
-  stopDetectionListener()
   lastBreakCompleted.value = breakCompleted
   const now = Date.now()
   addCompanionRecord({
@@ -410,14 +209,14 @@ completeSession = (breakCompleted: boolean): void => {
     focusedSeconds: completedFocusSeconds.value,
     breakMinutes: breakMinutes.value,
     breakCompleted: breakCompleted,
-    postureReminderCount: cameraEnabled.value ? detectionReminderCount.value : (postureReminderShown.value ? 1 : 0),
-    cameraAnalysisEnabled: cameraEnabled.value,
-    observedSeconds: detectionSamples.value * 3,
-    steadyPresenceSeconds: steadyPresenceSamples.value * 3,
-    awaySeconds: awaySamples.value * 3,
-    tooCloseSeconds: tooCloseSamples.value * 3,
-    headTurnSeconds: headTurnSamples.value * 3,
-    detectionIssueCount: detectionReminderCount.value,
+    postureReminderCount: 0,
+    cameraAnalysisEnabled: false,
+    observedSeconds: 0,
+    steadyPresenceSeconds: 0,
+    awaySeconds: 0,
+    tooCloseSeconds: 0,
+    headTurnSeconds: 0,
+    detectionIssueCount: 0,
     startedAt: sessionStartedAt.value,
     completedAt: now
   })
@@ -432,12 +231,12 @@ completeSession = (breakCompleted: boolean): void => {
       plannedDurationSeconds: selectedMinutes.value * 60,
       durationSeconds: completedFocusSeconds.value,
       restCompleted: breakCompleted,
-      cameraEnabled: cameraEnabled.value,
-      validFrameCount: cameraEnabled.value ? detectionSamples.value : 0,
-      stableOnScreenSeconds: cameraEnabled.value ? Math.min(completedFocusSeconds.value, steadyPresenceSamples.value * 3) : 0,
-      tooCloseSeconds: cameraEnabled.value ? Math.min(completedFocusSeconds.value, tooCloseSamples.value * 3) : 0,
-      postureReminderCount: cameraEnabled.value ? detectionReminderCount.value : 0,
-      awayCount: cameraEnabled.value ? awaySamples.value : 0,
+      cameraEnabled: false,
+      validFrameCount: 0,
+      stableOnScreenSeconds: 0,
+      tooCloseSeconds: 0,
+      postureReminderCount: 0,
+      awayCount: 0,
       deviceId: getDeviceId()
     }, (_data: UTSJSONObject) => {}, (message: string, _code: string) => console.log('陪伴记录同步失败：' + message))
   }
@@ -460,7 +259,6 @@ function cancelSession() {
 
 backToSetup = (): void => {
   clearTimer()
-  stopDetectionListener()
   viewState.value = 'setup'
   setCompanionUpdateBusy(false)
   remainingSeconds.value = 0
@@ -486,19 +284,16 @@ onShow(() => {
   } else if ((viewState.value == 'focus' || viewState.value == 'break') && paused.value == false) {
     tick()
     if (viewState.value == 'focus' || viewState.value == 'break') startTimer()
-    if (viewState.value == 'focus' && cameraEnabled.value && cameraReady.value) startDetectionListener()
   }
 })
 
 onHide(() => {
   clearTimer()
-  stopDetectionListener()
 })
 
 onUnload(() => {
   setCompanionUpdateBusy(false)
   clearTimer()
-  stopDetectionListener()
   uni.showTabBar()
 })
 </script>
@@ -546,14 +341,6 @@ onUnload(() => {
 .preview-row { min-height: 30px; flex-direction: row; align-items: center; }
 .preview-dot { width: 7px; height: 7px; border-radius: 4px; background-color: #55c9a5; }
 .preview-copy { margin-left: 9px; color: #727d94; font-size: 11px; }
-.camera-option { margin-top: 13px; min-height: 75px; padding: 15px 16px; border-radius: 20px; background-color: #ffffff; flex-direction: row; align-items: center; }
-.camera-option-copy { flex: 1; }
-.camera-option-title { color: #344059; font-size: 13px; font-weight: 700; }
-.camera-option-desc { margin-top: 6px; color: #8791a4; font-size: 10px; line-height: 15px; }
-.camera-toggle { margin-left: 12px; width: 46px; height: 27px; padding: 3px; border-radius: 14px; background-color: #d8dee8; }
-.camera-toggle-on { background-color: #55c9a5; }
-.camera-toggle-knob { width: 21px; height: 21px; border-radius: 11px; background-color: #ffffff; }
-.camera-toggle-knob-on { margin-left: 19px; }
 .start-button, .primary-button { margin-top: 20px; height: 52px; line-height: 52px; border-radius: 16px; background-color: #5b8def; color: #ffffff; font-size: 16px; font-weight: 700; }
 .start-note { margin: 9px 10px 0; color: #929aab; font-size: 10px; line-height: 15px; text-align: center; }
 .session-content, .complete-content { padding: 76px 24px 44px; align-items: center; }
@@ -566,16 +353,6 @@ onUnload(() => {
 .progress-track { margin-top: 30px; width: 100%; height: 9px; border-radius: 5px; background-color: #e4e9f2; }
 .progress-fill { height: 9px; border-radius: 5px; background-color: #5b8def; }
 .progress-fill-break { background-color: #55c9a5; }
-.observation-card { margin-top: 18px; width: 100%; padding: 10px; border-radius: 20px; background-color: #ffffff; flex-direction: row; align-items: center; }
-.camera-preview { width: 82px; height: 66px; border-radius: 14px; }
-.observation-copy { margin-left: 12px; flex: 1; }
-.observation-head { flex-direction: row; align-items: center; }
-.status-dot { width: 8px; height: 8px; border-radius: 4px; }
-.status-good { background-color: #55c9a5; }
-.status-warn { background-color: #f0a94a; }
-.status-idle { background-color: #a7b0c0; }
-.observation-title { margin-left: 7px; color: #3e4b64; font-size: 12px; font-weight: 700; }
-.observation-desc { margin-top: 6px; color: #8892a5; font-size: 9px; line-height: 14px; }
 .guide-card { margin-top: 24px; width: 100%; padding: 18px; border-radius: 20px; background-color: #ffffff; }
 .guide-title { color: #4d5b75; font-size: 13px; font-weight: 700; }
 .guide-copy { margin-top: 7px; color: #7d879b; font-size: 12px; line-height: 19px; }
@@ -590,9 +367,6 @@ onUnload(() => {
 .complete-value { color: #33415a; font-size: 16px; font-weight: 700; }
 .complete-label { margin-top: 6px; color: #8c95a7; font-size: 10px; }
 .complete-divider { width: 1px; height: 38px; background-color: #e8ecf2; }
-.complete-observation { margin-top: 13px; width: 100%; padding: 17px; border-radius: 18px; background-color: #eaf7f2; }
-.complete-observation-title { color: #438b73; font-size: 12px; font-weight: 700; }
-.complete-observation-copy { margin-top: 7px; color: #627d74; font-size: 10px; line-height: 16px; }
 .complete-button { width: 100%; margin-top: 28px; }
 .bottom-space { height: 24px; }
 </style>

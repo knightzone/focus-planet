@@ -1,0 +1,11 @@
+# SD2-040 船坐车回家
+
+2026-09-19，内置image_gen，参考032暖暖与033跃跃。低档：两角色围绕单一推车，天空及地面留白，道具少，远景简化。十处候选目检可见；A坐垫实际滚边为白色，B按实际图改橙色。坐垫图案与滚边需避免重叠标区，不能简单把整个坐垫当作两个独立矩形；局部拼接未验证，未接入运行。
+
+## A
+
+Use case illustration-story. NEW single landscape16:9 SD2-040 A 'The boats ride home'. References kitten Nuannuan identity from image1 and blue bunny Yueyue BLUE nose from image2, rounded saturated soft3D cartoon style only, no duck. LOW overall scene complexity. On a wide plain sandy dry path well away from creek, golden kitten and blue bunny put a dry red paper boat into a shallow cream box in a SMALL turquoise wooden wagon. Kitten holds boat gently just above box; bunny arranges one blue cushion beside box. All limbs natural short. Only characters and wagon plus ONE large green leaf on ground. Background: broad pale sky, simple smooth green bank and narrow distant calm creek stripe, clean negative space at least one third picture, no detailed flowerbeds foliage buildings fences gravel. Ten future local anchors on EXISTING items: red boat body; tiny yellow triangular boat flag; white star on blue cushion; blue cushion piping; red heart emblem on cream box front; round blue hub of left visible wagon wheel; round yellow hub of right visible wheel; turquoise wagon handle grip; pink small ribbon on kitten tail; green leaf on ground. Emblems big and isolated, cushion piping distinguishable from center emblem. Two wheels large visible, wagon physically natural, figures separated, full ears with margin. Warm happy chapter ending, simple setting retains beautiful material shading but minimal texture. No extra props, text panels watermark. A only.
+
+## B
+
+Use case precise-object-edit. SD2-040 B exact A same resolution framing characters natural poses and geometry. Make ten independent local changes: red boat body lavender; yellow little boat flag green; cushion central white star white crescent; cushion WHITE piping orange keeping blue body; box red heart red flower; left visible wheel blue hub green; right visible wheel yellow hub orange; wagon turquoise HANDLE GRIP purple keeping handle shaft turquoise; kitten tail pink ribbon blue; foreground green leaf orange. Keep main character colors, background, wheel shape, faces, wagon, shadows, all other details unchanged. No added props, no text panels or marks.

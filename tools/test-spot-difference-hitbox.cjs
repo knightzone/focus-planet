@@ -1,5 +1,5 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
-const root=path.resolve(__dirname,'..'),ts=require('/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
+const root=path.resolve(__dirname,'..'),ts=require('/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
 const source=['spot-difference-story','spot-difference-scenes','spot-difference-hitbox'].map(n=>fs.readFileSync(path.join(root,'utils/'+n+'.uts'),'utf8').replace(/^import .*$/gm,'').replace(/^export /gm,'')).join('\n');
 const c={Math};vm.createContext(c);vm.runInContext(ts.transpile(source+'\nglobalThis.api={differenceCandidates,differenceHitboxes}',{target:ts.ScriptTarget.ES2020}),c);
 for(const width of [272,342,382,720])for(const level of [1,5,10]){

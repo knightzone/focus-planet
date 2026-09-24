@@ -1,47 +1,54 @@
 <template>
-<TrainingFrame title="听声找图" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
-  <view class="page">
-    <view class="game-header">
-      <view><text class="round-label">分配注意训练</text><text class="game-title">听声音，也看颜色</text></view>
-      <view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view>
-    </view>
-    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-
-    <view class="rule-card">
-      <view class="color-cue" :style="{ backgroundColor: targetColorValue }"></view>
-      <view class="rule-copy">
-        <text class="rule-title">找到声音代表的图案</text>
+<TrainingFrame :difficulty="level" :preparing="!started" title="听声捉图形" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+  <view class="lf-page">
+    <image class="lf-scene" src="/static/images/runtime/backgrounds/shadow-match-sky-v1.webp" mode="aspectFill"></image>
+    <view class="lf-content">
+      <view class="lf-header">
+        <view>
+          <text class="lf-eyebrow">观察发现训练</text>
+          <text class="lf-title">听声捉图形</text>
+        </view>
+        <view class="lf-header-right">
+          <view v-if="started" class="lf-level"><text class="lf-level-text">难度 {{ level }}</text></view>
+          <view class="lf-counter"><text class="lf-counter-text">{{ started ? displayRound.toString() + '/' + totalRounds.toString() : '试玩' }}</text></view>
+        </view>
       </view>
-      <button class="tap-target replay" :disabled="!started || !acceptingAnswer" @click="playCue">再听一次</button>
-    </view>
+      <view class="lf-progress"><view class="lf-progress-fill" :style="{ width: progressWidth }"></view></view>
 
-    <view v-if="!started" class="instruction">
-      <YoungChildCue kind="listen"></YoungChildCue>
-      <view class="sound-samples">
-        <ActionSurface v-for="cue in availableCues" :key="cue.id" class="tap-target sample" @click="previewCue(cue.id)">
-          <text class="sample-icon tap-content">{{ cue.icon }}</text><text class="sample-label tap-content">试听</text>
-        </ActionSurface>
+      <view class="lf-command">
+        <view class="lf-command-row">
+          <text class="lf-command-speaker">♫</text>
+          <text class="lf-command-text">{{ commandText }}</text>
+        </view>
+        <view v-if="timed" class="lf-timer"><view class="lf-timer-fill" :style="{ width: timerWidth }"></view></view>
+        <text class="lf-hint">{{ hint }}</text>
       </view>
-      <button class="tap-target primary" @click="begin">开始</button>
-    </view>
 
-    <view v-else class="play-area">
-      <view class="listen-status">
-        <view class="sound-ripple"><text class="sound-ripple-symbol">♫</text></view>
-        <text class="listen-message">{{ feedback == '' ? '声音已播放，请选择' : feedback }}</text>
+      <view id="lf-field" class="lf-field">
+        <view class="lf-axis-h"></view>
+        <view class="lf-axis-v"></view>
+        <text class="lf-quadrant lf-quadrant-tl">左上</text>
+        <text class="lf-quadrant lf-quadrant-tr">右上</text>
+        <text class="lf-quadrant lf-quadrant-bl">左下</text>
+        <text class="lf-quadrant lf-quadrant-br">右下</text>
+        <view v-for="shape in shapeViews" :key="shape.id" class="tap-target lf-shape" :class="shape.lockedClass" :style="shape.style" @click="tapShape(shape.id)">
+          <image class="lf-shape-art" :src="shape.path" mode="aspectFit" :style="shape.artStyle"></image>
+          <view v-if="shape.mark == 'good'" class="lf-mark lf-mark-good" :style="shape.markStyle"><text class="lf-mark-text">✓</text></view>
+          <view v-if="shape.mark == 'bad'" class="lf-mark lf-mark-bad" :style="shape.markStyle"><text class="lf-mark-text">✕</text></view>
+          <view v-if="shape.mark == 'missed'" class="lf-mark lf-mark-missed" :style="shape.markStyle"><text class="lf-mark-text">✓</text></view>
+        </view>
       </view>
-      <view class="option-grid">
-        <ActionSurface v-for="option in options" :key="option.key" class="tap-target option-card" :disabled="!acceptingAnswer" @click="answer(option.cueId, option.colorId)">
-          <view class="option-color tap-content" :style="{ backgroundColor: colorValue(option.colorId) }"></view>
-          <text class="option-icon tap-content">{{ cueIcon(option.cueId) }}</text>
-        </ActionSurface>
-      </view>
-    </view>
 
-    <view class="footer-stats">
-      <view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view>
-      <view class="footer-stat"><text class="footer-value">{{ errors }}</text><text class="footer-label">错误</text></view>
-      <view class="footer-stat"><text class="footer-value">{{ replays }}</text><text class="footer-label">重听</text></view>
+      <view class="lf-stats">
+        <view class="lf-stat"><text class="lf-stat-value">{{ hitCount }}</text><text class="lf-stat-label">点对</text></view>
+        <view class="lf-stat"><text class="lf-stat-value">{{ wrongCount }}</text><text class="lf-stat-label">点错</text></view>
+        <view class="lf-stat"><text class="lf-stat-value">{{ missedCount }}</text><text class="lf-stat-label">漏掉</text></view>
+      </view>
+
+      <view v-if="!started" class="lf-start-row">
+        <text class="lf-demo-hint">{{ demoDone ? '试玩好了，开始正式训练吧' : '听指令，点出对应的图形' }}</text>
+        <button class="tap-target lf-start training-preview-primary" @click="begin">开始训练</button>
+      </view>
     </view>
   </view>
 </TrainingFrame>
@@ -50,181 +57,302 @@
 <script setup lang="uts">
 import TrainingFrame from '../../components/TrainingFrame.uvue'
 import { useTrainingSession } from '../../utils/training-session.uts'
-import ActionSurface from '../../components/ActionSurface.uvue'
-import { ref, computed } from 'vue'
-import YoungChildCue from '../../components/YoungChildCue.uvue'
-import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { getGameTuningAge } from '../../utils/difficulty.uts'
+import { ref, computed, nextTick } from 'vue'
+import { onLoad, onUnload, onResize } from '@dcloudio/uni-app'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { averageRoundScore, scoreQuery } from '../../utils/game-scoring.uts'
+import {
+  listenFindConfig, listenFindDemoConfig, listenFindCreate, listenFindStep, listenFindTap,
+  listenFindAssetPath, listenFindFinished, listenFindProgress, ListenFindConfig, ListenFindEvent, ListenFindField, ListenFindShape
+} from '../../utils/listen-find-shapes.uts'
+import { LISTEN_FIND_VOICE_IDS, LISTEN_FIND_VOICE_FILES } from '../../utils/listen-find-voice.uts'
+
 const training = useTrainingSession()
 const trainingClock = training.clock
 const trainingPaused = training.paused, trainingBusy = training.navigating
 
+type ShapeView = { id: string, style: string, path: string, artStyle: string, mark: string, markStyle: string, lockedClass: string }
 
-type SoundCue = { id: string, icon: string, source: string }
-type ColorChoice = { id: string, value: string }
-type CardOption = { key: string, cueId: string, colorId: string }
-
-const CUES: SoundCue[] = [
-  { id: 'star', icon: '✦', source: '/static/audio/cues/star.mp3' },
-  { id: 'moon', icon: '☾', source: '/static/audio/cues/moon.mp3' },
-  { id: 'planet', icon: '●', source: '/static/audio/cues/planet.mp3' }
-]
-const COLORS: ColorChoice[] = [
-  { id: 'blue', value: '#5B8DEF' },
-  { id: 'yellow', value: '#FFC857' },
-  { id: 'green', value: '#55C9A5' }
-]
+const FIELD_ID = 'lf-field'
+const FIELD_HPAD = 16
 
 const started = ref(false)
-const acceptingAnswer = ref(false)
-const availableCues = ref(CUES.slice(0, 2))
-const availableColors = ref(COLORS.slice(0, 2))
-const options = ref([] as CardOption[])
-const totalRounds = ref(10)
+const demoDone = ref(false)
+const level = ref(1)
+const totalRounds = ref(6)
+const commandText = ref('')
+const hint = ref('')
+const hitCount = ref(0), wrongCount = ref(0), missedCount = ref(0)
+const shapeViews = ref([] as ShapeView[])
+const voiceReady = ref(false)
 const roundIndex = ref(0)
-const targetCueId = ref('star')
-const targetColorId = ref('blue')
-const correct = ref(0)
-const errors = ref(0)
-const replays = ref(0)
-const feedback = ref('')
-const reactions = ref([] as number[])
-let appearedAt = 0
+const roundDone = ref(0)
+const timerWidth = ref('100%')
+const timed = ref(false)
+const fieldWidth = ref(320), fieldHeight = ref(320)
+
+let field: ListenFindField | null = null
+let demoMode = false
+let ending = false
+let voiceAudio: InnerAudioContext | null = null
+let ticker = 0
+let lastTick = 0
 let gameStartedAt = 0
-let nextTimer = 0
-const audio = ref<InnerAudioContext | null>(null)
+let roundStartedAt = 0
+let reactions = [] as number[]
 
-function colorValue(id: string): string {
-  const color = COLORS.find((item: ColorChoice): boolean => item.id == id)
-  return color == null ? COLORS[0].value : color.value
+const displayRound = computed((): number => Math.min(totalRounds.value, roundIndex.value + 1))
+const progressWidth = computed((): string => Math.round((roundDone.value / Math.max(1, totalRounds.value)) * 100).toString() + '%')
+
+function measureField() {
+  const info = uni.getWindowInfo()
+  const topInset = Math.max(0, info.statusBarHeight)
+  const width = Math.max(240, info.windowWidth - FIELD_HPAD * 2)
+  // 上方：头部 + 进度 + 指令卡；下方：三格统计 + 开始按钮 + 内外边距。
+  const pageHeight = info.windowHeight - topInset - 44
+  const height = Math.max(220, pageHeight - 344)
+  fieldWidth.value = width
+  fieldHeight.value = height
+  const element = uni.getElementById(FIELD_ID)
+  if (element != null) {
+    const bounds = element.getBoundingClientRect()
+    if (bounds.width > 0 && bounds.height > 0) {
+      fieldWidth.value = bounds.width
+      fieldHeight.value = bounds.height
+    }
+  }
 }
 
-const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
-const progressWidth = computed((): string => {
-  if (!started.value) return '0%'
-  return Math.min(100, Math.round((roundIndex.value / totalRounds.value) * 100)).toString() + '%'
-})
-const targetColorValue = computed((): string => colorValue(targetColorId.value))
-
-function configureDifficulty() {
-  const age = getGameTuningAge('listen-find')
-  if (age <= 6) { totalRounds.value = 8; availableCues.value = CUES.slice(0, 2); availableColors.value = COLORS.slice(0, 2) }
-  else if (age <= 9) { totalRounds.value = 10; availableCues.value = CUES.slice(0, 2); availableColors.value = COLORS.slice(0, 3) }
-  else if (age <= 12) { totalRounds.value = 14; availableCues.value = CUES.slice(0, 3); availableColors.value = COLORS.slice(0, 3) }
-  else { totalRounds.value = 18; availableCues.value = CUES.slice(0, 3); availableColors.value = COLORS.slice(0, 3) }
+function renderShapes() {
+  if (field == null) return
+  const views = [] as ShapeView[]
+  for (let i = 0; i < field!.shapes.length; i++) {
+    const shape = field!.shapes[i]
+    const size = shape.size
+    const radius = Math.round(size / 2)
+    let mark = ''
+    if (shape.tapped) mark = shape.correct ? 'good' : 'bad'
+    else if (field!.revealedIds.indexOf(shape.id) >= 0) mark = 'missed'
+    views.push({
+      id: shape.id,
+      style: 'left:' + Math.round(shape.x - size / 2).toString() + 'px;top:' + Math.round(shape.y - size / 2).toString() + 'px;width:' + size.toString() + 'px;height:' + size.toString() + 'px;',
+      path: listenFindAssetPath(shape.shape, shape.color),
+      artStyle: 'width:' + size.toString() + 'px;height:' + size.toString() + 'px;',
+      mark: mark,
+      markStyle: 'border-radius:' + radius.toString() + 'px;',
+      lockedClass: mark == '' ? '' : 'lf-shape-locked'
+    })
+  }
+  shapeViews.value = views
 }
 
-function cueById(id: string): SoundCue {
-  const cue = CUES.find((item: SoundCue): boolean => item.id == id)
-  return cue == null ? CUES[0] : cue
-}
-function cueIcon(id: string): string { return cueById(id).icon }
-function randomCueId(): string { return availableCues.value[Math.floor(Math.random() * availableCues.value.length)].id }
-function randomColorId(): string { return availableColors.value[Math.floor(Math.random() * availableColors.value.length)].id }
-
-function playSound(id: string) {
-  if (audio.value == null) audio.value = trainingClock.createAudio()
-  else audio.value!.stop()
-  audio.value!.src = cueById(id).source
-  audio.value!.play()
-}
-function previewCue(id: string) { if (trainingPaused.value) return; playSound(id) }
-function playCue() { if (trainingPaused.value) return;
-  if (!started.value || !acceptingAnswer.value) return
-  replays.value += 1
-  playSound(targetCueId.value)
+// 播报：文字始终显示；有录音的指令才播语音，没录音时按钮变成「文字指令」并禁点。
+function announce() {
+  if (field == null) return
+  commandText.value = field!.command.text
+  const index = LISTEN_FIND_VOICE_IDS.indexOf(field!.command.id)
+  voiceReady.value = index >= 0
+  if (index < 0) return
+  if (voiceAudio == null) voiceAudio = trainingClock.createAudio()
+  voiceAudio!.stop()
+  voiceAudio!.src = LISTEN_FIND_VOICE_FILES[index]
+  voiceAudio!.play()
 }
 
-function clearResources() {
-  if (nextTimer > 0) trainingClock.clearTimeout(nextTimer)
-  audio.value?.stop()
+function updateTimer() {
+  if (field == null) return
+  timed.value = field!.config.roundMs > 0
+  if (!timed.value) { timerWidth.value = '100%'; return }
+  const left = Math.max(0, field!.roundLeftMs)
+  timerWidth.value = Math.round((left / field!.config.roundMs) * 100).toString() + '%'
 }
 
-function finishGame() {
-  clearResources()
-  const accuracy = Math.round((correct.value / totalRounds.value) * 100)
-  const reactionTotal = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
-  const average = reactions.value.length == 0 ? 0 : Math.round(reactionTotal / reactions.value.length)
-  const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
-  uni.redirectTo({
-    url: '/pages/result/result?gameId=listen-find&dimensionId=divided&score=' + accuracy.toString() +
-      '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() +
-      '&falseAlarms=' + errors.value.toString()
+function handleEvent(event: ListenFindEvent) {
+  if (event.kind == 'roundStart') {
+    roundIndex.value = field == null ? roundIndex.value : field!.roundIndex
+    roundDone.value = field == null ? roundDone.value : field!.roundScores.length
+    roundStartedAt = trainingClock.now()
+    hint.value = field == null ? '' : '第 ' + (field!.roundIndex + 1).toString() + ' 轮：' + field!.command.text + '（要找 ' + field!.roundTargets.toString() + ' 个）'
+    updateTimer()
+    announce()
+  } else if (event.kind == 'timeout') {
+    hint.value = '这一轮没找齐，答案是亮起来的那些'
+    training.playFeedback('missed')
+  } else if (event.kind == 'finished') {
+    if (demoMode) {
+      demoDone.value = true
+      stopTicker()
+    } else {
+      finish('')
+    }
+  }
+}
+
+function tick() {
+  if (field == null) return
+  const now = trainingClock.now()
+  const dt = Math.min(200, Math.max(0, now - lastTick))
+  lastTick = now
+  const events = listenFindStep(field!, dt, Math.random)
+  for (let i = 0; i < events.length; i++) handleEvent(events[i])
+  if (!demoMode) {
+    hitCount.value = field!.found
+    wrongCount.value = field!.wrong
+    missedCount.value = field!.missedRounds
+  }
+  updateTimer()
+  renderShapes()
+}
+
+function startTicker() {
+  stopTicker()
+  lastTick = trainingClock.now()
+  ticker = trainingClock.setInterval(() => tick(), 33)
+}
+
+function stopTicker() {
+  if (ticker > 0) { trainingClock.clearInterval(ticker); ticker = 0 }
+}
+
+function createField(config: ListenFindConfig) {
+  field = listenFindCreate(config, fieldWidth.value, fieldHeight.value, Math.random)
+  hitCount.value = 0
+  wrongCount.value = 0
+  missedCount.value = 0
+  reactions = [] as number[]
+  roundIndex.value = 0
+  roundDone.value = 0
+  roundStartedAt = trainingClock.now()
+  hint.value = '第 1 轮：' + field!.command.text
+  renderShapes()
+  updateTimer()
+  announce()
+  startTicker()
+}
+
+// 试玩：四个区域各 1 个图形、只 1 轮、不计时不计分，先看懂规则再开始。
+function startDemo() {
+  demoMode = true
+  demoDone.value = false
+  createField(listenFindDemoConfig())
+}
+
+function configure() {
+  level.value = getGameDifficulty('listen-find')
+  totalRounds.value = listenFindConfig(level.value).rounds
+}
+
+function begin() {
+  if (trainingPaused.value) return
+  stopTicker()
+  demoMode = false
+  ending = false
+  started.value = true
+  gameStartedAt = trainingClock.now()
+  nextTick(() => {
+    measureField()
+    createField(listenFindConfig(level.value))
   })
 }
 
-function prepareRound() {
-  if (roundIndex.value >= totalRounds.value) { finishGame(); return }
-  targetCueId.value = randomCueId()
-  targetColorId.value = randomColorId()
-  const cards = [] as CardOption[]
-  for (let cueIndex = 0; cueIndex < availableCues.value.length; cueIndex++) {
-    for (let colorIndex = 0; colorIndex < availableColors.value.length; colorIndex++) {
-      const cueId = availableCues.value[cueIndex].id
-      const colorId = availableColors.value[colorIndex].id
-      cards.push({ key: cueId + '-' + colorId, cueId: cueId, colorId: colorId })
-    }
-  }
-  cards.sort((): number => Math.random() - 0.5)
-  options.value = cards
-  feedback.value = ''
-  acceptingAnswer.value = true
-  appearedAt = trainingClock.now()
-  playSound(targetCueId.value)
-}
-
-function begin() { if (trainingPaused.value) return;
-  started.value = true
-  gameStartedAt = trainingClock.now()
-  prepareRound()
-}
-
-function answer(cueId: string, colorId: string) { if (trainingPaused.value) return;
-  if (!acceptingAnswer.value) return
-  acceptingAnswer.value = false
-  audio.value?.stop()
-  reactions.value.push(trainingClock.now() - appearedAt)
-  if (cueId == targetCueId.value && colorId == targetColorId.value) {
-    { correct.value += 1; training.playFeedback('correct') }
-    feedback.value = '两条线索都找对了'
+function tapShape(shapeId: string) {
+  if (trainingPaused.value || field == null || ending) return
+  const result = listenFindTap(field!, shapeId)
+  if (result == 'ignored') return
+  if (result == 'correct') {
+    hitCount.value = field!.found
+    reactions.push(trainingClock.now() - roundStartedAt)
+    training.playFeedback('correct')
+    hint.value = field!.roundFound >= field!.roundTargets ? '都找齐啦！' : '还有 ' + (field!.roundTargets - field!.roundFound).toString() + ' 个'
   } else {
-    { errors.value += 1; training.playFeedback('wrong') }
-    feedback.value = cueId != targetCueId.value ? '再留意声音图案' : '还要看目标颜色'
+    wrongCount.value = field!.wrong
+    training.playFeedback('wrong')
+    hint.value = '这个不对，再看看'
   }
-  nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepareRound() }, 650)
+  renderShapes()
 }
 
-onLoad((_options: OnLoadOptions) => configureDifficulty())
-onUnload(() => { clearResources(); trainingClock.destroyAudio(audio.value); audio.value = null })
+function finish(message: string) {
+  if (ending) return
+  ending = true
+  stopTicker()
+  if (field == null) return
+  if (message != '') hint.value = message
+  const scores = field!.roundScores.slice()
+  const score = scores.length == 0 ? 0 : averageRoundScore(scores, 100)
+  const attempts = field!.found + field!.wrong + field!.missedRounds
+  const accuracy = attempts <= 0 ? 0 : Math.round(field!.found * 100 / attempts)
+  const reaction = reactions.length == 0 ? 0 : Math.round(reactions.reduce((total: number, value: number): number => total + value, 0) / reactions.length)
+  const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
+  uni.redirectTo({
+    url: '/pages/result/result?gameId=listen-find&dimensionId=selective&score=' + score.toString() + '&accuracy=' + accuracy.toString()
+      + '&reaction=' + reaction.toString() + '&duration=' + duration.toString()
+      + '&interferenceErrors=' + field!.wrong.toString() + '&completed=' + scores.length.toString() + '&total=' + totalRounds.value.toString()
+      + scoreQuery(scores)
+  })
+}
+
+onLoad(() => {
+  configure()
+  measureField()
+  startDemo()
+})
+onResize(() => measureField())
+onUnload(() => {
+  stopTicker()
+  if (voiceAudio != null) { trainingClock.destroyAudio(voiceAudio); voiceAudio = null }
+})
 // 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
 training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>
-.page { flex: 1; padding: 20px; }
-.game-header { flex-direction: row; justify-content: space-between; align-items: center; }
-.round-label { color: #d15f70; font-size: 12px; font-weight: 700; }
-.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
-.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #fde9ec; align-items: center; justify-content: center; }
-.counter-value { color: #c95869; font-size: 13px; font-weight: 700; }
-.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }
-.progress-fill { height: 8px; border-radius: 4px; background-color: #f17c8d; }
-.rule-card { margin-top: 14px; padding: 14px; border-radius: 18px; background-color: #fff0f2; flex-direction: row; align-items: center; }
-.color-cue { width: 46px; height: 46px; border-radius: 14px; }
-.rule-copy { margin-left: 12px; flex: 1; }.rule-title { color: #74434b; font-size: 14px; font-weight: 700; }.rule-tip { margin-top: 4px; color: #927078; font-size: 10px; }
-.replay { margin: 0; padding: 0 11px; height: 48px; line-height: 48px; border-radius: 12px; background-color: #ffffff; color: #c95869; font-size: 11px; }
-.instruction { margin-top: 16px; padding: 25px 18px; border-radius: 24px; background-color: #ffffff; align-items: center; }
-.instruction-title { color: #25314a; font-size: 19px; font-weight: 700; }.instruction-copy { margin-top: 8px; color: #7b8599; font-size: 11px; line-height: 18px; text-align: center; }
-.sound-samples { margin-top: 19px; flex-direction: row; justify-content: center; }
-.sample { margin: 0 6px; padding: 0; width: 72px; height: 82px; border-radius: 18px; background-color: #f3f6fb; align-items: center; justify-content: center; }
-.sample-icon { color: #5b8def; font-size: 31px; }.sample-label { margin-top: 4px; color: #7b8599; font-size: 10px; }
-.primary { margin-top: 20px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #f17c8d; color: #ffffff; font-size: 14px; font-weight: 700; }
-.play-area { margin-top: 14px; }
-.listen-status { height: 58px; border-radius: 18px; background-color: #ffffff; flex-direction: row; align-items: center; justify-content: center; }
-.sound-ripple { width: 34px; height: 34px; border-radius: 17px; background-color: #eaf0ff; align-items: center; justify-content: center; }.sound-ripple-symbol { color: #5b8def; font-size: 17px; }
-.listen-message { margin-left: 9px; color: #62708a; font-size: 12px; font-weight: 600; }
-.option-grid { margin-top: 8px; flex-direction: row; flex-wrap: wrap; justify-content: center; }
-.option-card { margin: 5px; padding: 0; width: 29%; height: 92px; border-radius: 18px; background-color: #ffffff; position: relative; align-items: center; justify-content: center; overflow: hidden; }
-.option-color { position: absolute; left: 0; top: 0; width: 100%; height: 10px; }.option-icon { color: #34415c; font-size: 38px; }
-.footer-stats { margin-top: 13px; flex-direction: row; }.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+.lf-page { flex: 1; position: relative; background-color: #dceafc; }
+.lf-scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.lf-content { position: relative; flex: 1; padding: 18px 16px 12px; }
+.lf-header { flex-direction: row; justify-content: space-between; align-items: center; }
+.lf-header-right { flex-direction: row; align-items: center; }
+.lf-eyebrow { color: #8062bf; font-size: 12px; font-weight: 700; }
+.lf-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.lf-level { margin-right: 8px; height: 38px; padding: 0 12px; border-radius: 19px; background-color: rgba(255, 255, 255, 0.92); align-items: center; justify-content: center; }
+.lf-level-text { color: #8062bf; font-size: 12px; font-weight: 700; }
+.lf-counter { min-width: 62px; height: 38px; padding: 0 10px; border-radius: 19px; background-color: rgba(255, 255, 255, 0.92); align-items: center; justify-content: center; }
+.lf-counter-text { color: #785bb7; font-size: 13px; font-weight: 700; }
+.lf-progress { margin-top: 14px; height: 8px; border-radius: 4px; background-color: rgba(255, 255, 255, 0.7); overflow: hidden; }
+.lf-progress-fill { height: 8px; border-radius: 4px; background-color: #9b7ede; }
+.lf-command { margin-top: 12px; padding: 10px 14px; border-radius: 20px; background-color: rgba(255, 255, 255, 0.94); }
+.lf-command-row { flex-direction: row; align-items: center; justify-content: space-between; }
+.lf-command-speaker { font-size: 16px; color: #9b7ede; }
+.lf-command-text { flex: 1; margin-left: 8px; color: #4a3b86; font-size: 19px; font-weight: 700; }
+.lf-timer { margin-top: 8px; height: 6px; border-radius: 3px; background-color: #e6eef5; overflow: hidden; }
+.lf-timer-fill { height: 6px; border-radius: 3px; background-color: #ffc857; }
+.lf-hint { margin-top: 6px; color: #6d7789; font-size: 12px; }
+.lf-field { margin-top: 10px; position: relative; overflow: hidden; border-radius: 24px; background-color: rgba(255, 255, 255, 0.9); flex: 1; }
+.lf-axis-h { position: absolute; left: 4%; top: 50%; width: 92%; height: 3px; border-radius: 2px; background-color: rgba(128, 98, 191, 0.3); }
+.lf-axis-v { position: absolute; left: 50%; top: 4%; width: 3px; height: 92%; border-radius: 2px; background-color: rgba(128, 98, 191, 0.3); }
+.lf-quadrant { position: absolute; color: rgba(128, 98, 191, 0.5); font-size: 11px; font-weight: 700; }
+.lf-quadrant-tl { left: 10px; top: 8px; }
+.lf-quadrant-tr { right: 10px; top: 8px; }
+.lf-quadrant-bl { left: 10px; bottom: 8px; }
+.lf-quadrant-br { right: 10px; bottom: 8px; }
+.lf-shape { position: absolute; align-items: center; justify-content: center; transition-property: transform; transition-duration: 180ms; transition-timing-function: ease-out; }
+.lf-shape-locked { transform: scale(0.94); }
+.lf-shape-art { flex-shrink: 0; }
+.lf-mark { position: absolute; left: 0; top: 0; width: 100%; height: 100%; align-items: center; justify-content: center; }
+.lf-mark-good { background-color: rgba(94, 201, 165, 0.85); }
+.lf-mark-bad { background-color: rgba(239, 123, 138, 0.85); }
+.lf-mark-missed { background-color: rgba(255, 200, 87, 0.9); }
+.lf-mark-text { color: #ffffff; font-size: 26px; font-weight: 700; }
+.lf-stats { margin-top: 8px; flex-direction: row; }
+.lf-stat { flex: 1; align-items: center; }
+.lf-stat-value { color: #25314a; font-size: 16px; font-weight: 700; }
+.lf-stat-label { margin-top: 1px; color: #7d8a9c; font-size: 10px; }
+.lf-start-row { margin-top: 8px; flex-direction: row; align-items: center; justify-content: space-between; }
+.lf-demo-hint { flex: 1; color: #5d6a80; font-size: 12px; }
+.lf-start { width: 132px; height: 44px; line-height: 44px; border-radius: 22px; background-color: #7f66c4; color: #ffffff; font-size: 15px; font-weight: 700; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

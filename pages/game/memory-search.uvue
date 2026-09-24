@@ -1,0 +1,464 @@
+<template>
+  <TrainingFrame :difficulty="level" :preparing="!started" title="记忆与搜索" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+    <view class="ms-page">
+      <image class="ms-scene" src="/static/images/runtime/backgrounds/shadow-match-sky-v1.webp" mode="aspectFill"></image>
+      <view class="ms-content">
+        <view class="ms-header">
+          <view class="ms-header-left">
+            <text class="ms-eyebrow">记忆辨识训练</text>
+            <text class="ms-title">{{ started ? '找齐目标' : '记忆与搜索' }}</text>
+          </view>
+          <view class="ms-header-right">
+            <view v-if="started" class="ms-score"><text class="ms-score-text">得分 {{ liveScore }} / {{ maxScore }}</text></view>
+            <view v-if="started" class="ms-level"><text class="ms-level-text">难度 {{ level }}</text></view>
+            <view class="ms-counter"><text class="ms-counter-text">{{ counterText }}</text></view>
+          </view>
+        </view>
+        <view class="ms-progress"><view class="ms-progress-fill" :style="{ width: progressWidth }"></view></view>
+
+        <view v-if="!started" class="ms-intro training-preview-card">
+          <view class="ms-demo-head">
+            <text class="ms-demo-title">先试一下</text>
+            <text class="ms-demo-step">{{ trialStepLabel }}</text>
+          </view>
+          <text class="ms-demo-tip">{{ trialHint }}</text>
+          <view class="ms-chips">
+            <view v-for="(target, index) in trialNewTargets" :key="'tt-' + index" class="ms-chip ms-chip-new">
+              <image class="ms-chip-image" :src="target.path" mode="aspectFit"></image>
+              <text class="ms-chip-text">{{ target.name }}</text>
+            </view>
+          </view>
+          <view class="ms-board">
+            <view v-for="(tile, index) in trialBoardTiles" :key="'tb-' + index" class="ms-tile" :class="trialFoundIds.indexOf(tile.id) >= 0 ? 'ms-tile-found' : trialWrongIndex == index ? 'ms-tile-wrong' : ''" :style="{ width: tileSize, height: tileSize }" @click="pickTrial(index)">
+              <text v-if="trialFoundIds.indexOf(tile.id) >= 0" class="ms-check">✓</text>
+              <image v-else class="ms-tile-image" :style="{ width: tileImageSize, height: tileImageSize }" :src="tile.path" mode="aspectFit"></image>
+            </view>
+          </view>
+          <text v-if="trialDone" class="ms-demo-replay training-preview-secondary" @click="setupTrial">再试一次</text>
+          <button class="ms-start training-preview-primary" @click="begin">开始训练</button>
+        </view>
+
+        <view v-else class="ms-play">
+          <view v-if="phase == 'preview'" class="ms-preview">
+            <text class="ms-preview-title">{{ previewTitle }}</text>
+            <view class="ms-memory-row">
+              <view v-for="(target, index) in newTargets" :key="'nt-' + index" class="ms-memory-chip">
+                <image class="ms-memory-image" :style="{ width: memoryImageSize, height: memoryImageSize }" :src="target.path" mode="aspectFit"></image>
+                <text class="ms-memory-name">{{ target.name }}</text>
+              </view>
+            </view>
+            <text class="ms-preview-tip">{{ previewTip }}</text>
+          </view>
+          <view v-else class="ms-search">
+            <view class="ms-mission">
+              <text class="ms-mission-label">这一轮要找 {{ targetTiles.length }} 个</text>
+              <text class="ms-mission-count">还要找到 {{ remaining }} 个</text>
+            </view>
+            <view class="ms-board">
+              <view v-for="(tile, index) in boardTiles" :key="'b-' + index" class="ms-tile" :class="foundIds.indexOf(tile.id) >= 0 ? 'ms-tile-found' : wrongIndex == index ? 'ms-tile-wrong' : ''" :style="{ width: tileSize, height: tileSize }" @click="choose(index)">
+                <text v-if="foundIds.indexOf(tile.id) >= 0" class="ms-check">✓</text>
+                <image v-else class="ms-tile-image" :style="{ width: tileImageSize, height: tileImageSize }" :src="tile.path" mode="aspectFit"></image>
+              </view>
+            </view>
+            <view class="ms-feedback">
+              <text v-if="feedback != ''" :class="feedbackGood ? 'ms-good' : 'ms-again'">{{ feedback }}</text>
+              <text v-else class="ms-hint">{{ playHint }}</text>
+            </view>
+            <view class="ms-stats">
+              <view class="ms-stat"><text class="ms-stat-value">{{ remainingErrors }}</text><text class="ms-stat-label">剩余容错</text></view>
+              <view class="ms-stat"><text class="ms-stat-value">{{ foundTotal }}</text><text class="ms-stat-label">已找到</text></view>
+              <view class="ms-stat"><text class="ms-stat-value">{{ errorsTotal }}</text><text class="ms-stat-label">误点</text></view>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </TrainingFrame>
+</template>
+
+<script setup lang="uts">
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { useTrainingSession } from '../../utils/training-session.uts'
+import { ref, computed } from 'vue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { scoreQuery, gameScoreMax } from '../../utils/game-scoring.uts'
+import { generateMemorySearchRounds, generateMemorySearchTrial, memorySearchLevelConfig, memorySearchFindBase, memorySearchFindScore, memorySearchGameScore, memorySearchTotalFinds, MemorySearchRound, MemorySearchTile } from '../../utils/memory-search-levels.uts'
+import { MEMORY_SEARCH_VOICE_IDS, MEMORY_SEARCH_VOICE_FILES } from '../../utils/memory-search-voice.uts'
+
+const training = useTrainingSession()
+const trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+
+const level = ref(1)
+const boardSize = ref(6)
+const maxErrors = ref(8)
+const perTargetMs = ref(6500)
+const started = ref(false)
+const phase = ref('preview')
+const rounds = ref([] as MemorySearchRound[])
+const roundIndex = ref(0)
+const boardTiles = ref([] as MemorySearchTile[])
+const targetTiles = ref([] as MemorySearchTile[])
+// 记忆阶段只亮出本轮**新增**的目标（前几轮的目标不再重播，靠记忆自己回想）。
+const newTargets = ref([] as MemorySearchTile[])
+const targetIds = ref([] as string[])
+const foundIds = ref([] as string[])
+const remaining = ref(0)
+const errorsTotal = ref(0)
+const foundTotal = ref(0)
+const completedRounds = ref(0)
+const feedback = ref('')
+const feedbackGood = ref(true)
+const wrongIndex = ref(-1)
+const reactions = ref([] as number[])
+// 每点对一张记一次得分，局分 = 累计（封顶满分）；因此「继续找」只会加分，不会像轮均分那样被拉低。
+const findScores = ref([] as number[])
+const tileSize = ref('72px')
+const tileImageSize = ref('58px')
+// 记忆阶段只展示“新增的那一个”，所以给它更大的展示尺寸（按窗口宽度算，比棋盘格子明显大）。
+const memoryImageSize = ref('96px')
+// 记忆展示时长：照档位走，**不因语音延长**；语音没念完的部分在寻找阶段继续播。
+const previewDuration = ref(0)
+
+const trialRounds = ref([] as MemorySearchRound[])
+const trialRoundIndex = ref(0)
+const trialBoardTiles = ref([] as MemorySearchTile[])
+const trialTargetTiles = ref([] as MemorySearchTile[])
+const trialNewTargets = ref([] as MemorySearchTile[])
+const trialFoundIds = ref([] as string[])
+const trialWrongIndex = ref(-1)
+const trialHint = ref('')
+const trialDone = ref(false)
+
+let gameStartedAt = 0
+let roundStartedAt = 0
+let finished = false
+let previewTimer = 0
+let nextTimer = 0
+let wrongTimer = 0
+let voiceAudio: InnerAudioContext | null = null
+
+const maxScore = gameScoreMax('memory-search')
+const counterText = computed((): string => started.value ? (roundIndex.value + 1).toString() + '/' + rounds.value.length.toString() : '试玩')
+const liveScore = computed((): number => memorySearchGameScore(findScores.value))
+const totalFinds = computed((): number => memorySearchTotalFinds(boardSize.value))
+const findBase = computed((): number => memorySearchFindBase(boardSize.value))
+const progressWidth = computed((): string => {
+  if (!started.value) return Math.round((trialRoundIndex.value / Math.max(1, trialRounds.value.length)) * 100).toString() + '%'
+  // 进度 = 已经找到的总张数 / 找全整张棋盘需要的总张数
+  return Math.min(100, Math.round((foundTotal.value / Math.max(1, totalFinds.value)) * 100)).toString() + '%'
+})
+const remainingErrors = computed((): number => Math.max(0, maxErrors.value - errorsTotal.value))
+const playHint = computed((): string => {
+  if (remainingErrors.value <= 0) return '再点错一次就要结束啦，看仔细'
+  return '还要找到 ' + remaining.value.toString() + ' 个'
+})
+const trialStepLabel = computed((): string => {
+  if (trialDone.value) return '试玩完成'
+  return '试玩第 ' + (trialRoundIndex.value + 1).toString() + ' / ' + trialRounds.value.length.toString() + ' 轮'
+})
+// 记忆展示文案：第 1 轮就是全部，之后只说明「新加的是这一个、旧的也要一起找」。
+const previewTitle = computed((): string => targetTiles.value.length <= 1 ? '记住这个目标' : '又加了一个目标')
+const previewTip = computed((): string => {
+  const total = targetTiles.value.length
+  if (total <= 1) return '找到它就行'
+  return '前面看到的也要一起找齐（这一轮共 ' + total.toString() + ' 个）'
+})
+
+// 本轮新增的目标 = 本轮目标集合减去上一轮的目标集合（第 k 轮只多 1 个）。
+function newTargetsOf(targets: MemorySearchTile[], previous: MemorySearchTile[]): MemorySearchTile[] {
+  const before = previous.map((item: MemorySearchTile): string => item.id)
+  return targets.filter((item: MemorySearchTile): boolean => before.indexOf(item.id) < 0)
+}
+
+// 棋盘按行列自适应：列数固定（4 列）、行数跟着图片数走，小屏也不会溢出。
+function layoutBoard(count: number, columns: number) {
+  const info = uni.getWindowInfo()
+  const rows = Math.ceil(count / Math.max(1, columns))
+  const usableWidth = info.windowWidth - 52
+  const usableHeight = Math.max(160, info.windowHeight - 360)
+  let size = Math.floor(usableWidth / Math.max(1, columns)) - 10
+  const byHeight = Math.floor(usableHeight / Math.max(1, rows)) - 10
+  if (size > byHeight) size = byHeight
+  if (size < 44) size = 44
+  if (size > 92) size = 92
+  tileSize.value = size.toString() + 'px'
+  tileImageSize.value = Math.round(size * 0.8).toString() + 'px'
+  // 新目标比棋盘格子再大一档（宽度约 34%，封顶 132px）
+  const memory = Math.max(88, Math.min(132, Math.round(info.windowWidth * 0.34)))
+  memoryImageSize.value = memory.toString() + 'px'
+}
+
+// 记忆阶段语音：第 1 轮说「记住这个目标」，之后每轮说「新增一个目标，前面的也要找齐」。
+function voiceIndexOf(roundIndexValue: number): number {
+  return MEMORY_SEARCH_VOICE_IDS.indexOf(roundIndexValue == 0 ? 'first' : 'next')
+}
+
+function playMemoryVoice(roundIndexValue: number) {
+  const index = voiceIndexOf(roundIndexValue)
+  if (index < 0) return
+  if (voiceAudio == null) voiceAudio = trainingClock.createAudio()
+  voiceAudio!.stop()
+  voiceAudio!.src = MEMORY_SEARCH_VOICE_FILES[index]
+  voiceAudio!.play()
+}
+
+function clearTimers() {
+  if (previewTimer > 0) trainingClock.clearTimeout(previewTimer)
+  if (nextTimer > 0) trainingClock.clearTimeout(nextTimer)
+  if (wrongTimer > 0) trainingClock.clearTimeout(wrongTimer)
+  previewTimer = 0
+  nextTimer = 0
+  wrongTimer = 0
+}
+
+// 结束前先把提示亮出来（满分 / 容错用完），再进结算页。
+function endSoon(message: string, good: boolean) {
+  phase.value = 'clear'
+  feedbackGood.value = good
+  feedback.value = message
+  clearTimers()
+  nextTimer = trainingClock.setTimeout(() => { finish() }, 700)
+}
+
+// ---------- 试玩：4 张图片、2 轮，不计时不计分 ----------
+
+function applyTrialRound() {
+  const round = trialRounds.value[trialRoundIndex.value]
+  const previous = trialRoundIndex.value > 0 ? trialRounds.value[trialRoundIndex.value - 1].targets : [] as MemorySearchTile[]
+  trialBoardTiles.value = round.tiles
+  trialTargetTiles.value = round.targets
+  trialNewTargets.value = newTargetsOf(round.targets, previous)
+  trialFoundIds.value = [] as string[]
+  trialWrongIndex.value = -1
+  trialHint.value = round.targets.length == 1
+    ? '第 1 轮只有 1 个目标，点一点它'
+    : '新增了 ' + trialNewTargets.value.length.toString() + ' 个目标，前面看到的也要一起找齐（共 ' + round.targets.length.toString() + ' 个）'
+  layoutBoard(round.boardSize, round.columns)
+  playMemoryVoice(trialRoundIndex.value)
+}
+
+function setupTrial() {
+  trialRounds.value = generateMemorySearchTrial(Math.random)
+  trialRoundIndex.value = 0
+  trialDone.value = false
+  applyTrialRound()
+}
+
+function pickTrial(index: number) {
+  if (trainingPaused.value || started.value || trialDone.value) return
+  if (index < 0 || index >= trialBoardTiles.value.length) return
+  const tile = trialBoardTiles.value[index]
+  if (trialFoundIds.value.indexOf(tile.id) >= 0) return
+  const targets = trialTargetTiles.value.map((item: MemorySearchTile): string => item.id)
+  if (targets.indexOf(tile.id) < 0) {
+    trialWrongIndex.value = index
+    training.playFeedback('wrong')
+    trialHint.value = '这个不是目标，再找找看'
+    wrongTimer = trainingClock.setTimeout(() => { trialWrongIndex.value = -1 }, 360)
+    return
+  }
+  trialFoundIds.value.push(tile.id)
+  training.playFeedback('correct')
+  if (trialFoundIds.value.length < trialTargetTiles.value.length) {
+    trialHint.value = '找到了！还要找 ' + (trialTargetTiles.value.length - trialFoundIds.value.length).toString() + ' 个'
+    return
+  }
+  if (trialRoundIndex.value + 1 < trialRounds.value.length) {
+    trialRoundIndex.value += 1
+    applyTrialRound()
+    return
+  }
+  trialDone.value = true
+  trialHint.value = '试玩完成！可以开始正式训练啦'
+}
+
+// ---------- 正式训练：固定棋盘 + 随机目标序 + 无尽累加 ----------
+
+function configure() {
+  level.value = getGameDifficulty('memory-search')
+  const config = memorySearchLevelConfig(level.value)
+  boardSize.value = config.boardSize
+  maxErrors.value = config.maxErrors
+  perTargetMs.value = config.perTargetMs
+  rounds.value = generateMemorySearchRounds(level.value, Math.random)
+}
+
+function startRound() {
+  if (roundIndex.value >= rounds.value.length) { finish(); return }
+  const round = rounds.value[roundIndex.value]
+  const previous = roundIndex.value > 0 ? rounds.value[roundIndex.value - 1].targets : [] as MemorySearchTile[]
+  boardTiles.value = round.tiles
+  targetTiles.value = round.targets
+  newTargets.value = newTargetsOf(round.targets, previous)
+  targetIds.value = round.targets.map((item: MemorySearchTile): string => item.id)
+  foundIds.value = [] as string[]
+  remaining.value = round.targets.length
+  feedback.value = ''
+  feedbackGood.value = true
+  wrongIndex.value = -1
+  phase.value = 'preview'
+  layoutBoard(round.boardSize, round.columns)
+  clearTimers()
+  previewDuration.value = round.previewMs
+  playMemoryVoice(roundIndex.value)
+  previewTimer = trainingClock.setTimeout(() => { beginSearch() }, previewDuration.value)
+}
+
+function beginSearch() {
+  if (!started.value) return
+  phase.value = 'search'
+  // 计分从目标全部藏起来开始，记忆展示与轮间反馈不计时。
+  roundStartedAt = trainingClock.now()
+}
+
+function begin() {
+  if (started.value || trainingPaused.value) return
+  clearTimers()
+  started.value = true
+  finished = false
+  completedRounds.value = 0
+  errorsTotal.value = 0
+  foundTotal.value = 0
+  feedback.value = ''
+  feedbackGood.value = true
+  reactions.value = [] as number[]
+  findScores.value = [] as number[]
+  roundIndex.value = 0
+  gameStartedAt = trainingClock.now()
+  startRound()
+}
+
+// 找齐本轮目标：完成一轮就 +1 目标继续；打完最后一轮 = 找全整张棋盘。
+// （覆盖全盘的那一次点对必然已经把分数推满，所以「找全」优先于「满分」提示。）
+function completeRound() {
+  completedRounds.value += 1
+  phase.value = 'clear'
+  feedbackGood.value = true
+  const isLast = roundIndex.value + 1 >= rounds.value.length
+  feedback.value = isLast ? '全部找齐啦' : '都找齐啦'
+  clearTimers()
+  nextTimer = trainingClock.setTimeout(() => {
+    if (isLast) { finish(); return }
+    roundIndex.value += 1
+    startRound()
+  }, 620)
+}
+
+function choose(index: number) {
+  if (trainingPaused.value || !started.value || phase.value != 'search') return
+  if (index < 0 || index >= boardTiles.value.length) return
+  const tile = boardTiles.value[index]
+  if (foundIds.value.indexOf(tile.id) >= 0) return
+  if (targetIds.value.indexOf(tile.id) >= 0) {
+    const elapsed = trainingClock.now() - roundStartedAt
+    const gain = memorySearchFindScore(elapsed, perTargetMs.value, findBase.value)
+    findScores.value.push(gain)
+    foundIds.value.push(tile.id)
+    remaining.value -= 1
+    foundTotal.value += 1
+    reactions.value.push(elapsed)
+    roundStartedAt = trainingClock.now()
+    training.playFeedback('correct')
+    feedbackGood.value = true
+    if (remaining.value <= 0) { completeRound(); return }
+    feedback.value = '找到了 +' + gain.toString() + ' 分'
+    if (liveScore.value >= maxScore) { endSoon('太棒了，满分！', true); return }
+    return
+  }
+  errorsTotal.value += 1
+  training.playFeedback('wrong')
+  if (errorsTotal.value >= maxErrors.value) { endSoon('容错用完啦', false); return }
+  feedbackGood.value = false
+  feedback.value = '这个不是目标，继续找'
+  wrongIndex.value = index
+  wrongTimer = trainingClock.setTimeout(() => { wrongIndex.value = -1 }, 360)
+}
+
+function finish() {
+  if (finished) return
+  finished = true
+  clearTimers()
+  const score = memorySearchGameScore(findScores.value)
+  const total = Math.max(1, boardSize.value)
+  const accuracy = Math.round(foundTotal.value * 100 / Math.max(1, foundTotal.value + errorsTotal.value))
+  const reactionTotal = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
+  const reaction = reactions.value.length == 0 ? 0 : Math.round(reactionTotal / reactions.value.length)
+  const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
+  // score 已经是 0..200 的累计局分。roundScores 传单元素 [score]：结果页
+  // utils/performance.uts 在有 roundScores 时用「各项平均」覆盖 score 参数，单元素平均正好等于 score，
+  // 既保住累计口径又能被结果页正常解析（传每张得分会被平均成个位数）。
+  uni.redirectTo({ url: '/pages/result/result?gameId=memory-search&dimensionId=focused&score=' + score.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + reaction.toString() + '&duration=' + duration.toString() + '&completed=' + completedRounds.value.toString() + '&total=' + total.toString() + scoreQuery([score]) })
+}
+
+onLoad(() => { configure(); setupTrial() })
+onUnload(() => {
+  clearTimers()
+  if (voiceAudio != null) { trainingClock.destroyAudio(voiceAudio); voiceAudio = null }
+})
+// 试玩/记忆阶段直接返回；进入正式寻找后才拦截返回。
+training.setStartedCheck((): boolean => started.value)
+</script>
+
+<style>
+.ms-page { flex: 1; position: relative; background-color: #eaf3fd; }
+.ms-scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+.ms-content { position: relative; flex: 1; padding: 18px 18px 20px; }
+.ms-header { flex-direction: row; justify-content: space-between; align-items: center; }
+.ms-header-left { flex: 1; }
+.ms-header-right { flex-direction: row; align-items: center; }
+.ms-eyebrow { color: #c2586c; font-size: 12px; font-weight: 700; }
+.ms-title { margin-top: 4px; color: #27324a; font-size: 21px; font-weight: 700; }
+.ms-score { margin-right: 8px; height: 36px; padding: 0 12px; border-radius: 18px; background-color: rgba(255, 255, 255, 0.92); align-items: center; justify-content: center; }
+.ms-score-text { color: #2b9270; font-size: 12px; font-weight: 700; }
+.ms-level { margin-right: 8px; height: 36px; padding: 0 12px; border-radius: 18px; background-color: rgba(255, 255, 255, 0.92); align-items: center; justify-content: center; }
+.ms-level-text { color: #c2586c; font-size: 12px; font-weight: 700; }
+.ms-counter { min-width: 62px; height: 36px; padding: 0 10px; border-radius: 18px; background-color: rgba(255, 255, 255, 0.92); align-items: center; justify-content: center; }
+.ms-counter-text { color: #b34f63; font-size: 13px; font-weight: 700; }
+.ms-progress { margin-top: 16px; height: 8px; border-radius: 4px; background-color: rgba(255, 255, 255, 0.72); overflow: hidden; }
+.ms-progress-fill { height: 8px; border-radius: 4px; background-color: #f17c8d; }
+.ms-intro { margin-top: 16px; padding: 20px 16px 20px; border-radius: 26px; background-color: rgba(255, 255, 255, 0.94); align-items: center; }
+.ms-demo-head { width: 100%; flex-direction: row; justify-content: space-between; align-items: center; }
+.ms-demo-title { color: #27324a; font-size: 18px; font-weight: 700; }
+.ms-demo-step { color: #c2586c; font-size: 12px; font-weight: 700; }
+.ms-demo-tip { margin-top: 12px; color: #6d7789; font-size: 13px; text-align: center; }
+.ms-chips { margin-top: 12px; width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: center; }
+.ms-chip { margin: 4px; padding: 6px 10px; border-radius: 16px; background-color: #fff2f4; border-width: 2px; border-color: #ffd9df; flex-direction: row; align-items: center; }
+.ms-chip-new { background-color: #ffe7ec; border-color: #f17c8d; }
+.ms-chip-image { width: 42px; height: 42px; border-radius: 11px; }
+.ms-chip-text { margin-left: 6px; color: #8c4a58; font-size: 12px; font-weight: 700; }
+.ms-board { margin-top: 12px; width: 100%; padding: 8px 4px; border-radius: 24px; background-color: rgba(255, 255, 255, 0.86); flex-direction: row; flex-wrap: wrap; justify-content: center; }
+.ms-tile { margin: 5px; border-radius: 18px; background-color: #f4f7fd; border-width: 2px; border-color: #e3ebf7; align-items: center; justify-content: center; overflow: hidden; }
+.ms-tile-image { border-radius: 14px; }
+.ms-tile-found { background-color: #e2f5ec; border-color: #63c39d; }
+.ms-tile-wrong { background-color: #fde9ed; border-color: #f17c8d; }
+.ms-check { color: #2b9270; font-size: 30px; font-weight: 800; }
+.ms-demo-replay { margin-top: 8px; padding: 6px 14px; color: #c2586c; font-size: 13px; font-weight: 700; }
+.ms-start { margin-top: 14px; width: 200px; height: 50px; line-height: 50px; border-radius: 25px; background-color: #f17c8d; color: #ffffff; font-size: 17px; font-weight: 700; }
+.ms-play { margin-top: 16px; align-items: center; }
+.ms-preview { width: 100%; padding: 24px 16px 26px; border-radius: 26px; background-color: rgba(255, 255, 255, 0.95); align-items: center; }
+.ms-preview-title { color: #27324a; font-size: 19px; font-weight: 700; }
+.ms-preview-tip { margin-top: 18px; color: #8a93a7; font-size: 12px; text-align: center; }
+.ms-memory-row { margin-top: 14px; width: 100%; flex-direction: row; flex-wrap: wrap; justify-content: center; }
+.ms-memory-chip { margin: 6px; padding: 10px 14px; border-radius: 22px; background-color: #fff2f4; border-width: 3px; border-color: #f17c8d; align-items: center; }
+.ms-memory-image { border-radius: 18px; }
+.ms-memory-name { margin-top: 6px; color: #8c4a58; font-size: 14px; font-weight: 700; }
+.ms-search { width: 100%; align-items: center; }
+.ms-mission { width: 100%; padding: 12px 16px; border-radius: 20px; background-color: rgba(255, 255, 255, 0.94); flex-direction: row; justify-content: space-between; align-items: center; }
+.ms-mission-label { color: #4b566e; font-size: 13px; font-weight: 700; }
+.ms-mission-count { color: #c2586c; font-size: 13px; font-weight: 700; }
+.ms-feedback { margin-top: 10px; height: 24px; align-items: center; justify-content: center; }
+.ms-good { color: #338e72; font-size: 13px; font-weight: 700; }
+.ms-again { color: #c65b66; font-size: 13px; font-weight: 700; }
+.ms-hint { color: #6d7789; font-size: 13px; }
+.ms-stats { margin-top: 8px; width: 100%; padding: 10px 6px; border-radius: 18px; background-color: rgba(255, 255, 255, 0.94); flex-direction: row; }
+.ms-stat { flex: 1; align-items: center; }
+.ms-stat-value { color: #27324a; font-size: 17px; font-weight: 700; }
+.ms-stat-label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
+</style>

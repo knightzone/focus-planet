@@ -5,7 +5,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
-const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js')
+const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js')
 const root = path.resolve(__dirname, '..')
 const source = fs.readFileSync(path.join(root, 'utils/pattern-find-levels.uts'), 'utf8').replace(/^export /gm, '')
 const ctx = { Math, JSON, console }

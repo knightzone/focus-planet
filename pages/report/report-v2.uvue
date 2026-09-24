@@ -1,0 +1,236 @@
+<template>
+  <scroll-view class="page" direction="vertical">
+    <view class="hero">
+      <view class="hero-copy">
+        <text class="hero-kicker">成长报告</text>
+        <text class="hero-number">{{ overallAbility }}</text>
+        <text class="hero-label">综合能力</text>
+      </view>
+      <view class="hero-side">
+        <image class="hero-image" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image>
+        <text class="hero-trend">{{ overallTrendText }}</text>
+      </view>
+    </view>
+
+    <view class="scope-tabs">
+      <view v-for="scope in scopeOptions" :key="scope.id" class="scope-tab" :class="selectedScope == scope.id ? 'scope-tab-active' : ''" @click="selectScope(scope.id)">
+        <text class="scope-text" :class="selectedScope == scope.id ? 'scope-text-active' : ''">{{ scope.label }}</text>
+      </view>
+    </view>
+
+    <text v-if="pendingCount > 0" class="sync-note">{{ pendingCount }} 条成绩等待同步</text>
+    <view v-if="loading" class="state-card"><text class="state-text">正在收集成长星光...</text></view>
+    <view v-else-if="errorMessage != ''" class="state-card">
+      <image class="state-image" src="/static/images/runtime/game-objects/bunny-blue-card-v1.webp" mode="aspectFit"></image>
+      <text class="state-text">{{ errorMessage }}</text>
+    </view>
+    <view v-else>
+      <view class="section-heading">
+        <text class="section-title">五维能力</text>
+        <text class="section-meta">{{ lessonCount }} 课</text>
+      </view>
+      <view class="dimension-card">
+        <view v-for="dimension in dimensionRows" :key="dimension.id" class="dimension-row">
+          <image class="dimension-icon" :src="dimension.thumbnail" mode="aspectFit"></image>
+          <view class="dimension-copy">
+            <view class="dimension-heading"><text class="dimension-name">{{ dimension.name }}</text><text class="dimension-trend">{{ trendText(dimension.trend) }}</text></view>
+            <view class="dimension-track"><view class="dimension-fill" :style="{ width: abilityWidth(dimension.score), backgroundColor: dimension.color }"></view></view>
+          </view>
+          <text class="dimension-score">{{ dimension.score }}</text>
+        </view>
+      </view>
+
+      <view class="section-heading">
+        <text class="section-title">训练表现</text>
+        <view class="history-link" @click="openHistory"><text class="history-link-text">按课查看 ›</text></view>
+      </view>
+      <view class="game-list">
+        <view v-for="game in gameRows" :key="game.gameId" class="game-card">
+          <image class="game-image" :src="game.thumbnail" mode="aspectFit"></image>
+          <view class="game-copy">
+            <view class="game-heading">
+              <text class="game-name">{{ game.name }}</text>
+              <text v-if="game.trained" class="difficulty-chip">难度 {{ game.difficulty }}</text>
+            </view>
+            <view v-if="game.trained" class="game-progress"><view class="game-progress-fill" :style="{ width: abilityWidth(game.ability) }"></view></view>
+            <text class="game-meta">{{ game.subtitle }}</text>
+          </view>
+          <text class="game-ability" :class="game.trained ? '' : 'game-untrained'">{{ game.trained ? game.ability.toString() : '—' }}</text>
+        </view>
+      </view>
+    </view>
+    <view class="bottom-space"></view>
+  </scroll-view>
+</template>
+
+<script setup lang="uts">
+import { ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { DIMENSIONS, getGameName, getGameThumbnail } from '../../utils/catalog.uts'
+import { getOverviewReport } from '../../utils/server-api.uts'
+import { getAuthSession } from '../../utils/auth.uts'
+import { pendingResultCount } from '../../utils/offline-sync.uts'
+
+type ScopeOption = { id: string, label: string }
+type DimensionRow = { id: string, name: string, color: string, thumbnail: string, score: number, trend: number }
+type GameRow = { gameId: string, name: string, thumbnail: string, trained: boolean, difficulty: number, ability: number, subtitle: string }
+
+const scopeOptions: ScopeOption[] = [
+  { id: 'last30', label: '近30课' },
+  { id: 'last14', label: '近14课' },
+  { id: 'all', label: '全部' }
+]
+const selectedScope = ref('last30')
+const allScopes = ref([] as UTSJSONObject[])
+const overallAbility = ref(0)
+const overallTrend = ref(0)
+const overallTrendText = ref('开始积累成长')
+const lessonCount = ref(0)
+const dimensionRows = ref([] as DimensionRow[])
+const gameRows = ref([] as GameRow[])
+const pendingCount = ref(0)
+const loading = ref(false)
+const errorMessage = ref('')
+
+function numberValue(value: any | null, fallback: number): number { return value == null ? fallback : value as number }
+function trendText(value: number): string {
+  if (value > 0.4) return '↑ 成长'
+  if (value < -0.4) return '继续加油'
+  return '稳定'
+}
+function signedScore(value: number): string { return value > 0 ? '+' + Math.round(value).toString() : Math.round(value).toString() }
+function updateTrendText() {
+  if (lessonCount.value == 0) overallTrendText.value = '开始积累成长'
+  else if (overallTrend.value > 0.4) overallTrendText.value = '比上一阶段 ' + signedScore(overallTrend.value)
+  else if (overallTrend.value < -0.4) overallTrendText.value = '正在积蓄新能量'
+  else overallTrendText.value = '状态很稳定'
+}
+
+function applyScope(scopeId: string) {
+  selectedScope.value = scopeId
+  const scope = allScopes.value.find((item: UTSJSONObject): boolean => item['scope'] as string == scopeId)
+  if (scope == null) {
+    overallAbility.value = 0
+    overallTrend.value = 0
+    lessonCount.value = 0
+    dimensionRows.value = [] as DimensionRow[]
+    gameRows.value = [] as GameRow[]
+    updateTrendText()
+    return
+  }
+  lessonCount.value = numberValue(scope!['lessonCount'], 0)
+  const overall = scope!['overall'] == null ? {} : JSON.parse<UTSJSONObject>(JSON.stringify(scope!['overall']))!
+  overallAbility.value = Math.round(numberValue(overall['abilityScore'], 0))
+  overallTrend.value = numberValue(overall['trend'], 0)
+  updateTrendText()
+
+  const rawDimensions = scope!['dimensions'] == null ? [] as UTSJSONObject[] : JSON.parse<UTSJSONObject[]>(JSON.stringify(scope!['dimensions']))!
+  const nextDimensions = [] as DimensionRow[]
+  for (let i = 0; i < DIMENSIONS.length; i++) {
+    const catalog = DIMENSIONS[i]
+    const report = rawDimensions.find((item: UTSJSONObject): boolean => item['dimensionId'] as string == catalog.id)
+    nextDimensions.push({
+      id: catalog.id,
+      name: catalog.name,
+      color: catalog.color,
+      thumbnail: catalog.thumbnail,
+      score: report == null ? 0 : Math.round(numberValue(report!['abilityScore'], 0)),
+      trend: report == null ? 0 : numberValue(report!['trend'], 0)
+    })
+  }
+  dimensionRows.value = nextDimensions
+
+  const rawGames = scope!['games'] == null ? [] as UTSJSONObject[] : JSON.parse<UTSJSONObject[]>(JSON.stringify(scope!['games']))!
+  const nextGames = [] as GameRow[]
+  for (let i = 0; i < rawGames.length; i++) {
+    const raw = rawGames[i]
+    const gameId = raw['gameId'] as string
+    const trained = raw['trained'] == null ? false : raw['trained'] as boolean
+    const ability = Math.round(numberValue(raw['abilityScore'], 0))
+    const difficulty = Math.round(numberValue(raw['currentDifficulty'], 1))
+    const recent = Math.round(numberValue(raw['recentAverageScore'], 0))
+    const trend = numberValue(raw['trend'], 0)
+    let subtitle = '待探索'
+    if (trained) {
+      subtitle = '近期 ' + recent.toString() + ' 分'
+      if (Math.abs(trend) > 0.4) subtitle += trend > 0 ? ' · 成长 +' + Math.round(trend).toString() : ' · 继续积累'
+    }
+    nextGames.push({ gameId: gameId, name: getGameName(gameId), thumbnail: getGameThumbnail(gameId), trained: trained, difficulty: difficulty, ability: ability, subtitle: subtitle })
+  }
+  gameRows.value = nextGames
+}
+
+function loadReport() {
+  loading.value = true
+  errorMessage.value = ''
+  pendingCount.value = pendingResultCount()
+  getOverviewReport((data: UTSJSONObject) => {
+    loading.value = false
+    allScopes.value = data['scopes'] == null ? [] as UTSJSONObject[] : JSON.parse<UTSJSONObject[]>(JSON.stringify(data['scopes']))!
+    const defaultScope = data['defaultScope'] == null ? 'last30' : data['defaultScope'] as string
+    applyScope(defaultScope)
+  }, (_message: string, _code: string) => {
+    loading.value = false
+    errorMessage.value = '成长报告暂时没有连上'
+  })
+}
+
+onShow(() => {
+  if (getAuthSession() == null) { uni.redirectTo({ url: '/pages/login/login' }); return }
+  loadReport()
+})
+
+function selectScope(scopeId: string) { applyScope(scopeId) }
+function abilityWidth(score: number): string { return Math.max(0, Math.min(100, score)).toString() + '%' }
+function openHistory() { uni.navigateTo({ url: '/pages/history/history-v2' }) }
+</script>
+
+<style>
+.page { height: 100%; background-color: #f3f7ff; }
+.hero { margin: 18px 16px 0; height: 160px; padding: 22px; border-radius: 28px; background-color: #5b8def; flex-direction: row; align-items: center; overflow: hidden; }
+.hero-copy { flex: 1; }
+.hero-kicker { color: #dce7ff; font-size: 13px; }
+.hero-number { margin-top: 3px; color: #ffffff; font-size: 43px; font-weight: 700; }
+.hero-label { color: #eef3ff; font-size: 12px; }
+.hero-side { width: 126px; align-items: center; }
+.hero-image { width: 94px; height: 99px; }
+.hero-trend { margin-top: 1px; padding: 4px 9px; border-radius: 10px; background-color: #ffffff; color: #5176c0; font-size: 10px; }
+.scope-tabs { margin: 14px 16px 0; padding: 4px; height: 49px; border-radius: 17px; background-color: #e7edf8; flex-direction: row; }
+.scope-tab { flex: 1; border-radius: 13px; align-items: center; justify-content: center; }
+.scope-tab-active { background-color: #ffffff; }
+.scope-text { color: #8490a7; font-size: 12px; }
+.scope-text-active { color: #4e70b6; font-weight: 700; }
+.sync-note { margin: 11px 18px 0; color: #e09635; font-size: 11px; }
+.section-heading { margin: 23px 18px 10px; flex-direction: row; align-items: center; justify-content: space-between; }
+.section-title { color: #293750; font-size: 18px; font-weight: 700; }
+.section-meta { color: #8c98ab; font-size: 11px; }
+.history-link { min-height: 36px; padding-left: 18px; justify-content: center; }
+.history-link-text { color: #5b8def; font-size: 12px; }
+.dimension-card, .game-list, .state-card { margin: 0 16px; border-radius: 23px; background-color: #ffffff; overflow: hidden; }
+.dimension-card { padding: 8px 16px; }
+.dimension-row { height: 64px; border-bottom: 1px solid #edf1f7; flex-direction: row; align-items: center; }
+.dimension-icon { width: 38px; height: 38px; border-radius: 12px; }
+.dimension-copy { margin-left: 10px; flex: 1; }
+.dimension-heading { margin-bottom: 7px; flex-direction: row; justify-content: space-between; }
+.dimension-name { color: #45526a; font-size: 12px; font-weight: 600; }
+.dimension-trend { color: #8c98aa; font-size: 10px; }
+.dimension-track { height: 9px; border-radius: 5px; background-color: #edf1f7; overflow: hidden; }
+.dimension-fill { height: 9px; border-radius: 5px; }
+.dimension-score { margin-left: 10px; width: 30px; color: #52617a; font-size: 14px; font-weight: 700; text-align: right; }
+.game-list { padding: 2px 15px; }
+.game-card { min-height: 94px; padding: 11px 0; border-bottom: 1px solid #edf1f7; flex-direction: row; align-items: center; }
+.game-image { width: 61px; height: 61px; border-radius: 16px; }
+.game-copy { margin-left: 12px; flex: 1; }
+.game-heading { flex-direction: row; align-items: center; }
+.game-name { color: #34415a; font-size: 13px; font-weight: 700; }
+.difficulty-chip { margin-left: 7px; padding: 3px 7px; border-radius: 9px; background-color: #eef3ff; color: #5b78b2; font-size: 9px; }
+.game-progress { margin-top: 8px; width: 116px; height: 7px; border-radius: 4px; background-color: #edf1f7; overflow: hidden; }
+.game-progress-fill { height: 7px; border-radius: 4px; background-color: #72b7a2; }
+.game-meta { margin-top: 6px; color: #939dad; font-size: 10px; }
+.game-ability { margin-left: 8px; color: #5b8def; font-size: 20px; font-weight: 700; }
+.game-untrained { color: #bac1ce; }
+.state-card { margin-top: 24px; min-height: 210px; align-items: center; justify-content: center; }
+.state-image { width: 96px; height: 96px; }
+.state-text { margin-top: 8px; color: #738098; font-size: 13px; }
+.bottom-space { height: 34px; }
+</style>

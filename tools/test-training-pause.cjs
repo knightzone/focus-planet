@@ -31,7 +31,7 @@ function harness(){
  h.setFail(false);h.s.restart();assert(h.nav().includes('gameId=spot-change'));assert(h.nav().includes('planId='+encodeURIComponent('今天 & 1')));assert.equal(h.life.back({from:'navigateBack'}),false);assert(!h.nav().includes('result'));
  const x=harness();x.s.exit();assert.equal(x.nav(),'/pages/index/index');assert(!x.nav().includes('result'));
 }
-const files=fs.readdirSync(path.join(root,'pages/game')).filter(f=>f.endsWith('.uvue')&&f!=='sound-credits.uvue');assert.equal(files.length,25);
+const files=fs.readdirSync(path.join(root,'pages/game')).filter(f=>f.endsWith('.uvue')&&f!=='sound-credits.uvue');assert.equal(files.length,29);
 {
  const h=harness();let started=false;h.s.setStartedCheck(()=>started);
  assert.equal(h.life.back({from:'backbutton'}),false);assert.equal(h.s.paused.value,false);assert.equal(h.timers.size,0);
@@ -44,10 +44,14 @@ const files=fs.readdirSync(path.join(root,'pages/game')).filter(f=>f.endsWith('.
 for(const file of files){const p=fs.readFileSync(path.join(root,'pages/game',file),'utf8');assert(p.includes('training.setStartedCheck('),file);if(/\bstarted\s*=\s*ref\(false\)/.test(p))assert(p.includes('training.setStartedCheck((): boolean => started.value)') || (['audio-sequence.uvue','breathing-planet.uvue'].includes(file) && p.includes('training.setStartedCheck((): boolean => started.value && !trial.value)')),file);}
 for(const file of files){const p=fs.readFileSync(path.join(root,'pages/game',file),'utf8');assert.equal((p.match(/<TrainingFrame /g)||[]).length,1,file);assert.equal((p.match(/<\/TrainingFrame>/g)||[]).length,1,file);assert(p.indexOf('</TrainingFrame>')<p.lastIndexOf('</template>'),file);assert(!/(?<!\.)\b(?:setTimeout|setInterval|clearTimeout|clearInterval)\(/.test(p),file);assert(!p.includes('Date.now()'),file);assert(!p.includes('uni.createInnerAudioContext()'),file);assert(!p.includes('class="pause-cover"'),file);assert(/if \(trainingPaused\.value(?:\)| \|\|)/.test(p),file);}
 const frame=fs.readFileSync(path.join(root,'components/TrainingFrame.uvue'),'utf8');for(const text of ['继续训练','重新训练','退出训练'])assert(frame.includes(text));
+assert(frame.includes('<view class="training-game"><slot></slot></view>'),'蒙层必须独立于游戏内容，覆盖工具栏');
+assert(frame.includes('background-color: rgba(0,0,0,0.45)'),'使用透明黑色蒙层');
+assert(frame.includes('class="training-back" :disabled="busy || paused"'),'弹层打开时禁用底层返回键');
+assert(frame.includes('@touchstart.stop="ignore"') && frame.includes('@touchend.stop="ignore"'),'蒙层阻止底层触摸');
 assert(frame.indexOf('class="training-back"')<frame.indexOf('class="training-nav-title"'));assert(frame.indexOf('class="training-nav-title"')<frame.indexOf('class="training-pause"'));
 let routes
 // pages.json 解析失败要显式报错，而不是丢一个难懂的 SyntaxError。
 try { routes=JSON.parse(fs.readFileSync(path.join(root,'pages.json'),'utf8')).pages }
 catch(error){ throw new Error('pages.json 解析失败：'+error.message) }
 for(const file of files){const route=routes.find(p=>p.path==='pages/game/'+file.replace('.uvue',''));assert.equal(route.style.navigationStyle,'custom',file);}
-console.log('PASS: 25-game coverage; remaining deadlines, repeat/duplicate pause, active duration, cancellation/unload, tween/audio freeze, back interception, exact restart params and navigation failure');
+console.log('PASS: 29-game coverage; remaining deadlines, repeat/duplicate pause, active duration, cancellation/unload, tween/audio freeze, back interception, exact restart params and navigation failure');

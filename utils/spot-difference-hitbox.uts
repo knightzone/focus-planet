@@ -10,10 +10,12 @@ export function differenceHitboxes(items: DifferenceCandidate[], width: number, 
     items.forEach((other: DifferenceCandidate) => {
       if (other.id == item.id) return
       const ox = other.x * width / 100, oy = other.y * height / 100, ow = other.w * width / 100, oh = other.h * height / 100
-      if (x + w <= ox) right = Math.min(right, (x + w + ox) / 2)
-      if (ox + ow <= x) left = Math.max(left, (ox + ow + x) / 2)
-      if (y + h <= oy) bottom = Math.min(bottom, (y + h + oy) / 2)
-      if (oy + oh <= y) top = Math.max(top, (oy + oh + y) / 2)
+      // Compare source coordinates: pixel scaling can turn touching edges into
+      // a tiny floating-point overlap and otherwise skip both clamps.
+      if (item.x + item.w <= other.x) right = Math.min(right, (x + w + ox) / 2)
+      if (other.x + other.w <= item.x) left = Math.max(left, (ox + ow + x) / 2)
+      if (item.y + item.h <= other.y) bottom = Math.min(bottom, (y + h + oy) / 2)
+      if (other.y + other.h <= item.y) top = Math.max(top, (oy + oh + y) / 2)
     })
     return { id: item.id, left: left.toString() + 'px', top: top.toString() + 'px', width: (right - left).toString() + 'px', height: (bottom - top).toString() + 'px' }
   })

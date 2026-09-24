@@ -1,10 +1,10 @@
 <template>
-<TrainingFrame title="星空守望员" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+<TrainingFrame :difficulty="difficultyLevel" :preparing="!started" title="星空守望员" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
   <view class="page">
     <image class="night-background tap-content" src="/static/images/runtime/backgrounds/star-catcher-sky-v1.webp" mode="aspectFill"></image>
     <view class="content">
       <view class="game-header">
-        <view><text class="round-label">持续注意训练</text><text class="game-title">守望金色星球</text></view>
+        <view><text class="round-label">反应控制训练</text><text class="game-title">守望金色星球</text></view>
         <view v-if="started" class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view>
       </view>
       <view v-if="started" class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
@@ -21,8 +21,8 @@
             </view>
           </view>
           <text class="demo-hint">{{ demoHint }}</text>
-          <view class="demo-replay-row"><text v-if="demoDone" class="demo-replay" @click="resetDemo">再试一次</text></view>
-          <button class="tap-target primary" @click="begin">开始</button>
+          <view class="demo-replay-row"><text v-if="demoDone" class="demo-replay training-preview-secondary" @click="resetDemo">再试一次</text></view>
+          <button class="tap-target primary training-preview-primary" @click="begin">开始训练</button>
         </view>
         <view v-else-if="loadFailed" class="instruction">
           <text class="demo-hint">星球还没准备好</text>
@@ -205,4 +205,9 @@ training.setStartedCheck((): boolean => started.value)
 .footer-stat { flex: 1; align-items: center; }
 .footer-value { color: #ffffff; font-size: 18px; font-weight: 700; }
 .footer-label { margin-top: 3px; color: #dbe8ff; font-size: 11px; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

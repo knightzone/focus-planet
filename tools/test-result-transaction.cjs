@@ -1,0 +1,12 @@
+const fs = require('fs')
+const assert = require('assert/strict')
+const page = fs.readFileSync('pages/result/result.uvue', 'utf8')
+
+assert.ok(page.includes("discardInvalidResult('course-context-missing')"), 'missing lesson context must discard the attempt')
+assert.ok(page.includes("discardInvalidResult('storage-readback-failed')"), 'failed persistence must discard the attempt')
+assert.ok(page.includes("discardInvalidResult('queue-readback-failed')"), 'failed queue readback must discard the attempt')
+assert.ok(page.includes('saveRecords(previousRecords)'), 'invalid attempt must restore the previous local best')
+assert.ok(page.includes('saveActiveLesson(previousLesson!)'), 'queue failure must restore lesson completion state')
+assert.ok(page.indexOf('const lessonItem = markLessonResult(gameId.value, score.value)') < page.indexOf('if (!enqueueLessonResult(payload))'), 'queue failure must be able to roll back completion')
+assert.ok(page.includes("resultInvalid ? '本次未记录' : '训练完成'"), 'invalid attempt must not show successful completion')
+console.log('PASS: invalid course result is discarded and does not complete the lesson')

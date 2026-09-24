@@ -1,11 +1,11 @@
 <template>
-  <scroll-view class="page" direction="vertical" show-scrollbar="false" :scroll-into-view="targetSection" scroll-with-animation="true">
+  <scroll-view class="page" direction="vertical" show-scrollbar="false">
     <view class="intro">
-      <view class="intro-copy"><text class="title">五维专注力训练</text></view>
+      <view class="intro-copy"><text class="title">{{ pageTitle }}</text></view>
       <image class="intro-mascot" src="/static/images/runtime/brand/duo-star-v1.webp" mode="aspectFit"></image>
     </view>
 
-    <view v-for="dimension in dimensions" :id="'dimension-' + dimension.id" :key="dimension.id" class="dimension-block">
+    <view v-for="dimension in visibleDimensions" :key="dimension.id" class="dimension-block">
       <view class="dimension-head">
         <view class="color-mark" :style="{ backgroundColor: dimension.color }"></view>
         <view class="dimension-copy">
@@ -13,7 +13,7 @@
         </view>
       </view>
       <view class="game-list">
-        <view v-for="game in gameList(dimension.id)" :key="game.id" class="game-row" @click="openGame(game.id, game.status)">
+        <view v-for="game in gameList(dimension.id)" :key="game.id" class="game-row" @click="openGame(game.id)">
           <image class="game-cover tap-content" :src="thumbnailFor(game.id)" mode="aspectFill"></image>
           <view class="game-copy tap-content">
             <text class="game-name">{{ game.name }}</text>
@@ -31,12 +31,10 @@
 <script setup lang="uts">
 import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
-import { DIMENSIONS, gamesForDimension, getGameRoute, getGameThumbnail, TrainingGame } from '../../utils/catalog.uts'
-import { requireLogin } from '../../utils/auth.uts'
-import { getProfile } from '../../utils/storage.uts'
+import { DIMENSIONS, gamesForDimension, getGameThumbnail, TrainingGame } from '../../utils/catalog.uts'
 
-const dimensions = DIMENSIONS
-const targetSection = ref('')
+const visibleDimensions = ref(DIMENSIONS)
+const pageTitle = ref('五维专注力')
 function gameList(id: string): TrainingGame[] { return gamesForDimension(id) }
 function thumbnailFor(id: string): string { return getGameThumbnail(id) }
 onLoad((options: UTSJSONObject) => {
@@ -45,17 +43,10 @@ onLoad((options: UTSJSONObject) => {
   const dimensionId = value as string
   const exists = DIMENSIONS.find((item): boolean => item.id == dimensionId)
   if (exists == null) return
-  setTimeout(() => { targetSection.value = 'dimension-' + dimensionId }, 120)
+  visibleDimensions.value = [exists]
+  pageTitle.value = exists.name
 })
-function openGame(id: string, status: string) {
-  if (status != 'ready') {
-    uni.showToast({ title: '该训练将在后续版本开放', icon: 'none' })
-    return
-  }
-  if (!requireLogin()) return
-  if (getProfile() == null) { uni.navigateTo({ url: '/pages/profile/profile' }); return }
-  uni.navigateTo({ url: getGameRoute(id) })
-}
+function openGame(id: string) { uni.navigateTo({ url: '/pages/dimensions/game-showcase?gameId=' + id }) }
 </script>
 
 <style>

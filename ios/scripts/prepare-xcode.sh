@@ -4,24 +4,20 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 IOS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT_ROOT="$(cd "$IOS_DIR/.." && pwd)"
-EXPECTED_RUNTIME_VERSION="5.25"
-HBUILDERX_CLI="${HBUILDERX_CLI:-/Applications/HBuilderX-Alpha.app/Contents/MacOS/cli}"
+EXPECTED_RUNTIME_VERSION="5.26"
+HBUILDERX_CLI="${HBUILDERX_CLI:-/Applications/HBuilderX.app/Contents/MacOS/cli}"
 
 if [[ ! -x "$HBUILDERX_CLI" ]]; then
   echo "HBuilderX CLI not found: $HBUILDERX_CLI" >&2
-  echo "Set HBUILDERX_CLI to the 5.25 CLI path and retry." >&2
+  echo "Set HBUILDERX_CLI to the $EXPECTED_RUNTIME_VERSION CLI path and retry." >&2
   exit 1
 fi
 
-cli_version_raw="$($HBUILDERX_CLI version 2>/dev/null || true)"
-cli_version="$(printf '%s' "$cli_version_raw" | grep -Eo '[0-9]+\.[0-9]+(\.[0-9]+)?(-[[:alnum:]]+)?' | head -1 || true)"
-if [[ -z "$cli_version" ]]; then
-  hbuilderx_app="$(cd "$(dirname "$HBUILDERX_CLI")/../.." && pwd)"
-  cli_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$hbuilderx_app/Contents/Info.plist" 2>/dev/null || true)"
-fi
+hbuilderx_app="$(cd "$(dirname "$HBUILDERX_CLI")/../.." && pwd)"
+cli_version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$hbuilderx_app/Contents/Info.plist" 2>/dev/null || true)"
 if [[ "$cli_version" != "$EXPECTED_RUNTIME_VERSION"* ]]; then
   echo "Expected HBuilderX $EXPECTED_RUNTIME_VERSION, got ${cli_version:-unknown}." >&2
-  echo "Open HBuilderX 5.25, or set HBUILDERX_CLI to its CLI path." >&2
+  echo "Open HBuilderX $EXPECTED_RUNTIME_VERSION, or set HBUILDERX_CLI to its CLI path." >&2
   exit 1
 fi
 
@@ -42,7 +38,9 @@ else
   echo "[3/4] Detector plugin unchanged; keeping the current build."
 fi
 
-if [[ ! -d "$IOS_DIR/CustomFrameworks/DCloudUTSExtAPI.xcframework" ]]; then
+extapi_framework="$IOS_DIR/CustomFrameworks/DCloudUTSExtAPI.xcframework"
+extapi_marker="$extapi_framework/Info.plist"
+if [[ ! -d "$extapi_framework" || "$SCRIPT_DIR/build-extapi.sh" -nt "$extapi_marker" || "$IOS_DIR/ExtAPI/uts-config.json" -nt "$extapi_marker" ]]; then
   echo "Building the required ExtAPI framework..."
   "$SCRIPT_DIR/build-extapi.sh"
 fi

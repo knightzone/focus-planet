@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>找茬候选可辨识度排查</title>
+<style>body{font:16px/1.6 system-ui,sans-serif;background:#eef3f8;color:#243044;margin:24px auto;padding:0 16px;max-width:1000px}h1{font-size:25px}h2{font-size:19px}article{background:white;padding:18px;border-radius:16px;margin:18px 0}p{margin:8px 0}.pair{display:flex;gap:16px;flex-wrap:wrap}.scene{position:relative;width:342px;height:192.375px;overflow:hidden}.scene img{width:100%;height:100%}.mark{position:absolute;border:2px solid #e54c50;box-sizing:border-box}.crop{position:relative;overflow:hidden;background:#eee}.crop img{position:absolute;max-width:none}.tag{color:#a24130}.muted{color:#617184;font-size:14px}summary{cursor:pointer;margin:12px 0}figure{margin:0}figcaption{font-size:13px;color:#617184}</style>
+<h1>找茬候选可辨识度排查</h1>
+<p>2026-09-20 · 当前运行时 150 组 / 989 个候选 · 本轮继续处理58组，实物与倒影不强制联动。原删除/保留决定不变，重叠候选同轮互斥。下方初查编号为历史快照，最新拆分请看<a href="independent-regions.html?rev=unlinked">独立物品审核</a>。</p>
+<p><a href="independent-regions.html#SD2-087">查看独立物品替换：可逐项开关、按互斥规则随机抽2—5处</a></p>
+<p>已做全量像素筛查和全部候选局部目检。下方直接引用游戏使用的 768×432 WebP；局部放大方便核对，展开可看约 342px 宽的手机显示参考。不是儿童实测结论，也不保证剩余候选在所有设备上都合适。</p>
+<p class="muted">已按用户反馈修正。编号沿用排查时的编号（删除后同组后续候选会顺延）；已删除项只保留文字记录。B 是完整差异图；正式游戏只展示当轮随机选中的差异。</p>
+<main id="list"></main>
+<script>
+const rows=[
+['010','d5','左轮',5,75,4,9,'已删除','已移出随机候选池，源图保留。'],
+['018','d6','熊围巾',71,36,12,7,'确认保留','用户确认视觉差异明显，本次不改动。'],
+['050','d6','篮子图案',92.5,66,5,9.5,'区域已修正','框上移，覆盖完整的红色爱心 → 五角星。'],
+['106','d5','右前花朵移除',80,88,15,12,'区域已修正','原框落在未变化草地；移到右下实际消失的前景白花。'],
+['110','d5','喷泉中心',76,52,11,8,'已删除','已移出随机候选池，源图保留。'],
+['116','d5','左边花朵',12,42,9,6,'已删除','用户确认移出候选池，保留本组其他 4 处差异与源图。'],
+['129','d6','手中花朵',23,44,6,6.5,'已删除','用户确认移出候选池，保留本组其他 5 处差异与源图。'],
+['149','d3','第一朵花灯',20.5,9.5,4.5,8.5,'区域已修正','原框落在树干；移到暖黄色 → 蓝色的花灯。'],
+['150','d6','纪念册小鼓图画',40.5,72,5.5,8.8,'区域已修正','框上移，完整覆盖红色小鼓 → 金色铃铛。'],
+['019','d4','卷垫',64,37,6,10,'已删除','压缩后难辨，已移出随机候选池，源图保留。'],
+['011','d6','花盆纹',93,74,7,8,'已删除','压缩后难辨，已移出随机候选池，源图保留。']
+];
+const base='../../../../static/images/runtime/spot-difference/story-v2/';
+for(const [scene,id,label,x,y,w,h,status,note] of rows){
+ const article=document.createElement('article');article.id=`sd2-${scene}-${id}`;
+ const title=document.createElement('h2');title.textContent=`SD2-${scene} / ${id} · ${label}`;article.append(title);
+ const desc=document.createElement('p');desc.className='tag';desc.textContent=`${status}：${note}`;article.append(desc);
+ if(status==='已删除'){document.querySelector('#list').append(article);continue;}
+ const pair=document.createElement('div');pair.className='pair';
+ for(const side of ['a','b']){
+  const fig=document.createElement('figure');const cap=document.createElement('figcaption');cap.textContent=side.toUpperCase()+' · 候选区域放大';fig.append(cap);
+  const box=document.createElement('div');box.className='crop';
+  const scale=Math.min(240/(768*w/100),150/(432*h/100));
+  box.style.width=768*w/100*scale+'px';box.style.height=432*h/100*scale+'px';
+  const img=document.createElement('img');img.src=base+`sd2-${scene}-${side}.webp?rev=20260920-fixes`;img.alt=`${scene} ${id} ${side}`;
+  Object.assign(img.style,{width:768*scale+'px',height:432*scale+'px',left:-768*x/100*scale+'px',top:-432*y/100*scale+'px'});box.append(img);fig.append(box);pair.append(fig);
+ }
+ article.append(pair);
+ const details=document.createElement('details');const summary=document.createElement('summary');summary.textContent='查看整图位置（手机宽度参考）';details.append(summary);
+ const full=document.createElement('div');full.className='pair';
+ for(const side of ['a','b']){const fig=document.createElement('figure');const cap=document.createElement('figcaption');cap.textContent=side.toUpperCase();fig.append(cap);const box=document.createElement('div');box.className='scene';const img=document.createElement('img');img.src=base+`sd2-${scene}-${side}.webp?rev=20260920-fixes`;img.alt=`${scene} ${side} 整图`;box.append(img);const mark=document.createElement('div');mark.className='mark';Object.assign(mark.style,{left:x+'%',top:y+'%',width:w+'%',height:h+'%'});box.append(mark);fig.append(box);full.append(fig);}
+ details.append(full);article.append(details);document.querySelector('#list').append(article);
+}
+</script></html>

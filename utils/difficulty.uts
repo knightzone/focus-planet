@@ -30,6 +30,21 @@ function clampLevel(level: number): number {
   return Math.max(1, Math.min(MAX_DIFFICULTY, level))
 }
 
+function activeLessonDifficulty(gameId: string): number {
+  const rawSession = uni.getStorageSync('focus_planet_auth_session')
+  let suffix = 'guest'
+  if (rawSession != null && rawSession != '') {
+    const session = JSON.parse<UTSJSONObject>(JSON.stringify(rawSession))!
+    const userId = session['userId']
+    if (userId != null && userId != '') suffix = userId as string
+  }
+  const raw = uni.getStorageSync('focus_planet_lesson_play_' + suffix)
+  if (raw == null || raw == '') return 0
+  const play = JSON.parse<UTSJSONObject>(JSON.stringify(raw))!
+  if (play['gameId'] as string != gameId) return 0
+  return clampLevel(play['difficultyLevel'] as number)
+}
+
 export function getTestDifficultyOverride(): number {
   const value = uni.getStorageSync(TEST_DIFFICULTY_KEY)
   if (value == null || value == '') return 0
@@ -84,6 +99,15 @@ function replaceState(state: DifficultyState) {
   saveStates(states)
 }
 
+// 课程生成时锁定本课使用的难度；正式难度仍由最近成绩在下一课生成时重新计算。
+export function setGameDifficulty(gameId: string, level: number) {
+  const state = ensureState(gameId)
+  state.level = clampLevel(level)
+  state.lastLowPairKey = ''
+  state.updatedAt = Date.now()
+  replaceState(state)
+}
+
 function closedDayPeaks(gameId: string, level: number, records: TrainingRecord[], todayKey: string): DailyPeak[] {
   const peaks = [] as DailyPeak[]
   for (let i = 0; i < records.length; i++) {
@@ -102,6 +126,8 @@ function closedDayPeaks(gameId: string, level: number, records: TrainingRecord[]
 export function getGameDifficulty(gameId: string): number {
   const testLevel = getTestDifficultyOverride()
   if (testLevel > 0) return testLevel
+  const lessonLevel = activeLessonDifficulty(gameId)
+  if (lessonLevel > 0) return lessonLevel
   const state = ensureState(gameId)
   const previousLevel = state.level
   let shouldSave = false

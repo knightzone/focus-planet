@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 IOS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-SDK_VERSION="5.25"
+SDK_VERSION="5.26"
 SDK_URL="https://web-ext-storage.dcloud.net.cn/uni-app-x/sdk/iOS-Vapor/UniAppXSDK-iOS-Vapor%40${SDK_VERSION}.zip"
 
 source_root="${1:-}"

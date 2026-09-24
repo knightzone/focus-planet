@@ -1,48 +1,62 @@
 <template>
-  <TrainingFrame title="倒水小实验" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+  <TrainingFrame :difficulty="level" :preparing="!started" title="倒水小实验" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
     <view class="page">
-      <image class="scene" src="/static/images/runtime/backgrounds/shadow-match-desk-v1.webp" mode="aspectFill"></image>
+      <image class="scene" :src="WATER_SORT_BACKGROUND" mode="aspectFill"></image>
       <view class="content">
         <view class="header">
-          <view><text class="eyebrow">转换注意训练</text><text class="title">倒水小实验</text></view>
-          <view class="counter"><text class="counter-text">{{ displayRound }}/{{ totalRounds }}</text></view>
+          <view><text class="eyebrow">逻辑空间训练</text><text class="title">倒水小实验</text></view>
+          <view class="counter"><text class="counter-text">{{ started ? displayRound + '/' + totalRounds : '试玩' }}</text></view>
         </view>
         <view class="progress"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
 
-        <view v-if="!started" class="instruction">
-          <text class="demo-title">先试一下</text>
-          <text class="demo-rule">点一个有水的瓶子，再点另一个瓶子，水就倒过去了</text>
+        <view v-if="!started" class="instruction training-preview-card">
+          <text class="demo-title">把同色的水放一起</text>
+          <text class="demo-rule">点一瓶 → 点另一瓶</text>
           <view class="demo-lab">
             <view v-for="(tube, index) in demoTubes" :key="'demo-' + index" class="tube-wrap" :class="demoSelected == index ? 'tube-selected' : ''" @click="tapDemoTube(index)">
               <view class="tube tap-content" :style="{ width: demoTubeWidth + 'px', height: demoTubeHeight + 'px' }">
-                <view v-for="(color, slot) in tubeSlotColors(tube)" :key="'demo-slot-' + slot" class="slot" :style="{ height: demoSlotHeight + 'px', backgroundColor: color }"></view>
+                <view v-if="tube.length > 0" class="liquid-chamber" :style="{ height: (tube.length * demoSlotHeight) + 'px' }">
+                  <view v-for="(band, part) in tubeBands(tube)" :key="'demo-band-' + part" class="liquid-band" :class="part == tubeBands(tube).length - 1 ? 'liquid-band-bottom' : ''" :style="{ height: (band.units * demoSlotHeight) + 'px', backgroundColor: band.color }"><view class="liquid-band-edge"></view></view>
+                  <view class="liquid-softlight"></view><view class="liquid-shade"></view><view class="liquid-surface"></view>
+                </view>
+                <view class="tube-shine"></view>
+                <view class="tube-shine-short"></view><view class="tube-edge"></view><view class="tube-base"></view>
               </view>
+              <view class="tube-rim tap-content" :style="{ width: (demoTubeWidth + 6) + 'px' }"><view class="tube-mouth"></view></view>
+              <view class="tube-coaster" :style="{ width: demoTubeWidth + 'px' }"></view>
               <text class="tube-number">{{ index + 1 }}</text>
             </view>
           </view>
           <text class="demo-hint">{{ demoHint }}</text>
-          <text v-if="demoDone" class="demo-replay" @click="resetDemo">再试一次</text>
-          <button class="primary" @click="begin">开始</button>
+          <text v-if="demoDone" class="demo-replay training-preview-secondary" @click="resetDemo">再试一次</text>
+          <button class="primary training-preview-primary" @click="begin">开始训练</button>
         </view>
 
         <template v-else>
           <view class="mission-card">
-            <text class="mission-label">本轮目标</text>
-            <text class="mission-text">在 {{ roundTarget }} 步内把所有颜色分开</text>
-            <text v-if="moveCount > roundTarget" class="mission-warn">已经超出目标步数，倒完这轮再试</text>
+            <text class="mission-text">同色放一起</text>
+            <text class="mission-label">{{ moveCount }} / {{ roundTarget }} 步</text>
+            <text v-if="moveCount > roundTarget" class="mission-warn">继续试试，先把颜色分好</text>
           </view>
           <view class="lab">
             <view v-for="(tube, index) in tubes" :key="'tube-' + index" class="tube-wrap" :class="selected == index ? 'tube-selected' : ''" @click="tapTube(index)">
               <view class="tube tap-content" :style="{ width: tubeWidth + 'px', height: tubeHeight + 'px' }">
-                <view v-for="(color, slot) in tubeSlotColors(tube)" :key="'slot-' + slot" class="slot" :style="{ height: slotHeight + 'px', backgroundColor: color }"></view>
+                <view v-if="tube.length > 0" class="liquid-chamber" :style="{ height: (tube.length * slotHeight) + 'px' }">
+                  <view v-for="(band, part) in tubeBands(tube)" :key="'band-' + part" class="liquid-band" :class="part == tubeBands(tube).length - 1 ? 'liquid-band-bottom' : ''" :style="{ height: (band.units * slotHeight) + 'px', backgroundColor: band.color }"><view class="liquid-band-edge"></view></view>
+                  <view class="liquid-softlight"></view><view class="liquid-shade"></view><view class="liquid-surface"></view>
+                </view>
+                <view class="tube-shine"></view>
+                <view class="tube-shine-short"></view><view class="tube-edge"></view><view class="tube-base"></view>
               </view>
+              <view class="tube-rim tap-content" :style="{ width: (tubeWidth + 6) + 'px' }"><view class="tube-mouth"></view></view>
+              <view class="tube-coaster" :style="{ width: tubeWidth + 'px' }"></view>
               <text class="tube-number">{{ index + 1 }}</text>
             </view>
           </view>
         </template>
 
         <view class="feedback"><text v-if="feedback != ''" :class="feedbackGood ? 'good' : 'again'">{{ feedback }}</text></view>
-        <view class="stats">
+        <view v-if="started" class="stats">
           <view class="stat"><text class="value">{{ moveCount }}</text><text class="label">本轮步数</text></view>
           <view class="stat"><text class="value">{{ roundTarget }}</text><text class="label">目标步数</text></view>
           <view class="stat"><text class="value">{{ passedRounds }}/{{ totalRounds }}</text><text class="label">达标轮次</text></view>
@@ -61,6 +75,7 @@ import { useTrainingSession } from '../../utils/training-session.uts'
 import { ref, computed } from 'vue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
 import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { WATER_SORT_BACKGROUND } from '../../utils/game-assets.uts'
 const training = useTrainingSession()
 const trainingClock = training.clock
 const trainingPaused = training.paused, trainingBusy = training.navigating
@@ -100,13 +115,15 @@ const displayRound = computed((): number => started.value ? Math.min(totalRounds
 const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
 
 // 由上到下渲染每根试管：未装水的位置留着透明，让瓶身透出实验台背景。
-function tubeSlotColors(tube: number[]): string[] {
-  const colors = [] as string[]
-  for (let slot = 0; slot < WATER_SORT_CAPACITY; slot++) {
-    const unit = WATER_SORT_CAPACITY - 1 - slot
-    colors.push(unit < tube.length ? WATER_SORT_COLORS[tube[unit]] : 'rgba(255,255,255,0)')
+type LiquidBand = { color: string, units: number }
+function tubeBands(tube: number[]): LiquidBand[] {
+  const bands: LiquidBand[] = []
+  for (let unit = tube.length - 1; unit >= 0; unit--) {
+    const color = WATER_SORT_COLORS[tube[unit]]
+    if (bands.length > 0 && bands[bands.length - 1].color == color) bands[bands.length - 1].units += 1
+    else bands.push({ color, units: 1 })
   }
-  return colors
+  return bands
 }
 
 // 试管尺寸按当前档位的试管数算：先定每行几根，再把剩余屏幕高度分给每一格。
@@ -117,11 +134,12 @@ function layoutTubes(count: number) {
   const columns = count <= 5 ? count : count == 6 ? 3 : 4
   const rows = Math.ceil(count / columns)
   const innerWidth = info.windowWidth - 36 - 16
-  tubeWidth.value = Math.max(40, Math.min(72, Math.floor((innerWidth - columns * TUBE_WRAP_OVERHEAD) / columns)))
-  const fixed = 44 + topInset + 46 + 24 + 74 + 36 + 74 + 44
-  const available = Math.max(230, info.windowHeight - fixed)
-  const room = available - rows * (TUBE_WRAP_OVERHEAD + 30) - (rows - 1) * 10 - 20
-  slotHeight.value = Math.max(28, Math.min(60, Math.floor(room / (rows * WATER_SORT_CAPACITY))))
+  tubeWidth.value = Math.max(38, Math.min(72, Math.floor((innerWidth - columns * TUBE_WRAP_OVERHEAD) / columns)))
+  // 为标题、目标、超步提示、反馈、统计和瓶底留完整预算；小屏两排不再强撑 28px 液层。
+  const fixed = 44 + topInset + 350
+  const available = Math.max(190, info.windowHeight - fixed)
+  const room = available - rows * 50 - 20
+  slotHeight.value = Math.max(18, Math.min(56, Math.floor(room / (rows * WATER_SORT_CAPACITY))))
   tubeHeight.value = slotHeight.value * WATER_SORT_CAPACITY + 14
 }
 
@@ -286,21 +304,34 @@ training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>
-.page { flex: 1; background-color: #f0e0c4; }
+.page { flex: 1; position: relative; background-color: #f0e0c4; }
 .scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
 .content { position: relative; flex: 1; padding: 18px 18px 20px; }
-.header { flex-direction: row; justify-content: space-between; align-items: center; }.eyebrow { color: #2f6f92; font-size: 12px; font-weight: 700; }.title { margin-top: 4px; color: #1f3b4d; font-size: 21px; font-weight: 700; }
+.header { flex-direction: row; justify-content: space-between; align-items: center; padding: 4px 10px; border-radius: 18px; background-color: rgba(255,255,255,0.86); }.eyebrow { color: #77708d; font-size: 11px; font-weight: 700; }.title { margin-top: 4px; color: #525279; font-size: 21px; font-weight: 700; }
 .counter { min-width: 64px; height: 38px; padding: 0 12px; border-radius: 19px; background-color: rgba(255,255,255,0.94); align-items: center; justify-content: center; }.counter-text { color: #2f7fa8; font-size: 13px; font-weight: 700; }
 .progress { margin-top: 16px; height: 8px; border-radius: 4px; background-color: rgba(255,255,255,0.7); overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; background-color: #4aa3d8; }
-.instruction { margin-top: 16px; padding: 22px 18px 20px; border-radius: 25px; background-color: rgba(255,255,255,0.95); align-items: center; }.demo-title { color: #344059; font-size: 18px; font-weight: 700; }.demo-rule { margin-top: 6px; color: #7d8a9c; font-size: 11px; font-weight: 700; }
+.instruction { margin-top: 30px; padding: 22px 12px 20px; border-radius: 28px; background-color: rgba(255,255,255,0.5); align-items: center; border-width: 2px; border-color: rgba(255,255,255,0.8); }.demo-title { color: #525279; font-size: 18px; font-weight: 700; }.demo-rule { margin-top: 8px; color: #77708d; font-size: 12px; font-weight: 700; }
 .demo-lab { margin-top: 16px; width: 100%; flex-direction: row; align-items: flex-end; justify-content: center; }.demo-hint { margin-top: 14px; color: #8a967e; font-size: 12px; }.demo-replay { margin-top: 6px; padding: 8px 16px; color: #2f7fa8; font-size: 12px; font-weight: 700; }
-.primary { margin-top: 12px; width: 150px; height: 48px; line-height: 48px; border-radius: 15px; background-color: #3f95d1; color: #ffffff; font-size: 14px; font-weight: 700; }
-.mission-card { margin-top: 14px; padding: 14px 18px; border-radius: 20px; background-color: rgba(255,255,255,0.94); }.mission-label { color: #718b9e; font-size: 10px; }.mission-text { margin-top: 4px; color: #2f5f80; font-size: 14px; font-weight: 700; }.mission-warn { margin-top: 5px; color: #c65b66; font-size: 11px; font-weight: 700; }
-.lab { flex: 1; margin-top: 14px; padding: 10px 8px; border-radius: 24px; background-color: rgba(255,255,255,0.6); flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; }
-.tube-wrap { margin: 4px 3px; padding: 4px; border-radius: 18px; align-items: center; }.tube-selected { background-color: rgba(74,163,216,0.2); transform: translateY(-8px); }
-.tube { padding: 4px; border-width: 3px; border-style: solid; border-color: #7b97ac; border-top-width: 0; border-radius: 0 0 24px 24px; background-color: rgba(255,255,255,0.55); flex-direction: column; justify-content: flex-end; overflow: hidden; }
-.slot { width: 100%; }
+.primary { margin-top: 12px; width: 180px; height: 48px; line-height: 48px; border-radius: 24px; background-color: #8783cf; color: #ffffff; font-size: 16px; font-weight: 700; }
+.mission-card { margin-top: 14px; padding: 10px 18px; border-radius: 20px; background-color: rgba(255,255,255,0.84); }.mission-label { margin-top: 4px; color: #7a7395; font-size: 13px; font-weight: 700; }.mission-text { color: #525279; font-size: 15px; font-weight: 700; }.mission-warn { margin-top: 5px; color: #a66c59; font-size: 11px; font-weight: 700; }
+.lab { flex: 1; margin-top: 14px; padding: 10px 8px; border-radius: 28px; background-color: rgba(255,255,255,0.5); flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: center; }
+.tube-wrap { position: relative; margin: 4px 3px; padding: 4px; border-radius: 18px; align-items: center; }.tube-selected { background-color: rgba(149,140,218,0.2); transform: translateY(-8px); }
+.tube { position: relative; border-style: solid; border-width: 2px; border-color: #adc8de; border-top-width: 0; border-bottom-width: 4px; border-radius: 6px 6px 26px 26px; background-color: rgba(224,241,252,0.22); overflow: hidden; }
+.liquid-chamber { position: absolute; left: 4px; right: 4px; bottom: 4px; border-radius: 5px 5px 20px 20px; overflow: hidden; }
+.liquid-band-bottom { border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; overflow: hidden; }
+.liquid-band { position: relative; width: 100%; flex-shrink: 0; }.liquid-band-edge { position: absolute; left: 0; right: 0; top: 0; height: 3px; border-radius: 8px; background-color: rgba(255,255,255,0.19); }
+.liquid-softlight { position: absolute; left: 0; top: 0; bottom: 20px; width: 28%; background-color: rgba(255,255,255,0.12); }.liquid-shade { position: absolute; right: 0; top: 0; bottom: 20px; width: 6px; background-color: rgba(47,64,108,0.12); }
+.liquid-surface { border-style: solid; position: absolute; left: 0; right: 0; top: 0; height: 8px; border-radius: 20px; background-color: rgba(255,255,255,0.32); border-width: 1px; border-color: rgba(255,255,255,0.5); }
+.tube-shine { position: absolute; left: 6px; top: 16px; bottom: 27px; width: 3px; border-radius: 3px; background-color: rgba(255,255,255,0.82); }.tube-shine-short { position: absolute; left: 11px; top: 22px; height: 26px; width: 2px; border-radius: 2px; background-color: rgba(255,255,255,0.48); }
+.tube-edge { position: absolute; right: 2px; top: 8px; bottom: 22px; width: 2px; border-radius: 2px; background-color: rgba(255,255,255,0.66); }.tube-base { position: absolute; left: 5px; right: 5px; bottom: 1px; height: 17px; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px; border-width: 0; border-bottom-width: 2px; border-style: solid; border-color: rgba(255,255,255,0.6); }
+.tube-rim { border-style: solid; position: absolute; top: 2px; height: 11px; border-radius: 8px; border-width: 2px; border-color: #b9d2e5; background-color: #f1f9fe; }.tube-mouth { position: absolute; left: 4px; right: 4px; top: 2px; height: 3px; border-radius: 8px; background-color: rgba(126,159,188,0.35); }
+.tube-coaster { height: 5px; margin-top: 3px; border-radius: 12px; background-color: rgba(128,105,104,0.14); }
 .tube-number { margin-top: 5px; color: #5f7d92; font-size: 13px; font-weight: 700; }
 .feedback { height: 36px; align-items: center; justify-content: center; }.good { color: #338e72; font-size: 12px; font-weight: 700; }.again { color: #c65b66; font-size: 12px; font-weight: 700; }
 .stats { margin-top: 2px; padding: 12px 8px; border-radius: 18px; background-color: rgba(255,255,255,0.94); flex-direction: row; }.stat { flex: 1; align-items: center; }.value { color: #25314a; font-size: 17px; font-weight: 700; }.label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

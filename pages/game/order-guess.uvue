@@ -1,0 +1,118 @@
+<template>
+<TrainingFrame :difficulty="level" :preparing="!started" title="顺序猜猜" :paused="trainingPaused" :busy="trainingBusy" @back="training.back()" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+  <view class="page">
+    <image class="background tap-content" :src="ORDER_GUESS_BACKGROUND" mode="aspectFill"></image>
+    <scroll-view class="scroll" direction="vertical" show-scrollbar="false"><view class="content">
+      <view class="header"><text class="heading">{{ solved ? '顺序找对啦！' : '谁在第几个？' }}</text><text class="badge">{{ started ? '第 ' + round + ' / ' + config.rounds + ' 轮' : '试玩' }}</text></view>
+      <view class="training-preview-card">
+        <text class="cue">{{ solved ? '好推理！' : '点两张图片，交换位置' }}</text>
+        <view class="slots">
+          <view v-for="(item, index) in draft" :key="index" class="slot" :class="selected == index ? 'selected' : isLocked(index) ? 'locked' : ''" @click="choose(index)"><text class="position">{{ index + 1 }}</text><image class="art tap-content" :src="paths[item]" mode="aspectFit"></image><text v-if="isLocked(index)" class="slot-hint">✓ 固定</text></view>
+        </view>
+        <text class="feedback">{{ edited ? '调整好了，再猜一次' : '正确 ' + lastCorrect + ' 个 · 错误 ' + (draft.length - lastCorrect) + ' 个' }}</text>
+        <text v-if="lockedPositions.length > 0 && !solved" class="notice">固定的图片已经不能交换</text>
+        <text v-if="notice != ''" class="notice">{{ notice }}</text>
+        <button v-if="!solved && phase != 'ready'" class="hint-button" :disabled="lockedPositions.length >= draft.length - 1" @click="useHint">{{ started ? '提示 · 大幅扣分' : '提示 · 固定一张' }}</button>
+        <button v-if="!solved && phase != 'ready'" class="check-button" :disabled="!edited" @click="submit">猜好了</button>
+        <button v-if="started && solved" class="check-button" @click="advance">{{ round == config.rounds ? '完成训练' : '下一轮' }}</button>
+        <view v-if="!started" class="actions"><button class="training-preview-primary" @click="begin">开始训练</button><button v-if="phase == 'ready' || solved" class="training-preview-secondary" @click="beginTrial">{{ solved ? '再试一次' : '先试一轮' }}</button></view>
+      </view>
+      <text class="summary">{{ started ? '本轮尝试 ' + attempts + ' 次 · 已完成平均 ' + average + ' 次' : '看正确个数，猜出隐藏顺序' }}</text>
+      <view class="history">
+        <text class="history-title">推理记录</text>
+        <view v-for="(clue, index) in history" :key="index" class="history-row"><text class="history-label">{{ index == 0 ? '开局' : clue.hinted == true ? '提示' : index + '次' }}</text><view class="mini-row"><image v-for="(item, at) in clue.order" :key="at" class="mini tap-content" :src="paths[item]" mode="aspectFit"></image></view><text class="history-count">对{{ clue.correct }} / 错{{ draft.length - clue.correct }}</text></view>
+      </view>
+    </view></scroll-view>
+  </view>
+</TrainingFrame>
+</template>
+<script setup lang="uts">
+import TrainingFrame from '../../components/TrainingFrame.uvue'
+import { ref, computed, watch } from 'vue'
+import { onLoad, onUnload } from '@dcloudio/uni-app'
+import { useTrainingSession } from '../../utils/training-session.uts'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { scoreQuery } from '../../utils/game-scoring.uts'
+import { ORDER_GUESS_BACKGROUND } from '../../utils/game-assets.uts'
+import { OrderGuessClue, orderGuessConfig, orderGuessRound, orderGuessCorrect, orderGuessSwap, orderGuessScore } from '../../utils/order-guess.uts'
+const training = useTrainingSession(), trainingClock = training.clock
+const trainingPaused = training.paused, trainingBusy = training.navigating
+const level = ref(1), started = ref(false), phase = ref('ready'), solved = ref(false), selected = ref(-1)
+const paths = ref([] as string[]), draft = ref([] as number[]), history = ref([] as OrderGuessClue[])
+const lockedPositions = ref([] as number[]), totalHints = ref(0)
+const lastCorrect = ref(0), attempts = ref(0), round = ref(1), notice = ref('')
+const results = ref([] as number[])
+const config = computed(() => orderGuessConfig(level.value))
+const edited = computed((): boolean => history.value.length > 0 && draft.value.join(',') != history.value[history.value.length - 1].order.join(','))
+const average = computed((): string => results.value.length == 0 ? '—' : (results.value.reduce((a: number, b: number): number => a + b, 0) / results.value.length).toFixed(1))
+let secret: number[] = [], gameStart = 0
+function isLocked(index: number): boolean { return lockedPositions.value.indexOf(index) >= 0 }
+function prepare() {
+  const data = orderGuessRound(started.value ? config.value : orderGuessConfig(1), Math.random)
+  paths.value = data.paths; secret = data.secret; draft.value = data.initial
+  lockedPositions.value = [] as number[]
+  lastCorrect.value = orderGuessCorrect(data.initial, secret)
+  history.value = [{ order: data.initial.slice(), correct: lastCorrect.value }]
+  attempts.value = 0; selected.value = -1; notice.value = ''; solved.value = false
+}
+function finish() {
+  if (!started.value || phase.value == 'finished' || results.value.length != config.value.rounds) return
+  phase.value = 'finished'
+  const score = orderGuessScore(results.value, config.value.targetAttempts, totalHints.value)
+  // 单个汇总分传入统一结算，保持“平均尝试次数”的精确通关边界。
+  uni.redirectTo({ url: '/pages/result/result?gameId=order-guess&dimensionId=alternating&score=' + score + '&accuracy=100&reaction=0&duration=' + Math.max(1, Math.round((trainingClock.now() - gameStart) / 1000)) + scoreQuery([score]) })
+}
+function advance() {
+  if (trainingPaused.value || !started.value || !solved.value || phase.value == 'finished') return
+  if (round.value == config.value.rounds) { finish(); return }
+  round.value += 1; prepare()
+}
+function begin() {
+  if (trainingPaused.value || started.value) return
+  started.value = true; phase.value = 'play'; round.value = 1; results.value = []; totalHints.value = 0; gameStart = trainingClock.now(); prepare()
+}
+function beginTrial() { if (trainingPaused.value || started.value) return; phase.value = 'trial'; prepare() }
+function choose(index: number) {
+  if (trainingPaused.value || solved.value || phase.value == 'finished' || phase.value == 'ready') return
+  if (isLocked(index)) return
+  notice.value = ''
+  if (selected.value < 0) { selected.value = index; return }
+  draft.value = orderGuessSwap(draft.value, selected.value, index); selected.value = -1
+}
+function useHint() {
+  if (trainingPaused.value || solved.value || phase.value == 'ready' || phase.value == 'finished') return
+  let target = -1
+  for (let i = 0; i < draft.value.length; i++) if (!isLocked(i) && draft.value[i] != secret[i]) { target = i; break }
+  if (target < 0) return
+  const from = draft.value.indexOf(secret[target])
+  if (from < 0 || isLocked(from)) return
+  draft.value = orderGuessSwap(draft.value, target, from)
+  lockedPositions.value = lockedPositions.value.concat([target])
+  selected.value = -1; attempts.value += 1
+  if (started.value) totalHints.value += 1
+  lastCorrect.value = orderGuessCorrect(draft.value, secret)
+  history.value.push({ order: draft.value.slice(), correct: lastCorrect.value, hinted: true })
+  solved.value = lastCorrect.value == secret.length
+  notice.value = solved.value ? '顺序找对啦！' : '已固定一张，继续猜猜看'
+  if (solved.value) { training.playFeedback('correct'); if (started.value) results.value.push(attempts.value) }
+}
+function submit() {
+  if (trainingPaused.value || solved.value || !edited.value || phase.value == 'ready' || phase.value == 'finished') return
+  const key = draft.value.join(',')
+  if (history.value.some((clue: OrderGuessClue): boolean => clue.order.join(',') == key)) { notice.value = '这个顺序试过啦，换一个吧'; return }
+  attempts.value += 1; selected.value = -1; lastCorrect.value = orderGuessCorrect(draft.value, secret)
+  history.value.push({ order: draft.value.slice(), correct: lastCorrect.value }); notice.value = ''
+  solved.value = lastCorrect.value == secret.length
+  if (solved.value) { training.playFeedback('correct'); if (started.value) results.value.push(attempts.value) }
+}
+watch(trainingPaused, () => { selected.value = -1 })
+onLoad(() => { level.value = getGameDifficulty('order-guess'); prepare() })
+onUnload(() => { phase.value = 'finished'; selected.value = -1 })
+training.setStartedCheck((): boolean => started.value)
+</script>
+<style>
+.page { flex: 1; position: relative; background-color: #eef1fc; }.background { position: absolute; width: 100%; height: 100%; }.scroll { flex: 1; position: relative; }.content { padding: 18px 16px 28px; }.header { flex-direction: row; justify-content: space-between; align-items: center; }.heading { font-size: 21px; font-weight: 700; color: #495a82; }.badge { padding: 8px 12px; border-radius: 18px; background-color: rgba(255,255,255,0.8); color: #7283a9; font-size: 12px; }
+.training-preview-card { margin-top: 18px; padding: 18px 10px; border-radius: 30px; background-color: rgba(255,255,255,0.65); align-items: center; }.cue { font-size: 13px; color: #7b88a5; margin-bottom: 14px; }.slots { flex-direction: row; flex-wrap: wrap; justify-content: center; width: 264px; }.slot { width: 78px; height: 94px; margin: 5px; border-radius: 18px; background-color: #ffffff; align-items: center; border-width: 2px; border-color: #ffffff; }.selected { border-color: #9b8ed7; background-color: #f0eaff; }.locked { border-color: #8bcba9; background-color: #f2fff6; }.position { font-size: 12px; color: #8a97b2; margin-top: 5px; }.art { width: 58px; height: 54px; }.slot-hint { color: #49a876; font-size: 10px; font-weight: 700; }.feedback { margin-top: 14px; font-size: 16px; color: #667bb0; font-weight: 700; }.notice { margin-top: 10px; font-size: 12px; color: #8a779c; }.summary { margin-top: 16px; text-align: center; color: #8190a8; font-size: 12px; }.actions { width: 100%; align-items: center; }.check-button { margin-top: 16px; width: 180px; height: 44px; line-height: 44px; padding: 0; border-radius: 22px; background-color: #8d9bdb; color: #ffffff; border-width: 0; font-size: 16px; }.hint-button { margin-top: 12px; width: 180px; height: 38px; line-height: 38px; padding: 0; border-width: 0; border-radius: 19px; background-color: rgba(255,255,255,0.82); color: #8a75a4; font-size: 13px; }
+.history { margin-top: 18px; padding: 10px 6px; border-radius: 20px; background-color: rgba(255,255,255,0.65); }.history-title { color: #7283a9; font-size: 13px; margin: 4px 8px 8px; }.history-row { flex-direction: row; align-items: center; padding: 6px 0; }.history-label { width: 34px; font-size: 11px; color: #8a97b2; }.mini-row { flex-direction: row; flex: 1; }.mini { width: 30px; height: 30px; }.history-count { width: 62px; font-size: 11px; color: #7283a9; }
+.training-preview-primary { margin-top: 16px; width: 200px; height: 50px; line-height: 50px; padding: 0; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; }.training-preview-secondary { margin-top: 12px; width: 200px; height: 42px; line-height: 42px; padding: 0; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; }
+</style>

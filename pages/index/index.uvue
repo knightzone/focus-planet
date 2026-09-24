@@ -6,7 +6,8 @@
         <text class="eyebrow">星训练</text>
         <text class="greeting">你好，{{ nickname }}</text>
       </view>
-      <view class="avatar-entry" @click="openAccount">
+      <view v-if="loggedIn && !membershipActive" class="membership-entry" @click="openMembership"><text class="membership-entry-text">开通会员</text></view>
+      <view v-else class="avatar-entry" @click="openAccount">
         <view class="avatar"><image class="avatar-image tap-content" :src="avatarPath" mode="aspectFill"></image></view>
         <text v-if="!loggedIn" class="login-hint">登录</text>
       </view>
@@ -15,7 +16,7 @@
     <view class="hero-card">
       <view class="hero-copy">
         <text class="hero-title">{{ heroTitle }}</text>
-        <view class="hero-time"><text class="hero-time-icon">◷</text><text class="hero-meta">已练 {{ todayDurationText }}</text></view>
+        <view class="hero-time"><text class="hero-time-icon">{{ membershipActive ? '◷' : '★' }}</text><text class="hero-meta">{{ membershipActive ? '已练 ' + todayDurationText : '新用户7天免费试用' }}</text></view>
         <button class="tap-target start-button" @click="startTraining">{{ planButtonLabel }}</button>
       </view>
       <view class="hero-visual">
@@ -24,7 +25,7 @@
       </view>
     </view>
 
-    <view class="plan-card">
+    <view v-if="membershipActive" class="plan-card">
       <view class="plan-head"><text class="plan-title">今日训练计划</text><text class="plan-progress">{{ completedPlanCount }}/{{ dailyPlan.length }}</text></view>
       <view v-for="(item, index) in dailyPlan" :key="item.gameId" class="plan-row" :class="item.completed ? 'plan-done' : (index == nextPlanIndex ? 'plan-next' : '')" @click="openPlanItem(item)">
         <view class="plan-icon-wrap">
@@ -90,15 +91,18 @@
 </template>
 
 <script setup lang="uts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { reportStarCount } from '../../utils/star-rating.uts'
 import { onShow } from '@dcloudio/uni-app'
 import { DIMENSIONS, getGameRoute } from '../../utils/catalog.uts'
 import { getProfile, getRecords, getWeeklyRecords, getLocalDayKey, calculateStreak, TrainingRecord } from '../../utils/storage.uts'
-import { DailyPlanItem, buildDailyPlan, buildServerPlan, nextPendingPlanItem } from '../../utils/training-plan.uts'
+import { DailyPlanItem, buildDailyPlan, buildClientLessonPlan, nextPendingPlanItem } from '../../utils/training-plan.uts'
 import { requireLogin, getAuthSession } from '../../utils/auth.uts'
-import { resolveTrainingPlan, getServerPlan } from '../../utils/server-api.uts'
+import { getRecentTrainingResults } from '../../utils/server-api.uts'
 import { getAvatarPath } from '../../utils/profile-options.uts'
+import { ClientLesson, ClientLessonItem, getActiveLesson, resolveLessonAfterSync, startTodayLesson, beginLessonItem, lessonCompleted, parseRecentTrainingResults, recentResultsSyncedToday } from '../../utils/course-plan.uts'
+import { pendingResultCount, hasPendingOlderThan, recoverUnsyncedLessonResults, flushResults } from '../../utils/offline-sync.uts'
+import { MembershipState, cachedMembership, refreshMembership } from '../../utils/membership.uts'
 
 const topDimensions = DIMENSIONS.slice(0, 3)
 const bottomDimensions = DIMENSIONS.slice(3, 5)
@@ -110,6 +114,10 @@ const streak = ref(0)
 const loggedIn = ref(false)
 const avatarPath = ref(getAvatarPath('blue-bunny'))
 const dailyPlan = ref([] as DailyPlanItem[])
+const activeLesson = ref(null as ClientLesson | null)
+const planSyncing = ref(false)
+const membershipActive = ref(false)
+const membershipChecking = ref(false)
 const completedPlanCount = computed((): number => dailyPlan.value.filter((item: DailyPlanItem): boolean => item.completed).length)
 const nextPlanIndex = computed((): number => dailyPlan.value.findIndex((item: DailyPlanItem): boolean => !item.completed))
 const todayDurationText = computed((): string => {
@@ -121,15 +129,64 @@ const todayDurationText = computed((): string => {
   return remaining == 0 ? minutes.toString() + ' 分钟' : minutes.toString() + '分' + remaining.toString() + '秒'
 })
 const heroTitle = computed((): string => {
+  if (!membershipActive.value) return '开启每日星训练'
   if (dailyPlan.value.length > 0 && completedPlanCount.value == dailyPlan.value.length) return '全部完成啦'
   if (completedPlanCount.value > 0) return '还有 ' + (dailyPlan.value.length - completedPlanCount.value).toString() + ' 项'
   return '今天练一练'
 })
-const planButtonLabel = computed((): string => dailyPlan.value.length > 0 && completedPlanCount.value == dailyPlan.value.length ? '完成啦' : completedPlanCount.value > 0 ? '继续' : '开始')
+const canOpenTodayLesson = computed((): boolean => activeLesson.value != null && lessonCompleted(activeLesson.value!) && activeLesson.value!.createdDay != getLocalDayKey(Date.now()))
+const planButtonLabel = computed((): string => !membershipActive.value ? '开通会员' : canOpenTodayLesson.value ? '开启今日课程' : dailyPlan.value.length > 0 && completedPlanCount.value == dailyPlan.value.length ? '完成啦' : completedPlanCount.value > 0 ? '继续' : '开始')
+
+function showLesson(lesson: ClientLesson) {
+  activeLesson.value = lesson
+  dailyPlan.value = buildClientLessonPlan(lesson)
+}
+
+function syncLesson(age: number) {
+  if (!membershipActive.value || planSyncing.value) return
+  recoverUnsyncedLessonResults()
+  planSyncing.value = true
+  getRecentTrainingResults(100, (data: UTSJSONObject) => {
+    planSyncing.value = false
+    console.log('[lesson-sync] recent results received')
+    const todayKey = getLocalDayKey(Date.now())
+    // 昨天（或更早）的成绩必须先由服务器确认；等待期间继续展示旧课，不能覆盖成今天的新课。
+    if (hasPendingOlderThan(todayKey)) {
+      const local = getActiveLesson()
+      if (local != null) showLesson(local!)
+      flushResults()
+      return
+    }
+    const history = parseRecentTrainingResults(data)
+    const resolvedLesson = resolveLessonAfterSync(age, history, todayKey)
+    console.log('[lesson-sync] active lesson resolved=' + resolvedLesson.lessonNo.toString() + ' day=' + resolvedLesson.createdDay)
+    showLesson(resolvedLesson)
+    // 服务端响应后才可能首次创建/恢复 active lesson；此时再扫描一次，才能给旧版空课号记录补上课程上下文。
+    recoverUnsyncedLessonResults()
+    flushResults()
+  }, (message: string, code: string) => {
+    planSyncing.value = false
+    console.log('[lesson-sync] recent results failed code=' + code + ' message=' + message)
+    const local = getActiveLesson()
+    if (local != null) showLesson(local!)
+  })
+}
 
 function refresh() {
   const session = getAuthSession()
   loggedIn.value = session != null
+  if (session == null) {
+    nickname.value = '探索家'
+    membershipActive.value = false
+    activeLesson.value = null
+    dailyPlan.value = [] as DailyPlanItem[]
+    todayEffectiveSeconds.value = 0
+    weeklySessions.value = 0
+    energy.value = 0
+    streak.value = 0
+    requireLogin()
+    return
+  }
   const profile = getProfile()
   if (profile == null) {
     nickname.value = '探索家'
@@ -141,6 +198,7 @@ function refresh() {
     uni.redirectTo({ url: '/pages/profile/profile' })
     return
   }
+  membershipActive.value = cachedMembership().active
   nickname.value = profile.nickname
   avatarPath.value = getAvatarPath(profile.avatarId)
   const records = getRecords()
@@ -148,19 +206,23 @@ function refresh() {
   todayEffectiveSeconds.value = records
     .filter((item: TrainingRecord): boolean => getLocalDayKey(item.completedAt) == todayKey)
     .reduce((total: number, item: TrainingRecord): number => total + Math.max(0, item.durationSeconds == null ? 0 : item.durationSeconds!), 0)
-  dailyPlan.value = buildDailyPlan(profile.age, records, Date.now())
-  const cachedPlan = getServerPlan()
-  if (getAuthSession() != null && cachedPlan != null) dailyPlan.value = buildServerPlan(cachedPlan)
+  const localLesson = getActiveLesson()
+  if (localLesson != null) showLesson(localLesson!)
+  else dailyPlan.value = [] as DailyPlanItem[]
   weeklySessions.value = getWeeklyRecords(records).length
   energy.value = records.reduce((total: number, item): number => total + reportStarCount(item.score), 0)
   streak.value = calculateStreak(records)
   if (getAuthSession() != null) {
-    resolveTrainingPlan((data: UTSJSONObject) => {
-      const plan = data['plan']
-      if (plan != null) dailyPlan.value = buildServerPlan(JSON.parse<UTSJSONObject>(JSON.stringify(plan))!)
-    }, (message: string, code: string) => {
-      if (code == 'USER_INFO_REQUIRED') uni.navigateTo({ url: '/pages/profile/profile' })
-      else console.log('训练计划同步失败：' + message)
+    membershipChecking.value = true
+    refreshMembership((state: MembershipState) => {
+      membershipChecking.value = false
+      membershipActive.value = state.active
+      if (state.active) syncLesson(profile.age)
+      else { activeLesson.value = null; dailyPlan.value = [] as DailyPlanItem[] }
+    }, (_message: string, _code: string) => {
+      membershipChecking.value = false
+      if (membershipActive.value) syncLesson(profile.age)
+      else dailyPlan.value = [] as DailyPlanItem[]
     })
   }
 }
@@ -169,22 +231,72 @@ onShow(() => refresh())
 
 function startTraining() {
   if (!requireLogin()) return
+  if (!membershipActive.value) { openMembership(); return }
   if (getProfile() == null) { uni.navigateTo({ url: '/pages/profile/profile' }); return }
+  if (dailyPlan.value.length == 0) {
+    uni.showToast({ title: '联网获取课程中', icon: 'none' })
+    syncLesson(getProfile()!.age)
+    return
+  }
+  if (canOpenTodayLesson.value) {
+    const today = getLocalDayKey(Date.now())
+    recoverUnsyncedLessonResults()
+    if (pendingResultCount() > 0 || hasPendingOlderThan(today) || !recentResultsSyncedToday()) {
+      uni.showToast({ title: '先联网同步成绩', icon: 'none' })
+      flushResults()
+      syncLesson(getProfile()!.age)
+      return
+    }
+    const created = startTodayLesson(getProfile()!.age, today)
+    if (created == null) { uni.showToast({ title: '先联网同步成绩', icon: 'none' }); return }
+    showLesson(created!)
+  }
   const next = nextPendingPlanItem(dailyPlan.value)
-  if (next == null) { uni.showToast({ title: '今日计划已完成', icon: 'success' }); return }
+  if (next == null) { uni.showToast({ title: '今日课程已完成', icon: 'success' }); return }
+  const lesson = activeLesson.value
+  const item = lesson == null ? null : lesson!.items.find((entry: ClientLessonItem): boolean => entry.gameId == next.gameId)
+  if (item == null || !beginLessonItem(item!)) {
+    console.log('[lesson-sync] navigation blocked game=' + next.gameId + ' reason=lesson-context-missing')
+    uni.showToast({ title: '课程准备中，请稍后重试', icon: 'none' })
+    syncLesson(getProfile()!.age)
+    return
+  }
   uni.navigateTo({ url: getGameRoute(next.gameId) })
 }
 function openPlanItem(item: DailyPlanItem) {
   if (!requireLogin()) return
+  if (!membershipActive.value) { openMembership(); return }
   if (getProfile() == null) { uni.navigateTo({ url: '/pages/profile/profile' }); return }
+  const lesson = activeLesson.value
+  const lessonItem = lesson == null ? null : lesson!.items.find((entry: ClientLessonItem): boolean => entry.gameId == item.gameId)
+  if (lessonItem == null || !beginLessonItem(lessonItem!)) {
+    console.log('[lesson-sync] navigation blocked game=' + item.gameId + ' reason=lesson-context-missing')
+    uni.showToast({ title: '课程准备中，请稍后重试', icon: 'none' })
+    syncLesson(getProfile()!.age)
+    return
+  }
   uni.navigateTo({ url: getGameRoute(item.gameId) })
 }
-function openDimension(dimensionId: string) { uni.navigateTo({ url: '/pages/dimensions/dimensions?dimensionId=' + dimensionId }) }
-function openReport() { if (requireLogin()) uni.navigateTo({ url: '/pages/report/report' }) }
+function openReport() { if (requireLogin()) uni.navigateTo({ url: '/pages/report/report-v2' }) }
+function openDimension(id: string) { uni.navigateTo({ url: '/pages/dimensions/dimensions?dimensionId=' + id }) }
+function openMembership() { if (requireLogin()) uni.navigateTo({ url: '/pages/membership/membership' }) }
 function openAccount() {
   if (!requireLogin()) return
   uni.switchTab({ url: '/pages/mine/mine' })
 }
+
+function onResultsSynced() {
+  const profile = getProfile()
+  if (profile != null) syncLesson(profile.age)
+}
+onMounted(() => uni.$on('focus-results-synced', onResultsSynced))
+function onMembershipUpdated(state: MembershipState) {
+  membershipActive.value = state.active
+  const profile = getProfile()
+  if (state.active && profile != null) syncLesson(profile.age)
+}
+onMounted(() => uni.$on('focus-membership-updated', onMembershipUpdated))
+onUnmounted(() => { uni.$off('focus-results-synced', onResultsSynced); uni.$off('focus-membership-updated', onMembershipUpdated) })
 </script>
 
 <style>
@@ -197,6 +309,8 @@ function openAccount() {
 .avatar-image { width: 58px; height: 58px; }
 .avatar-entry { align-items: center; }
 .login-hint { margin-top: 3px; color: #5b8def; font-size: 10px; font-weight: 700; }
+.membership-entry { min-width: 88px; height: 42px; padding: 0 15px; border-radius: 21px; background-color: #fff0b5; align-items: center; justify-content: center; }
+.membership-entry-text { color: #8b6414; font-size: 12px; font-weight: 700; }
 .hero-card { margin-top: 18px; height: 170px; padding: 18px 20px; border-radius: 24px; background-color: #4f7fe3; flex-direction: row; overflow: hidden; }
 .hero-copy { flex: 1; z-index: 3; justify-content: center; }
 .hero-title { width: 138px; color: #ffffff; font-size: 21px; font-weight: 700; }

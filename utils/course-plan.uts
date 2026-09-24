@@ -1,0 +1,453 @@
+import { getGameDimensionId, getGameName, getGameThumbnail } from './catalog.uts'
+import { getLocalDayKey, getRecords, saveRecords, TrainingRecord } from './storage.uts'
+import { defaultDifficultyForAge, setGameDifficulty } from './difficulty.uts'
+
+export type RecentTrainingResult = {
+  lessonNo: number,
+  lessonDate: string,
+  slotNo: number,
+  gameId: string,
+  difficultyLevel: number,
+  score: number,
+  completedAt: number
+}
+
+export type ClientLessonItem = {
+  lessonNo: number,
+  slotNo: number,
+  gameId: string,
+  dimensionId: string,
+  name: string,
+  thumbnail: string,
+  difficultyLevel: number,
+  completed: boolean,
+  bestScore: number
+}
+
+export type ClientLesson = {
+  lessonNo: number,
+  createdDay: string,
+  algorithmVersion: string,
+  items: ClientLessonItem[],
+  completedDay?: string
+}
+
+export const LESSON_ALGORITHM_VERSION = 'fixed-cycle-v1'
+const DIMENSION_ORDER = ['selective', 'focused', 'sustained', 'alternating', 'divided']
+const ROLE_NAMES = ['观察', '记忆', '反应', '逻辑', '兼顾']
+const FIXED_GAME_POOLS = [
+  ['forest-search', 'color-command', 'symbol-detective', 'spot-difference', 'number-tap', 'listen-find'],
+  ['light-tracking', 'spot-change', 'memory-search', 'memory-link', 'audio-sequence', 'sound-location'],
+  ['star-catcher', 'car-patrol', 'bird-cloud', 'red-green', 'breathing-planet', 'sky-watcher'],
+  ['water-sort', 'pattern-find', 'puzzle', 'shape-match', 'sorting-station', 'order-guess'],
+  ['magic-rule', 'number-track', 'little-driver', 'dual-track', 'penalty-kick', 'sound-filter']
+]
+
+function accountSuffix(): string {
+  const raw = uni.getStorageSync('focus_planet_auth_session')
+  if (raw == null || raw == '') return 'guest'
+  const session = JSON.parse<UTSJSONObject>(JSON.stringify(raw))!
+  const userId = session['userId']
+  return userId == null || userId == '' ? 'guest' : userId as string
+}
+
+function lessonKey(): string { return 'focus_planet_active_lesson_' + accountSuffix() }
+function historyKey(): string { return 'focus_planet_recent_results_' + accountSuffix() }
+function playKey(): string { return 'focus_planet_lesson_play_' + accountSuffix() }
+// 课程题目的独立凭证不使用账号后缀：页面跳转期间即使登录对象被刷新，结算页仍能读取。
+// owner 写在凭证内部，避免换账号后误用上一账号的课程上下文。
+const PLAY_TICKET_KEY = 'focus_planet_lesson_play_ticket_v2'
+
+function clampLevel(level: number): number { return Math.max(1, Math.min(10, level)) }
+
+export function lessonGameIds(lessonNo: number): string[] {
+  const normalized = Math.max(1, lessonNo)
+  const result = [] as string[]
+  for (let i = 0; i < DIMENSION_ORDER.length; i++) {
+    const pool = FIXED_GAME_POOLS[i]
+    result.push(pool[(normalized - 1 + i * 2) % pool.length])
+  }
+  return result
+}
+
+function sameGameHistory(gameId: string, history: RecentTrainingResult[]): RecentTrainingResult[] {
+  const result = history.filter((item: RecentTrainingResult): boolean => item.gameId == gameId)
+  result.sort((left: RecentTrainingResult, right: RecentTrainingResult): number => {
+    if (left.lessonNo != right.lessonNo) return right.lessonNo - left.lessonNo
+    if (left.slotNo != right.slotNo) return right.slotNo - left.slotNo
+    return right.completedAt - left.completedAt
+  })
+  return result
+}
+
+// 最近一次达标立即升一级；降级只看当前难度连续三次低于 50 分。
+// 一旦中间出现其他难度或 >= 50 分，低分连续计数即中断。
+export function nextDifficulty(gameId: string, history: RecentTrainingResult[], fallbackLevel: number): number {
+  const records = sameGameHistory(gameId, history)
+  if (records.length == 0) return clampLevel(fallbackLevel)
+  const latest = records[0]
+  const level = clampLevel(latest.difficultyLevel)
+  if (latest.score >= 100) return clampLevel(level + 1)
+  let lowCount = 0
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i]
+    if (record.difficultyLevel != level || record.score >= 50) break
+    lowCount += 1
+    if (lowCount >= 3) return clampLevel(level - 1)
+  }
+  return level
+}
+
+export function buildLesson(lessonNo: number, createdDay: string, age: number, history: RecentTrainingResult[]): ClientLesson {
+  // lessonNo 是课程生成时就确定的事实，首课必须从 1 开始，不能把 0 带入训练结果。
+  const normalizedLessonNo = Math.max(1, Math.round(lessonNo))
+  const ids = lessonGameIds(normalizedLessonNo)
+  const items = [] as ClientLessonItem[]
+  for (let i = 0; i < ids.length; i++) {
+    const gameId = ids[i]
+    const level = nextDifficulty(gameId, history, defaultDifficultyForAge(age))
+    const previous = history.find((entry: RecentTrainingResult): boolean => entry.lessonNo == normalizedLessonNo && entry.gameId == gameId)
+    items.push({
+      lessonNo: normalizedLessonNo,
+      slotNo: i + 1,
+      gameId: gameId,
+      dimensionId: getGameDimensionId(gameId),
+      name: getGameName(gameId),
+      thumbnail: getGameThumbnail(gameId),
+      difficultyLevel: level,
+      completed: previous != null,
+      bestScore: previous == null ? -1 : previous.score
+    })
+  }
+  return { lessonNo: normalizedLessonNo, createdDay: createdDay, algorithmVersion: LESSON_ALGORITHM_VERSION, items: items }
+}
+
+export function parseRecentTrainingResults(data: UTSJSONObject): RecentTrainingResult[] {
+  const result = [] as RecentTrainingResult[]
+  const raw = data['records']
+  if (raw == null) return result
+  const records = JSON.parse<UTSJSONObject[]>(JSON.stringify(raw))!
+  for (let i = 0; i < records.length; i++) {
+    const value = records[i]
+    const lessonNo = value['lessonNo'] as number
+    if (lessonNo < 1) continue
+    const gameId = value['gameId'] as string
+    const slotIndex = lessonGameIds(lessonNo).indexOf(gameId)
+    if (slotIndex < 0) continue
+    const completedAt = Date.parse(value['clientCompletedAt'] as string)
+    result.push({
+      lessonNo: lessonNo,
+      lessonDate: Number.isFinite(completedAt) ? getLocalDayKey(completedAt) : getLocalDayKey(Date.now()),
+      slotNo: slotIndex + 1,
+      gameId: gameId,
+      difficultyLevel: value['difficultyLevel'] as number,
+      score: value['score'] as number,
+      completedAt: Number.isFinite(completedAt) ? completedAt : 0
+    })
+  }
+  result.sort((left: RecentTrainingResult, right: RecentTrainingResult): number => {
+    if (left.lessonNo != right.lessonNo) return right.lessonNo - left.lessonNo
+    return right.completedAt - left.completedAt
+  })
+  return result.slice(0, 100)
+}
+
+export function getActiveLesson(): ClientLesson | null {
+  const raw = uni.getStorageSync(lessonKey())
+  if (raw == null || raw == '') return null
+  return JSON.parse<ClientLesson>(JSON.stringify(raw))
+}
+
+export function saveActiveLesson(lesson: ClientLesson) {
+  lesson.lessonNo = Math.max(1, Math.round(lesson.lessonNo))
+  for (let i = 0; i < lesson.items.length; i++) lesson.items[i].lessonNo = lesson.lessonNo
+  uni.setStorageSync(lessonKey(), lesson)
+  for (let i = 0; i < lesson.items.length; i++) setGameDifficulty(lesson.items[i].gameId, lesson.items[i].difficultyLevel)
+}
+
+export function lessonCompleted(lesson: ClientLesson): boolean {
+  return lesson.items.length == 5 && lesson.items.find((item: ClientLessonItem): boolean => !item.completed) == null
+}
+
+export function lessonStarted(lesson: ClientLesson): boolean {
+  return lesson.items.find((item: ClientLessonItem): boolean => item.completed) != null
+}
+
+export function cacheRecentResults(history: RecentTrainingResult[]) {
+  uni.setStorageSync(historyKey(), { syncedAt: Date.now(), dayKey: getLocalDayKey(Date.now()), results: history })
+}
+
+export function getCachedRecentResults(): RecentTrainingResult[] {
+  const raw = uni.getStorageSync(historyKey())
+  if (raw == null || raw == '') return [] as RecentTrainingResult[]
+  const value = JSON.parse<UTSJSONObject>(JSON.stringify(raw))!
+  const results = value['results']
+  return results == null ? [] as RecentTrainingResult[] : JSON.parse<RecentTrainingResult[]>(JSON.stringify(results))!
+}
+
+export function recentResultsSyncedToday(): boolean {
+  const raw = uni.getStorageSync(historyKey())
+  if (raw == null || raw == '') return false
+  const value = JSON.parse<UTSJSONObject>(JSON.stringify(raw))!
+  return value['dayKey'] as string == getLocalDayKey(Date.now())
+}
+
+function highestLessonNo(history: RecentTrainingResult[]): number {
+  let highest = 0
+  for (let i = 0; i < history.length; i++) highest = Math.max(highest, history[i].lessonNo)
+  return highest
+}
+
+function mergeHistory(lesson: ClientLesson, history: RecentTrainingResult[]): ClientLesson {
+  for (let i = 0; i < lesson.items.length; i++) {
+    const item = lesson.items[i]
+    const matches = history.filter((entry: RecentTrainingResult): boolean => entry.lessonNo == lesson.lessonNo && entry.gameId == item.gameId)
+    if (matches.length > 0) {
+      item.completed = true
+      item.bestScore = matches.reduce((best: number, entry: RecentTrainingResult): number => Math.max(best, entry.score), -1)
+    }
+  }
+  return lesson
+}
+
+// 同步后恢复未完成课；无未完成课时自动生成本日新课。
+// 本机刚完成的旧课保留在完成态，由首页按钮显式开启今日新课。
+export function resolveLessonAfterSync(age: number, history: RecentTrainingResult[], todayKey: string): ClientLesson {
+  cacheRecentResults(history)
+  const highest = highestLessonNo(history)
+  const local = getActiveLesson()
+  if (local != null && local!.lessonNo >= highest) {
+    const merged = mergeHistory(local!, history)
+    if (!lessonCompleted(merged) || merged.createdDay == todayKey) { saveActiveLesson(merged); return merged }
+    // 旧课刚完成时不自动跨课，等待用户点“开启今日课程”。
+    if (merged.completedDay == todayKey) { saveActiveLesson(merged); return merged }
+  }
+  if (highest > 0) {
+    const currentResults = history.filter((entry: RecentTrainingResult): boolean => entry.lessonNo == highest)
+    if (currentResults.length < 5) {
+      const restored = buildLesson(highest, currentResults.length == 0 ? todayKey : currentResults[0].lessonDate, age, history)
+      saveActiveLesson(restored)
+      return restored
+    }
+    const lessonDay = currentResults[0].lessonDate
+    let completedDay = ''
+    for (let i = 0; i < currentResults.length; i++) {
+      const day = getLocalDayKey(currentResults[i].completedAt)
+      if (day > completedDay) completedDay = day
+    }
+    if (lessonDay == todayKey || completedDay == todayKey) {
+      const completed = buildLesson(highest, lessonDay, age, history)
+      completed.completedDay = completedDay
+      saveActiveLesson(completed)
+      return completed
+    }
+  }
+  const created = buildLesson(highest + 1, todayKey, age, history)
+  saveActiveLesson(created)
+  return created
+}
+
+export function startTodayLesson(age: number, todayKey: string): ClientLesson | null {
+  if (!recentResultsSyncedToday()) return null
+  const current = getActiveLesson()
+  if (current != null && !lessonCompleted(current!)) return current
+  if (current != null && current!.createdDay == todayKey) return current
+  const history = getCachedRecentResults()
+  const nextNo = Math.max(current == null ? 0 : current!.lessonNo, highestLessonNo(history)) + 1
+  const lesson = buildLesson(nextNo, todayKey, age, history)
+  saveActiveLesson(lesson)
+  return lesson
+}
+
+export function beginLessonItem(item: ClientLessonItem): boolean {
+  const lessonNo = Math.max(1, Math.round(item.lessonNo))
+  const ticket: UTSJSONObject = { owner: accountSuffix(), lessonNo: lessonNo, slotNo: item.slotNo, gameId: item.gameId, difficultyLevel: item.difficultyLevel }
+  // 使用 JSON 字符串规避不同端对嵌套 UTSJSONObject 存储还原类型不一致的问题。
+  uni.setStorageSync(PLAY_TICKET_KEY, JSON.stringify(ticket))
+  uni.setStorageSync(playKey(), ticket)
+  const restored = readPlayTicket()
+  const verified = restored != null && restored!['lessonNo'] as number == lessonNo && restored!['slotNo'] as number == item.slotNo && restored!['gameId'] as string == item.gameId
+  console.log('[lesson-sync] begin lesson=' + lessonNo.toString() + ' slot=' + item.slotNo.toString() + ' game=' + item.gameId + ' ticketVerified=' + verified.toString() + ' activeLesson=' + (getActiveLesson() == null ? 'missing' : 'present'))
+  setGameDifficulty(item.gameId, item.difficultyLevel)
+  return verified
+}
+
+// 显式进入自由训练时留下哨兵，避免结果页把自由训练误认成当前课程；
+// 普通的临时上下文丢失仍可按当前课程中唯一的 gameId 恢复。
+export function clearLessonPlay() {
+  uni.setStorageSync(PLAY_TICKET_KEY, JSON.stringify({ owner: accountSuffix(), mode: 'free' }))
+  uni.setStorageSync(playKey(), { mode: 'free' })
+}
+
+function readPlayTicket(): UTSJSONObject | null {
+  const rawTicket = uni.getStorageSync(PLAY_TICKET_KEY)
+  if (rawTicket != null && rawTicket != '') {
+    try {
+      const ticket = typeof rawTicket == 'string' ? JSON.parse<UTSJSONObject>(rawTicket as string) : JSON.parse<UTSJSONObject>(JSON.stringify(rawTicket))
+      if (ticket != null && ticket!['owner'] as string == accountSuffix()) return ticket
+      console.log('[lesson-sync] ticket owner mismatch')
+    } catch (error) {
+      console.log('[lesson-sync] ticket parse failed type=' + typeof rawTicket)
+    }
+  }
+  const legacy = uni.getStorageSync(playKey())
+  if (legacy == null || legacy == '') return null
+  return JSON.parse<UTSJSONObject>(JSON.stringify(legacy))
+}
+
+export function activeLessonItemForResult(gameId: string): ClientLessonItem | null {
+  const play = readPlayTicket()
+  const lesson = getActiveLesson()
+  const fallback = lesson == null ? null : lesson!.items.find((entry: ClientLessonItem): boolean => entry.gameId == gameId)
+  if (play == null) {
+    console.log('[lesson-sync] result ticket missing game=' + gameId + ' fallback=' + (fallback != null).toString())
+    return fallback == null ? null : fallback
+  }
+  if (play!['mode'] as string == 'free') {
+    console.log('[lesson-sync] result explicit free game=' + gameId)
+    return null
+  }
+  const ticketGameId = play!['gameId'] as string
+  const ticketLessonNo = play!['lessonNo'] as number
+  const ticketSlotNo = play!['slotNo'] as number
+  const ticketDifficulty = play!['difficultyLevel'] as number
+  if (ticketGameId != gameId || ticketLessonNo < 1 || ticketSlotNo < 1) {
+    console.log('[lesson-sync] result ticket invalid game=' + gameId + ' ticketGame=' + ticketGameId + ' lesson=' + ticketLessonNo.toString() + ' slot=' + ticketSlotNo.toString() + ' fallback=' + (fallback != null).toString())
+    return fallback == null ? null : fallback
+  }
+  // 独立凭证是进入课程题目时写入的事实。活动课程读取失败时仍可据此生成成绩并同步，
+  // 不能因为页面间存储键变化把正式课程降级成 unassigned。
+  if (lesson == null) {
+    console.log('[lesson-sync] result uses ticket without active lesson game=' + gameId + ' lesson=' + ticketLessonNo.toString())
+    return {
+      lessonNo: ticketLessonNo,
+      slotNo: ticketSlotNo,
+      gameId: gameId,
+      dimensionId: getGameDimensionId(gameId),
+      name: getGameName(gameId),
+      thumbnail: getGameThumbnail(gameId),
+      difficultyLevel: Math.max(1, Math.min(10, ticketDifficulty)),
+      completed: false,
+      bestScore: -1
+    }
+  }
+  // play 标记属于上一题/上一课时，仍以当前课内唯一的 gameId 恢复课程上下文。
+  // 自由训练由上面的显式哨兵隔离，不会被误记为课程成绩。
+  if (lesson!.lessonNo != ticketLessonNo) return fallback == null ? null : fallback
+  const item = lesson!.items.find((entry: ClientLessonItem): boolean => entry.slotNo == ticketSlotNo && entry.gameId == gameId)
+  return item == null ? (fallback == null ? null : fallback) : item
+}
+
+// 早期测试包只保存了成绩，没有 active lesson。固定列表每6课循环；仅在「同一天无课号
+// 记录完整覆盖某一课5个固定游戏」时重建，避免猜测零散自由训练。
+function restoreFixedLessonFromRecords(records: TrainingRecord[]): ClientLesson | null {
+  let matchedDay = ''
+  let matchedLessonNo = 0
+  for (let lessonNo = 1; lessonNo <= 6; lessonNo++) {
+    const ids = lessonGameIds(lessonNo)
+    for (let i = 0; i < records.length; i++) {
+      const candidate = records[i]
+      if (candidate.lessonNo != null) continue
+      const day = getLocalDayKey(candidate.completedAt)
+      if (day < matchedDay) continue
+      let matchedGames = 0
+      for (let j = 0; j < ids.length; j++) {
+        const gameId = ids[j]
+        const found = records.find((record: TrainingRecord): boolean => record.lessonNo == null && getLocalDayKey(record.completedAt) == day && record.gameId == gameId)
+        if (found != null) matchedGames += 1
+      }
+      if (matchedGames == ids.length && (day > matchedDay || matchedLessonNo == 0 || lessonNo < matchedLessonNo)) {
+        matchedDay = day
+        matchedLessonNo = lessonNo
+      }
+    }
+  }
+  if (matchedDay == '' || matchedLessonNo == 0) return null
+  const lesson = buildLesson(matchedLessonNo, matchedDay, 8, [] as RecentTrainingResult[])
+  for (let i = 0; i < lesson.items.length; i++) {
+    const item = lesson.items[i]
+    const record = records.find((entry: TrainingRecord): boolean => entry.lessonNo == null && getLocalDayKey(entry.completedAt) == matchedDay && entry.gameId == item.gameId)
+    if (record != null && record!.difficultyLevel != null) item.difficultyLevel = record!.difficultyLevel!
+  }
+  saveActiveLesson(lesson)
+  console.log('[lesson-sync] restored missing active lesson=' + matchedLessonNo.toString() + ' day=' + matchedDay)
+  return lesson
+}
+
+// 旧客户端可能已经保存了本课的本地结果，却因临时 play 标记丢失而没有 lessonNo。
+// 只在记录日期不早于当前课程创建日、且 gameId 属于本课时修复；每个题目只取本地最高分。
+export function repairActiveLessonRecords(): number {
+  const records = getRecords()
+  let lesson = getActiveLesson()
+  if (lesson == null) lesson = restoreFixedLessonFromRecords(records)
+  if (lesson == null) return 0
+  // 某些旧测试包先在今天重建了 active lesson，随后才发现昨天留下的 5 条无课号成绩。
+  // 当同一天正好覆盖本课全部 5 个 gameId 时，可无歧义地认定为这门旧课并恢复课程日期。
+  let legacyCourseDay = ''
+  for (let i = 0; i < records.length; i++) {
+    const candidate = records[i]
+    if (candidate.lessonNo != null) continue
+    const candidateDay = getLocalDayKey(candidate.completedAt)
+    if (candidateDay >= lesson!.createdDay || candidateDay <= legacyCourseDay) continue
+    let matchedGames = 0
+    for (let j = 0; j < lesson!.items.length; j++) {
+      const gameId = lesson!.items[j].gameId
+      const found = records.find((record: TrainingRecord): boolean => record.lessonNo == null && getLocalDayKey(record.completedAt) == candidateDay && record.gameId == gameId)
+      if (found != null) matchedGames += 1
+    }
+    if (matchedGames == lesson!.items.length) legacyCourseDay = candidateDay
+  }
+  if (legacyCourseDay != '') lesson!.createdDay = legacyCourseDay
+  let repaired = 0
+  let latestCompletedDay = lesson!.completedDay == null ? '' : lesson!.completedDay!
+  for (let i = 0; i < lesson!.items.length; i++) {
+    const item = lesson!.items[i]
+    const tagged = records.find((record: TrainingRecord): boolean => record.lessonNo == lesson!.lessonNo && record.gameId == item.gameId)
+    if (tagged != null) continue
+    let best = null as TrainingRecord | null
+    for (let j = 0; j < records.length; j++) {
+      const record = records[j]
+      const recordDay = getLocalDayKey(record.completedAt)
+      if (record.lessonNo != null || record.gameId != item.gameId) continue
+      if (legacyCourseDay != '' && recordDay != legacyCourseDay) continue
+      if (legacyCourseDay == '' && recordDay < lesson!.createdDay) continue
+      if (best == null || record.score > best!.score) best = record
+    }
+    if (best == null) continue
+    const matched = best as TrainingRecord
+    matched.lessonNo = lesson!.lessonNo
+    matched.slotNo = item.slotNo
+    matched.difficultyLevel = item.difficultyLevel
+    // 新成绩同步只使用本地队列 ID，不再读取旧 submissionId，避免旧结构反序列化异常。
+    matched.localSyncId = matched.localSyncId == null || matched.localSyncId == '' ? 'recovered-' + matched.id + '-' + item.gameId : matched.localSyncId
+    matched.scoreAlgorithmVersion = matched.scoreAlgorithmVersion == null || matched.scoreAlgorithmVersion == '' ? 'goal-v2' : matched.scoreAlgorithmVersion
+    matched.lessonSyncPending = true
+    item.completed = true
+    item.bestScore = Math.max(item.bestScore, matched.score)
+    const completedDay = getLocalDayKey(matched.completedAt)
+    if (completedDay > latestCompletedDay) latestCompletedDay = completedDay
+    repaired += 1
+  }
+  if (repaired > 0) {
+    if (lessonCompleted(lesson!)) lesson!.completedDay = latestCompletedDay
+    saveRecords(records)
+    saveActiveLesson(lesson!)
+  }
+  return repaired
+}
+
+export function markLessonResult(gameId: string, score: number): ClientLessonItem | null {
+  const item = activeLessonItemForResult(gameId)
+  if (item == null) return null
+  const lesson = getActiveLesson()
+  if (lesson == null) return item
+  const target = lesson.items.find((entry: ClientLessonItem): boolean => entry.slotNo == item!.slotNo)!
+  if (target == null) return item
+  target.completed = true
+  target.bestScore = Math.max(target.bestScore, score)
+  if (lessonCompleted(lesson)) lesson.completedDay = getLocalDayKey(Date.now())
+  saveActiveLesson(lesson)
+  return target
+}
+
+export function lessonRole(slotNo: number): string { return ROLE_NAMES[Math.max(0, Math.min(4, slotNo - 1))] }

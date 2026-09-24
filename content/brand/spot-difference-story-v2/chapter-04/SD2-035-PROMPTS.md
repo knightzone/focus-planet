@@ -1,16 +1,14 @@
 # SD2-035 叶子是大转弯
 
-2026-09-15。提示词已按第四章格式备好，图片待生成：原内置 image_gen 因 Codex 配额暂不可用。可用 tools/generate-story-pair.cjs 对接任意 OpenAI 兼容图像服务生成：
-
-```bash
-export STORY_IMAGE_KEY=<key>
-# 可选：STORY_IMAGE_BASE（默认 https://api.openai.com/v1）、STORY_IMAGE_MODEL（默认 gpt-image-1）、STORY_IMAGE_SIZE（默认 1536x1024）
-node tools/generate-story-pair.cjs --id SD2-035 --chapter 4
-```
+2026-09-19 修订：以031—034已认可图片与提示词为基准。使用内置 image_gen，A为新场景，B仅编辑对应A；不使用其他图像服务或旧模型脚本作为默认流程。
 
 生成后按下面清单继续：来源记录写入 manifest.json，对照实际图片标注 runtime-regions.json，运行 tools/build-story-runtime.cjs。
 
-参考：chapter-04/sd2-033-a.png，仅作风格、溪边棚架场景与蓝兔/黄猫辨识度参考，不复用其构图。
+实际传入的参考图：chapter-04/sd2-032-a.png（暖暖身份与画风）、chapter-04/sd2-033-a.png（跃跃身份与溪边棚架画风）。033没有黄猫，不能单独承担暖暖的角色参考。不复用参考图构图。先读取参考图，再将路径实际传给内置工具，不能只在提示词里写“reference”。
+
+## 画风与复杂度约束（与下方A提示词一起使用）
+
+Use the two supplied images as character/style references only: Image 1 SD2-032 for golden kitten Nuannuan; Image 2 SD2-033 for blue rabbit Yueyue and creekside style. Match their rounded stylized toy-like storybook proportions, saturated blue rabbit, blue rabbit nose, golden kitten without tabby forehead stripes, clean softly textured surfaces and short natural limbs. Do not reinterpret them as realistic furry baby animals. Expressions and gestures may change naturally. Keep ears fully within frame. Medium OVERALL scene complexity: one readable table activity, spaced props and a broad calm water area; simplified soft distant creek and greenery, restrained wood grain and ripples. Avoid dense fine fur, busy bokeh foliage, elaborate reflections and added decorative clutter. The ten anchors can be colors/patterns on existing objects; do not add ten extra objects merely to reach ten differences.
 
 ## A 完整提示词
 
@@ -26,9 +24,11 @@ Use case: precise-object-edit. Create ONE independent B image for this spot-diff
 
 ## 状态
 
-- [ ] A 图生成与目检
-- [ ] B 图生成与目检（十处候选可见、肢体自然、构图对齐）
-- [ ] manifest.json 登记（来源、变化清单、notes）
+2026-09-19首轮035 A/B仅保存为风格候选：`content/ai-assets/archive/spot-difference-story-v2/chapter-04-candidates/sd2-035-{a,b}-style-draft.png`。该轮A未实际传入角色参考，偏写实绒毛且兔鼻颜色偏离既有形象；不计为正式完成，不进运行资源。036生成调用被用户中断，未确认交付。后续应按本修订说明重新生成035，不把候选图作为角色参考。
+
+- [x] A 图生成与目检（修正版实际提示词见 SD2-035-GENERATED-PROMPTS.md）
+- [x] B 图生成与目检（十处候选可见、肢体自然、构图对齐）
+- [x] manifest.json 登记（来源、变化清单、notes）
 - [ ] runtime-regions.json 标注（百分比坐标、互不重叠、至少5处）
 - [ ] build-story-runtime.cjs 构建 + 四项测试
 - [ ] runtime-review/index.html 人工核对

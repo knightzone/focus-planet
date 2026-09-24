@@ -1,7 +1,7 @@
 const fs = require('fs');
 const vm = require('vm');
 const assert = require('assert/strict');
-const ts = require('/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
+const ts = require('/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
 const store = new Map(), guards = {}, scheduled = [], events = [];
 let request, route = 'pages/index/index', launches = 0, modals = 0, timer;
 const uni = {

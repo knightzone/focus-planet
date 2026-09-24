@@ -1,0 +1,142 @@
+import { getMembershipStatus } from './server-api.uts'
+import { getAuthSession } from './auth.uts'
+import { ApiFailure } from './api-client.uts'
+
+export type VipProduct = { productId: string, name: string, type: string }
+export type MembershipState = {
+  active: boolean,
+  expiresAt: string,
+  appAccountToken: string,
+  products: VipProduct[]
+}
+
+// VIP and legacy membership use different account tokens and entitlement tables.
+const CACHE_PREFIX = 'focus_planet_vip_v1_'
+const SYNCED_PREFIX = 'focus_planet_vip_synced_v1_'
+// 前台恢复/进入受限入口前的主动刷新节奏：5 分钟内不重复请求。
+const REFRESH_INTERVAL_MS = 5 * 60 * 1000
+// 刷新失败后的重试间隔，避免离线时每次 onShow 都打服务端。
+const RETRY_INTERVAL_MS = 30 * 1000
+let refreshing = false
+let lastAttemptAt = 0
+
+function emptyState(): MembershipState {
+  return { active: false, expiresAt: '', appAccountToken: '', products: [] }
+}
+
+function currentUserId(): string {
+  const session = getAuthSession()
+  return session == null ? '' : session!.userId
+}
+
+export function parseMembership(data: UTSJSONObject): MembershipState {
+  const products: VipProduct[] = []
+  const raw = data['products']
+  if (raw != null) {
+    const rows = JSON.parse<UTSJSONObject[]>(JSON.stringify(raw))!
+    rows.forEach((row: UTSJSONObject) => {
+      const id = row['productId'] as string
+      const type = row['type'] as string
+      if (id != '' && (type == 'subscription' || type == 'non_consumable')) {
+        products.push({ productId: id, name: row['name'] as string, type: type })
+      }
+    })
+  }
+  return {
+    active: data['isVip'] == true,
+    expiresAt: data['expiresAt'] == null ? '' : data['expiresAt'] as string,
+    appAccountToken: data['appAccountToken'] == null ? '' : data['appAccountToken'] as string,
+    products: products
+  }
+}
+
+// 服务端返回带微秒的 UTC 时间（如 2027-09-22T08:41:42.489230Z）。
+// 部分运行时只接受毫秒精度，先把小数秒裁到 3 位再解析；解析不出来返回 0。
+function parseServerTime(value: string): number {
+  let text = value
+  const dot = text.indexOf('.')
+  if (dot > 0) {
+    let end = dot + 1
+    while (end < text.length && text.charAt(end) >= '0' && text.charAt(end) <= '9') end += 1
+    text = text.substring(0, dot + 1) + text.substring(dot + 1, end).substring(0, 3) + text.substring(end)
+  }
+  const parsed = Date.parse(text)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+export function cachedMembership(): MembershipState {
+  const userId = currentUserId()
+  if (userId == '') return emptyState()
+  const raw = uni.getStorageSync(CACHE_PREFIX + userId)
+  if (raw == null || raw == '') return emptyState()
+  const state = JSON.parse<MembershipState>(JSON.stringify(raw))!
+  if (state.active && state.expiresAt != '') {
+    const expires = parseServerTime(state.expiresAt)
+    // 只有“确定已过期”才降级；解析不出时间时保留服务端的结论，由刷新去纠正，
+    // 否则设备端会把已开通的 VIP 误判成未开通。
+    if (expires > 0 && expires <= Date.now()) state.active = false
+  }
+  return state
+}
+
+function markSynced() {
+  const userId = currentUserId()
+  if (userId == '') return
+  uni.setStorageSync(SYNCED_PREFIX + userId, Date.now().toString())
+}
+
+// 距上次成功拉到 /vip/status 的时间（毫秒）；0 表示这个账号从未成功同步过。
+export function membershipSyncedAt(): number {
+  const userId = currentUserId()
+  if (userId == '') return 0
+  const raw = uni.getStorageSync(SYNCED_PREFIX + userId)
+  if (raw == null || raw == '') return 0
+  const value = parseFloat(raw as string)
+  return Number.isFinite(value) ? value : 0
+}
+
+export function membershipStale(): boolean {
+  const userId = currentUserId()
+  if (userId == '') return false
+  const syncedAt = membershipSyncedAt()
+  return syncedAt <= 0 || Date.now() - syncedAt >= REFRESH_INTERVAL_MS
+}
+
+export function saveMembership(state: MembershipState) {
+  const userId = currentUserId()
+  if (userId == '') return
+  uni.setStorageSync(CACHE_PREFIX + userId, state)
+  uni.$emit('focus-membership-updated', state)
+}
+
+export function refreshMembership(success: (state: MembershipState) => void, failure: ApiFailure) {
+  const userId = currentUserId()
+  if (userId == '') { failure('请先登录', 'UNAUTHORIZED'); return }
+  getMembershipStatus((data: UTSJSONObject) => {
+    if (currentUserId() != userId) { failure('登录账号已变更，请重试', 'ACCOUNT_CHANGED'); return }
+    const state = parseMembership(data)
+    markSynced()
+    saveMembership(state)
+    success(state)
+  }, failure)
+}
+
+// 主动刷新入口：App 回到前台、进入受限入口前调用。并发去重 + 5 分钟节流，
+// 失败不写成功时间（留待下次重试），也不抛错 —— 调用方继续用缓存结论。
+export function resumeMembership() {
+  const userId = currentUserId()
+  if (userId == '') return
+  if (refreshing) return
+  if (!membershipStale()) return
+  const now = Date.now()
+  if (lastAttemptAt > 0 && now - lastAttemptAt < RETRY_INTERVAL_MS) return
+  refreshing = true
+  lastAttemptAt = now
+  refreshMembership((_state: MembershipState) => { refreshing = false }, (_message: string, _code: string) => { refreshing = false })
+}
+
+export function requireMembership(): boolean {
+  if (cachedMembership().active) return true
+  uni.navigateTo({ url: '/pages/membership/membership' })
+  return false
+}

@@ -169,7 +169,7 @@
 
 ## 7. 客户端接入位置与版本来源
 
-现状：`manifest.json` 为 `0.1.0` / `100`，项目已配置 Android/iOS 5.25 Vapor，已有 iOS Xcode 资源同步脚本。
+现状：`manifest.json` 为 `0.1.0` / `100`，项目已配置 Android/iOS 5.26 Vapor，已有 iOS Xcode 资源同步脚本。
 
 建议实现：
 

@@ -1,5 +1,5 @@
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
-const root=path.resolve(__dirname,'..'),ts=require('/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
+const root=path.resolve(__dirname,'..'),ts=require('/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8').replace(/^import .*$/gm,'').replace(/^export /gm,'');
 const c={Number,Math};vm.createContext(c);vm.runInContext(ts.transpile(read('utils/star-rating.uts')+'\nglobalThis.api={resultStarCount,reportStarCount,hasPassStar,hasStarCelebration,orbitStar}',{target:ts.ScriptTarget.ES2020}),c);const a=c.api;
 for(const [score,stars,report,special] of [[0,0,0,false],[19,0,0,false],[20,1,1,false],[39,1,1,false],[40,2,2,false],[60,3,3,false],[80,4,4,false],[89,4,4,false],[90,5,5,false],[99,5,5,false],[100,5,6,false],[110,5,6,false],[119,5,6,false],[120,5,6,true],[200,5,6,true]]){assert.equal(a.resultStarCount(score),stars);assert.equal(a.reportStarCount(score),report);assert.equal(a.hasStarCelebration(score),special);assert.equal(a.hasPassStar(score),score>=100)}
@@ -11,7 +11,7 @@ function harness(score){let now=10000,id=0,mount,unmount,hide,show,changed;const
 const h=harness(119);assert.equal(h.timers.size,0);h.change(120);assert.equal(h.timers.size,1);h.tick(400);assert.equal(h.elapsed(),400);h.hide();h.tick(20000);assert.equal(h.elapsed(),400);h.show();h.tick(80);assert.equal(h.elapsed(),480);h.change(90);assert.equal(h.timers.size,0);h.change(200);assert.equal(h.timers.size,1);h.unmount();assert.equal(h.timers.size,0);
 const result=fs.readFileSync(path.join(root,'pages/result/result.uvue'),'utf8').split('</template>')[0];assert(!/\{\{\s*(score|accuracy|reaction)/.test(result));assert(!result.includes('100分'));assert(result.includes('v-if="!specialCelebration"'));
 const staticStars=read('components/ScoreStars.uvue');assert(!staticStars.includes('setInterval'));assert(!staticStars.includes('animation'));
-for(const p of ['pages/report/report.uvue','pages/history/history.uvue']){const s=read(p);assert(s.includes('{{ record.score }}分'));assert(s.includes(':report="true"'));assert(!s.includes('ResultCelebration'))}
+for(const p of ['pages/report/report-v2.uvue','pages/history/history-v2.uvue']){const s=read(p);assert(!s.includes('ResultCelebration'))}
 for(const p of ['pages/index/index.uvue','pages/mine/mine.uvue']) {
  const s=fs.readFileSync(path.join(root,p),'utf8');
  assert(s.includes("import { reportStarCount } from '../../utils/star-rating.uts'"));

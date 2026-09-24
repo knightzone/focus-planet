@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 IOS_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 PROJECT_ROOT="$(cd "$IOS_DIR/.." && pwd)"
 APP_ID="__UNI__B5780B0"
-EXPECTED_RUNTIME_VERSION="5.25"
+EXPECTED_RUNTIME_VERSION="5.26"
 export_dir="$PROJECT_ROOT/unpackage/resources/app-ios/$APP_ID"
 bundle_dir="$IOS_DIR/FocusPlanet/FocusPlanet/uni-app-x/apps/$APP_ID"
 bundle_manifest="$bundle_dir/www/manifest.json"
@@ -38,7 +38,7 @@ for source_root in "${source_roots[@]}"; do
   [[ -e "$source_root" ]] || continue
   if [[ -f "$source_root" ]]; then
     [[ "$source_root" -nt "$bundle_manifest" ]] && fail_stale
-  elif find "$source_root" -type f -newer "$bundle_manifest" -print -quit | grep -q .; then
+  elif find "$source_root" -type f ! -name '.DS_Store' ! -name '._*' -newer "$bundle_manifest" -print -quit | grep -q .; then
     fail_stale
   fi
 done
@@ -62,4 +62,4 @@ if [[ -f "$export_dir/www/manifest.json" ]]; then
   fi
 fi
 
-echo "iOS uni-app x resources are current (5.25, $APP_ID)."
+echo "iOS uni-app x resources are current ($EXPECTED_RUNTIME_VERSION, $APP_ID)."

@@ -1,192 +1,341 @@
 <template>
-<TrainingFrame title="双轨任务" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
-  <view class="page">
-    <view class="game-header">
-      <view><text class="round-label">分配注意训练</text><text class="game-title">同时守住两条轨道</text></view>
-      <view class="counter"><text class="counter-value">{{ displayTick }}/{{ totalTicks }}</text></view>
-    </view>
-    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-    <view class="rule-card">
-      <text class="rule-title">点击金色星星所在轨道</text>
-    </view>
-
-    <view class="tracks">
-      <view class="track left-track" @click="tapSide('left')">
-        <text class="track-label tap-content">左轨道</text>
-        <view v-if="started && visible" class="signal tap-content" :class="leftTarget ? 'target-signal' : 'distractor-signal'">
-          <text :class="leftTarget ? 'signal-target-symbol' : 'signal-distractor-symbol'">{{ leftTarget ? '✦' : '●' }}</text>
-        </view>
-        <view v-else class="waiting-dot tap-content"></view>
-        <view v-if="leftResponded" class="response-mark tap-content"><text class="response-symbol">{{ leftTarget ? '✓' : '×' }}</text></view>
+<TrainingFrame :difficulty="level" :preparing="state != 'running' && state != 'paused'" title="上天入海" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+  <view class="dt-page">
+    <view class="dt-header">
+      <view>
+        <text class="dt-eyebrow">切换兼顾训练</text>
+        <text class="dt-title">上天入海</text>
       </view>
-      <view class="track right-track" @click="tapSide('right')">
-        <text class="track-label tap-content">右轨道</text>
-        <view v-if="started && visible" class="signal tap-content" :class="rightTarget ? 'target-signal' : 'distractor-signal'">
-          <text :class="rightTarget ? 'signal-target-symbol' : 'signal-distractor-symbol'">{{ rightTarget ? '✦' : '●' }}</text>
-        </view>
-        <view v-else class="waiting-dot tap-content"></view>
-        <view v-if="rightResponded" class="response-mark tap-content"><text class="response-symbol">{{ rightTarget ? '✓' : '×' }}</text></view>
+      <view class="dt-header-right">
+        <view class="dt-score"><text class="dt-score-text">{{ state == 'running' ? '得分 ' + liveScore : '试玩不计分' }}</text></view>
+        <view v-if="state == 'running'" class="dt-level"><text class="dt-level-text">难度 {{ level }}</text></view>
       </view>
     </view>
+    <view v-if="state == 'running'" class="dt-progress"><view class="dt-progress-fill" :style="{ width: progressWidth }"></view></view>
 
-    <view v-if="!started" class="instruction">
-      <YoungChildCue kind="watch"></YoungChildCue>
-      <button class="tap-target primary" @click="begin">开始</button>
+    <view id="dt-field" class="dt-field">
+      <image class="dt-scene" :src="SCENE_PATH" mode="aspectFill"></image>
+      <view class="dt-center-line"></view>
+
+      <view v-for="slot in slotCount" :key="'sky-slot-' + slot" class="dt-slot" :style="slotStyle('sky', slot - 1)" @click="moveTo('sky', slot - 1)" @touchstart="dragStart('sky', $event)" @touchmove.stop="dragMove($event)" @touchend="dragEnd" @touchcancel="dragEnd"></view>
+      <view v-for="slot in slotCount" :key="'sea-slot-' + slot" class="dt-slot" :style="slotStyle('sea', slot - 1)" @click="moveTo('sea', slot - 1)" @touchstart="dragStart('sea', $event)" @touchmove.stop="dragMove($event)" @touchend="dragEnd" @touchcancel="dragEnd"></view>
+
+      <image v-for="item in obstacleViews" :key="item.id" class="dt-obstacle" :style="item.style" :src="item.path" mode="aspectFit"></image>
+
+      <image class="dt-vehicle" :style="rocketStyle" :src="ROCKET_PATH" mode="aspectFit"></image>
+      <image class="dt-vehicle" :style="subStyle" :src="SUBMARINE_PATH" mode="aspectFit"></image>
+
+      <text v-if="bump != ''" class="dt-bump">{{ bump }}</text>
+      <view v-if="state == 'ready' || state == 'demo-done'" class="dt-message training-preview-card">
+        <text class="dt-message-title">{{ state == 'demo-done' ? '试玩结束啦' : '上下移动，躲开星球和鱼' }}</text>
+        <text class="dt-message-note">点一下或上下拖动，同时照顾火箭和潜艇</text>
+        <button class="tap-target dt-primary training-preview-primary" @click="begin">开始训练</button>
+        <button class="dt-replay training-preview-secondary" @click="startDemo">{{ state == 'demo-done' ? '再试一次' : '先试一轮' }}</button>
+      </view>
     </view>
 
-    <view class="footer-stats" :class="started ? 'footer-playing' : 'footer-ready'">
-      <view class="footer-stat"><text class="footer-value">{{ hits }}</text><text class="footer-label">命中</text></view>
-      <view class="footer-stat"><text class="footer-value">{{ omissions }}</text><text class="footer-label">遗漏</text></view>
-      <view class="footer-stat"><text class="footer-value">{{ falseAlarms }}</text><text class="footer-label">误点</text></view>
+    <view v-if="state == 'demo'" class="dt-demo-actions">
+      <text class="dt-demo-hint">试玩 · 上下移动躲一躲</text>
+      <button class="training-preview-primary" @click="begin">开始训练</button>
+    </view>
+    <view v-else-if="state == 'running'" class="dt-stats">
+      <view class="dt-stat"><text class="dt-stat-value">{{ hitsSky }}</text><text class="dt-stat-label">撞星球</text></view>
+      <view class="dt-stat"><text class="dt-stat-value">{{ hitsSea }}</text><text class="dt-stat-label">撞到鱼</text></view>
+      <view class="dt-stat"><text class="dt-stat-value">{{ remainingSeconds }}</text><text class="dt-stat-label">剩余秒</text></view>
     </view>
   </view>
 </TrainingFrame>
 </template>
 
 <script setup lang="uts">
-import { scoreQuery } from '../../utils/game-scoring.uts'
-const roundScores: number[] = []
 import TrainingFrame from '../../components/TrainingFrame.uvue'
 import { useTrainingSession } from '../../utils/training-session.uts'
-import { ref, computed } from 'vue'
-import YoungChildCue from '../../components/YoungChildCue.uvue'
-import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { getGameTuningAge } from '../../utils/difficulty.uts'
+import { ref, computed, nextTick } from 'vue'
+import { onLoad, onReady, onUnload, onResize } from '@dcloudio/uni-app'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { scoreQuery } from '../../utils/game-scoring.uts'
+import {
+  dualTrackConfig, dualTrackDemoConfig, dualTrackCreate, dualTrackStep, dualTrackMoveTo, dualTrackScore, dualTrackProgress,
+  dualTrackFinished, dualTrackRemainingMs, dualTrackDraggedSlot, slotCenterY, slotOfY, halfRange, vehicleSize, obstacleSize, DUAL_TRACK_SLOTS,
+  SCENE_PATH, ROCKET_PATH, SUBMARINE_PATH,
+  DualTrackConfig, DualTrackEvent, DualTrackObstacle, DualTrackState, SKY_HALF, SEA_HALF
+} from '../../utils/dual-track.uts'
+
 const training = useTrainingSession()
 const trainingClock = training.clock
 const trainingPaused = training.paused, trainingBusy = training.navigating
 
+type ObstacleView = { id: string, path: string, style: string }
 
-const started = ref(false)
-const visible = ref(false)
-const totalTicks = ref(14)
-const tickDuration = ref(1200)
-const doubleTargetRate = ref(0.1)
-const tickIndex = ref(0)
-const leftTarget = ref(false)
-const rightTarget = ref(false)
-const leftResponded = ref(false)
-const rightResponded = ref(false)
-const hits = ref(0)
-const omissions = ref(0)
-const falseAlarms = ref(0)
-const reactions = ref([] as number[])
-let appearedAt = 0
-let gameStartedAt = 0
-let tickTimer = 0
-let gapTimer = 0
+const FIELD_ID = 'dt-field'
 
-const displayTick = computed((): number => started.value ? Math.min(totalTicks.value, tickIndex.value + 1) : 0)
-const progressWidth = computed((): string => {
-  if (!started.value) return '0%'
-  return Math.min(100, Math.round((tickIndex.value / totalTicks.value) * 100)).toString() + '%'
-})
+const level = ref(1)
+const state = ref('ready')
+const liveScore = ref(0)
+const hitsSky = ref(0)
+const hitsSea = ref(0)
+const remainingSeconds = ref(60)
+const obstacleViews = ref([] as ObstacleView[])
+const bump = ref('')
+const slotCount = DUAL_TRACK_SLOTS
+const fieldWidth = ref(350)
+const fieldHeight = ref(520)
+let field: DualTrackState | null = null
+let config = dualTrackConfig(1)
+let timer = 0
+let lastTick = 0
+let bumpTimer = 0
+let dragHalf = ''
+let dragStartY = 0
+let dragMoved = false
+let launchPending = false, disposed = false
 
-function configureDifficulty() {
-  const age = getGameTuningAge('dual-track')
-  if (age <= 6) { totalTicks.value = 10; tickDuration.value = 1500; doubleTargetRate.value = 0 }
-  else if (age <= 9) { totalTicks.value = 14; tickDuration.value = 1250; doubleTargetRate.value = 0.1 }
-  else if (age <= 12) { totalTicks.value = 18; tickDuration.value = 1000; doubleTargetRate.value = 0.2 }
-  else { totalTicks.value = 22; tickDuration.value = 850; doubleTargetRate.value = 0.3 }
+const progressWidth = computed((): string => Math.round((field == null ? 0 : dualTrackProgress(field!)) * 100).toString() + '%')
+// 载具素材是 4:3 的整张插画（火箭 + 跃跃 / 潜艇 + 暖暖），按 4:3 摆放、以载具中心对齐判定点。
+const vehicle = computed((): number => vehicleSize(fieldHeight.value))
+// 载具纵向位置用 ref 保存：field 是普通变量，computed 直接读它不会重新计算（会一直显示在顶部）。
+const rocketTop = ref(0)
+const subTop = ref(0)
+const vehicleStyle = (top: number): string => {
+  const width = Math.round(vehicle.value * 4 / 3)
+  const height = vehicle.value
+  const left = Math.round(fieldWidth.value * 0.28 - width / 2)
+  return 'left:' + left.toString() + 'px;top:' + Math.round(top).toString() + 'px;width:' + width.toString() + 'px;height:' + height.toString() + 'px;'
 }
+const rocketStyle = computed((): string => vehicleStyle(rocketTop.value))
+const subStyle = computed((): string => vehicleStyle(subTop.value))
 
-function clearTimers() {
-  if (tickTimer > 0) trainingClock.clearTimeout(tickTimer)
-  if (gapTimer > 0) trainingClock.clearTimeout(gapTimer)
-}
-
-function finishGame() {
-  clearTimers()
-  const targetTotal = hits.value + omissions.value
-  const targetAccuracy = targetTotal == 0 ? 0 : hits.value / targetTotal
-  const responseTotal = hits.value + falseAlarms.value
-  const responseAccuracy = responseTotal == 0 ? 0 : hits.value / responseTotal
-  const accuracy = Math.round((targetAccuracy * 0.65 + responseAccuracy * 0.35) * 100)
-  const reactionTotal = reactions.value.reduce((sum: number, value: number): number => sum + value, 0)
-  const average = reactions.value.length == 0 ? 0 : Math.round(reactionTotal / reactions.value.length)
-  const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
-  uni.redirectTo({
-    url: '/pages/result/result?gameId=dual-track&dimensionId=divided&score=' + accuracy.toString() +
-      '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() +
-      '&omissions=' + omissions.value.toString() + '&falseAlarms=' + falseAlarms.value.toString() + scoreQuery(roundScores) })
-}
-
-function prepareTick() {
-  if (tickIndex.value >= totalTicks.value) { finishGame(); return }
-  const doubleTarget = Math.random() < doubleTargetRate.value
-  if (doubleTarget) {
-    leftTarget.value = true; rightTarget.value = true
-  } else {
-    leftTarget.value = Math.random() < 0.38
-    rightTarget.value = Math.random() < 0.38
-    if (!leftTarget.value && !rightTarget.value && Math.random() < 0.35) {
-      if (Math.random() < 0.5) leftTarget.value = true
-      else rightTarget.value = true
+function measure() {
+  const element = uni.getElementById(FIELD_ID)
+  if (element != null) {
+    const bounds = element.getBoundingClientRect()
+    if (bounds.width > 0 && bounds.height > 0) {
+      fieldWidth.value = bounds.width
+      fieldHeight.value = bounds.height
     }
-    if (doubleTargetRate.value == 0 && leftTarget.value && rightTarget.value) rightTarget.value = false
   }
-  leftResponded.value = false; rightResponded.value = false
-  visible.value = true
-  appearedAt = trainingClock.now()
-  tickTimer = trainingClock.setTimeout(() => {
-    roundScores.push((leftTarget.value == leftResponded.value ? 50 : 0) + (rightTarget.value == rightResponded.value ? 50 : 0))
-    if (leftTarget.value && !leftResponded.value) { omissions.value += 1; training.playFeedback('missed') }
-    if (rightTarget.value && !rightResponded.value) { omissions.value += 1; training.playFeedback('missed') }
-    visible.value = false
-    tickIndex.value += 1
-    gapTimer = trainingClock.setTimeout(() => prepareTick(), 260)
-  }, tickDuration.value)
 }
 
-function begin() { if (trainingPaused.value) return;
-  started.value = true
-  gameStartedAt = trainingClock.now()
-  prepareTick()
+// 停靠位点击带：铺满整个半屏（第一格贴上半屏顶、最后一格贴半屏底），
+// 这样点/拖落在半屏任何位置都能命中，不会出现「点在边上没反应」。
+function slotStyle(half: string, slot: number): string {
+  const range = halfRange(fieldHeight.value, half)
+  const count = DUAL_TRACK_SLOTS
+  const step = (range.bottom - range.top) / Math.max(1, count - 1)
+  const halfHeight = step / 2
+  const center = slotCenterY(fieldHeight.value, half, slot)
+  const halfStart = half == SKY_HALF ? 0 : fieldHeight.value / 2
+  const halfEnd = half == SKY_HALF ? fieldHeight.value / 2 : fieldHeight.value
+  const top = slot == 0 ? halfStart : center - halfHeight
+  const bottom = slot == count - 1 ? halfEnd : center + halfHeight
+  return 'top:' + Math.round(top).toString() + 'px;height:' + Math.round(Math.max(24, bottom - top)).toString() + 'px;'
 }
 
-function tapSide(side: string) { if (trainingPaused.value) return;
-  if (!started.value || !visible.value) return
-  const isLeft = side == 'left'
-  if ((isLeft && leftResponded.value) || (!isLeft && rightResponded.value)) return
-  if (isLeft) leftResponded.value = true
-  else rightResponded.value = true
-  const isTarget = isLeft ? leftTarget.value : rightTarget.value
-  if (isTarget) {
-    { hits.value += 1; training.playFeedback('correct') }
-    reactions.value.push(trainingClock.now() - appearedAt)
-  } else { falseAlarms.value += 1; training.playFeedback('wrong') }
+function renderVehicles() {
+  if (field == null) return
+  const height = vehicleSize(fieldHeight.value)
+  rocketTop.value = field!.skyY - height / 2
+  subTop.value = field!.seaY - height / 2
 }
 
-onLoad((_options: OnLoadOptions) => configureDifficulty())
-onUnload(() => clearTimers())
+function renderObstacles() {
+  if (field == null) { obstacleViews.value = [] as ObstacleView[]; return }
+  const views = [] as ObstacleView[]
+  for (let i = 0; i < field!.obstacles.length; i++) {
+    const obstacle = field!.obstacles[i]
+    views.push({
+      id: obstacle.id,
+      path: obstacle.path,
+      style: 'left:' + Math.round(obstacle.x - obstacle.size / 2).toString() + 'px;top:' + Math.round(obstacle.y - obstacle.size / 2).toString() + 'px;width:' + obstacle.size.toString() + 'px;height:' + obstacle.size.toString() + 'px;opacity:' + (obstacle.hit ? '0.45' : '1').toString() + ';'
+    })
+  }
+  obstacleViews.value = views
+}
+
+function renderAll() {
+  renderVehicles()
+  renderObstacles()
+  if (field != null) {
+    liveScore.value = dualTrackScore(field!)
+    hitsSky.value = field!.hitsSky
+    hitsSea.value = field!.hitsSea
+    remainingSeconds.value = Math.ceil(dualTrackRemainingMs(field!) / 1000)
+  }
+}
+
+function stopTimer() { if (timer != 0) trainingClock.clearInterval(timer); timer = 0 }
+
+function showBump(text: string) {
+  bump.value = text
+  if (bumpTimer > 0) trainingClock.clearTimeout(bumpTimer)
+  bumpTimer = trainingClock.setTimeout(() => { bump.value = '' }, 900)
+}
+
+function finish() {
+  if (state.value != 'running') return
+  state.value = 'finished'
+  stopTimer()
+  if (field == null) return
+  const score = dualTrackScore(field!)
+  const collisions = field!.collisions
+  const accuracy = Math.max(0, Math.round(100 - collisions * 4))
+  const duration = Math.max(1, Math.round(field!.elapsedMs / 1000))
+  uni.redirectTo({ url: '/pages/result/result?gameId=dual-track&dimensionId=divided&score=' + score.toString() + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + duration.toString() + '&falseAlarms=' + collisions.toString() + '&completed=' + collisions.toString() + '&total=' + config.startScore.toString() + scoreQuery([score]) })
+}
+
+function tick() {
+  if (field == null || (state.value != 'running' && state.value != 'demo')) return
+  const now = trainingClock.now()
+  const delta = now - lastTick
+  lastTick = now
+  if (delta > 250) { training.pause(); return }
+  const events = dualTrackStep(field!, Math.max(0, delta), Math.random)
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i]
+    if (event.kind == 'hit') {
+      training.playFeedback('wrong')
+      showBump(event.half == SKY_HALF ? '碰到星球了' : '撞到鱼了')
+    } else if (event.kind == 'finished') {
+      if (state.value == 'demo') { state.value = 'demo-done'; stopTimer(); renderAll(); return }
+      finish()
+      return
+    }
+  }
+  renderAll()
+}
+
+function startTimer() {
+  stopTimer()
+  lastTick = trainingClock.now()
+  timer = trainingClock.setInterval(() => tick(), 33)
+}
+
+function applyConfig(next: DualTrackConfig) {
+  config = next
+}
+
+function createField(next: DualTrackConfig) {
+  applyConfig(next)
+  field = dualTrackCreate(config, fieldWidth.value, fieldHeight.value, Math.random)
+  renderAll()
+  startTimer()
+}
+
+function startDemo() {
+  if (trainingPaused.value || disposed || launchPending || (state.value != 'ready' && state.value != 'demo-done')) return
+  launchPending = true; state.value = 'demo'
+  nextTick(() => {
+    launchPending = false
+    if (disposed) return
+    measure()
+    bump.value = ''; dragHalf = ''; dragMoved = false
+    createField(dualTrackDemoConfig())
+  })
+}
+
+function begin() {
+  if (trainingPaused.value || disposed || launchPending) return
+  if (state.value != 'ready' && state.value != 'demo' && state.value != 'demo-done') return
+  stopTimer()
+  launchPending = true; state.value = 'running'
+  nextTick(() => {
+    launchPending = false
+    if (disposed) return
+    measure()
+    level.value = getGameDifficulty('dual-track')
+    state.value = 'running'
+    if (bumpTimer > 0) trainingClock.clearTimeout(bumpTimer)
+    bump.value = ''; dragHalf = ''; dragMoved = false
+    createField(dualTrackConfig(level.value))
+  })
+}
+
+function moveTo(half: string, slot: number) {
+  if (trainingPaused.value || field == null) return
+  if (state.value != 'running' && state.value != 'demo') return
+  // 刚拖动过就不吃这一下 click，避免手指抬起时又跳一格
+  if (dragMoved) { dragMoved = false; return }
+  dualTrackMoveTo(field!, half, slot)
+}
+
+function touchY(event: UniTouchEvent): number {
+  if (event.changedTouches.length > 0) return event.changedTouches[0].clientY
+  return event.touches.length > 0 ? event.touches[0].clientY : 0
+}
+
+// 拖动：用相对位移判据（clientY 的零点在各平台不一致，不能用绝对坐标），走满 0.6 格就挪一格。
+function dragStart(half: string, event: UniTouchEvent) {
+  dragHalf = half
+  dragStartY = touchY(event)
+  dragMoved = false
+}
+
+function dragMove(event: UniTouchEvent) {
+  if (trainingPaused.value || field == null || dragHalf == '') return
+  if (state.value != 'running' && state.value != 'demo') return
+  const dy = touchY(event) - dragStartY
+  const current = dragHalf == SKY_HALF ? field!.skySlot : field!.seaSlot
+  const next = dualTrackDraggedSlot(fieldHeight.value, dragHalf, current, dy)
+  if (next != current) {
+    dualTrackMoveTo(field!, dragHalf, next)
+    dragStartY = touchY(event)
+    dragMoved = true
+  }
+}
+
+function dragEnd() {
+  dragHalf = ''
+}
+
+onLoad(() => { level.value = getGameDifficulty('dual-track') })
+onReady(() => nextTick(() => {
+  if (disposed || launchPending || state.value != 'ready') return
+  measure(); config = dualTrackDemoConfig()
+  field = dualTrackCreate(config, fieldWidth.value, fieldHeight.value, Math.random)
+  renderAll()
+}))
+onResize(() => nextTick(() => measure()))
+onUnload(() => {
+  disposed = true
+  stopTimer()
+  if (bumpTimer > 0) trainingClock.clearTimeout(bumpTimer)
+})
 // 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
-training.setStartedCheck((): boolean => started.value)
+training.setStartedCheck((): boolean => state.value == 'running' || state.value == 'finished')
 </script>
 
 <style>
-.page { flex: 1; padding: 20px; }
-.game-header { flex-direction: row; justify-content: space-between; align-items: center; }
-.round-label { color: #d15f70; font-size: 12px; font-weight: 700; }
-.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
-.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #fde9ec; align-items: center; justify-content: center; }
-.counter-value { color: #c95869; font-size: 13px; font-weight: 700; }
-.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }
-.progress-fill { height: 8px; border-radius: 4px; background-color: #f17c8d; }
-.rule-card { margin-top: 14px; padding: 15px 17px; border-radius: 18px; background-color: #fff0f2; }
-.rule-title { color: #74434b; font-size: 14px; font-weight: 700; }.rule-tip { margin-top: 5px; color: #927078; font-size: 10px; line-height: 16px; }
-.tracks { margin-top: 14px; height: 335px; flex-direction: row; }
-.track { flex: 1; border-radius: 24px; align-items: center; justify-content: center; position: relative; overflow: hidden; }
-.left-track { margin-right: 6px; background-color: #eaf0ff; }.right-track { margin-left: 6px; background-color: #eef9f5; }
-.track-label { position: absolute; top: 17px; color: #69758d; font-size: 11px; font-weight: 700; }
-.signal { width: 90px; height: 90px; border-radius: 45px; align-items: center; justify-content: center; }
-.target-signal { background-color: #fff1c9; }.distractor-signal { background-color: #dae5f8; }
-.signal-target-symbol { color: #f1b52e; font-size: 54px; }.signal-distractor-symbol { color: #7b9ed9; font-size: 46px; }
-.waiting-dot { width: 12px; height: 12px; border-radius: 6px; background-color: #cbd4e3; }
-.response-mark { position: absolute; bottom: 20px; width: 32px; height: 32px; border-radius: 16px; background-color: #ffffff; align-items: center; justify-content: center; }
-.response-symbol { color: #50617e; font-size: 16px; font-weight: 700; }
-.instruction { margin-top: -230px; padding: 24px; border-radius: 20px; background-color: #ffffff; align-items: center; z-index: 5; }
-.instruction-title { color: #25314a; font-size: 17px; font-weight: 700; }.instruction-copy { margin-top: 8px; color: #7b8599; font-size: 11px; line-height: 18px; text-align: center; }
-.primary { margin-top: 16px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #f17c8d; color: #ffffff; font-size: 14px; font-weight: 700; }
-.footer-stats { flex-direction: row; }.footer-ready { margin-top: 245px; }.footer-playing { margin-top: 14px; }
-.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 18px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 11px; }
+.dt-page { flex: 1; background-color: #eaf2fb; }
+.dt-header { padding: 14px 16px 0; flex-direction: row; justify-content: space-between; align-items: center; }
+.dt-header-right { flex-direction: row; align-items: center; }
+.dt-eyebrow { color: #4a6fa5; font-size: 12px; font-weight: 700; }
+.dt-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }
+.dt-score { margin-right: 8px; height: 36px; padding: 0 12px; border-radius: 18px; background-color: rgba(255, 255, 255, 0.92); align-items: center; justify-content: center; }
+.dt-score-text { color: #2b8f74; font-size: 12px; font-weight: 700; }
+.dt-level { height: 36px; padding: 0 12px; border-radius: 18px; background-color: rgba(255, 255, 255, 0.92); align-items: center; justify-content: center; }
+.dt-level-text { color: #4a6fa5; font-size: 12px; font-weight: 700; }
+.dt-progress { margin: 10px 16px 0; height: 7px; border-radius: 4px; background-color: rgba(255, 255, 255, 0.75); overflow: hidden; }
+.dt-progress-fill { height: 7px; border-radius: 4px; background-color: #6fa8dc; }
+.dt-field { margin: 10px 14px 0; flex: 1; position: relative; overflow: hidden; border-radius: 24px; background-color: #0f2b4a; }
+.dt-scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+.dt-center-line { position: absolute; left: 0; top: 50%; width: 100%; height: 3px; background-color: rgba(255, 255, 255, 0.55); pointer-events: none; }
+.dt-slot { position: absolute; left: 0; width: 100%; }
+.dt-obstacle { position: absolute; pointer-events: none; }
+.dt-vehicle { position: absolute; pointer-events: none; }
+.dt-bump { position: absolute; left: 18%; top: 44%; width: 64%; text-align: center; color: #963f32; background-color: #fff1dc; padding: 9px; border-radius: 16px; font-size: 15px; font-weight: 700; }
+.dt-message { position: absolute; left: 7%; right: 7%; top: 26%; padding: 20px 14px; border-radius: 24px; background-color: rgba(255, 255, 255, 0.95); align-items: center; }
+.dt-message-title { color: #1f2a44; font-size: 19px; font-weight: 700; }
+.dt-message-note { margin-top: 10px; color: #5d6a80; font-size: 12px; text-align: center; }
+.dt-primary { width: 176px; height: 46px; line-height: 46px; margin-top: 16px; border-radius: 23px; background-color: #4a7fc1; color: #ffffff; font-size: 16px; font-weight: 700; }
+.dt-replay { color: #5d7a9a; padding: 12px; font-size: 13px; }
+.dt-stats { margin: 8px 14px 12px; flex-direction: row; }
+.dt-demo-actions { padding: 8px 14px 12px; align-items: center; }.dt-demo-hint { color: #7188a9; font-size: 12px; margin-bottom: 8px; }
+.dt-stat { flex: 1; align-items: center; }
+.dt-stat-value { color: #25314a; font-size: 15px; font-weight: 700; }
+.dt-stat-label { margin-top: 1px; color: #7d8a9c; font-size: 10px; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

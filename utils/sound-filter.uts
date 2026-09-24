@@ -1,0 +1,398 @@
+// 声音过滤器（听类型、点气泡）：纯逻辑层。
+//
+// 玩法：气泡从场地底部**连续向上浮动**，排成若干**列**（列数 = 难度）。每次播报一个「类型」，
+// 在接下来的一整轮（10—15 排气泡流过去）里，把属于这一类的气泡点掉。
+//   - 全档只用彩色图案，难度由列数与排数决定；上升速度、播报后缓冲全档一致。
+//   - 每排恰好 1 个正确答案（1 列时逐排交替，避免“每排都有、闭着眼点”）；其余是别的类型的干扰。
+//   - 点对得分、点错扣分；每个气泡只能点一次：点对画 ✓、点错画 ✕。
+//   - 漏掉目标计入机会分母，降低完成比例；切换时顶端不足一秒作答的气泡中立。
+//   - 保留切换时可见气泡，播报与 0.5 秒缓冲冻结；不把冻结时间计入训练时长。
+//   - 播报优先用录音（static/audio/sound-filter/<类型>.mp3），没有录音时页面上始终显示文字。
+//
+// 逻辑与渲染分离：这里只负责出题、位移、判定与计分；页面负责测量场地尺寸并画气泡。
+// 随机源可注入（页面传 Math.random，测试传种子随机数），保证回归可复现。
+
+export type SoundFilterAsset = { id: string, path: string }
+export type SoundFilterType = { id: string, label: string, assets: SoundFilterAsset[] }
+
+export type SoundFilterConfig = {
+  level: number,
+  columns: number,
+  rowsPerRound: number,
+  rounds: number,
+  riseSpeed: number,
+  rowGap: number,
+  bubbleSize: number,
+  wrongPenalty: number,
+  demo: boolean
+}
+
+export type SoundFilterBubble = {
+  id: string,
+  typeId: string,
+  assetId: string,
+  path: string,
+  column: number,
+  row: number,
+  isTarget: boolean,
+  x: number,
+  y: number,
+  tapped: boolean,
+  correct: boolean,
+  escaped: boolean,
+  neutral: boolean
+}
+
+export type SoundFilterField = {
+  config: SoundFilterConfig,
+  width: number,
+  height: number,
+  roundIndex: number,
+  typeId: string,
+  phase: string,
+  bubbles: SoundFilterBubble[],
+  correct: number,
+  wrong: number,
+  missed: number,
+  roundCorrect: number,
+  roundWrong: number,
+  roundHits: number,
+  roundScores: number[],
+  elapsed: number,
+  gapLeft: number,
+  segmentElapsed: number,
+  inputEpoch: number
+}
+
+export type SoundFilterEvent = { kind: string, bubbleId: string, detail: string }
+
+// 气泡上升速度固定（像素/秒）：全档一致，难度不靠提速，只靠列数与排数。
+export const RISE_SPEED = 52
+export const WRONG_PENALTY = 20
+export const MAX_BUBBLE_SIZE = 64
+export const MIN_BUBBLE_SIZE = 38
+export const SOUND_FILTER_SWITCH_BUFFER = 0.5
+export const SOUND_FILTER_FAIR_SECONDS = 1
+
+const ILLUSTRATION = '/static/images/runtime/illustrations/shadow-match/'
+
+function asset(group: string, id: string): SoundFilterAsset {
+  const path = ILLUSTRATION + group + '/' + id + '.webp'
+  return { id: group + '/' + id, path: path }
+}
+
+function assets(group: string, ids: string[]): SoundFilterAsset[] {
+  return ids.map((id: string): SoundFilterAsset => asset(group, id))
+}
+
+// 类型之间刻意**互斥**（猫狗牛羊都是「动物」，小船/飞机都算「交通工具」；玩具里不放玩具火箭、
+// 玩具帆船、玩具小鸭这些会和别的类型打架的图），避免孩子按常识点对了却被判错。
+export const SOUND_FILTER_TYPES: SoundFilterType[] = [
+  {
+    id: 'animal', label: '动物', assets: assets('easy-animals', ['elephant', 'owl', 'rabbit', 'squirrel', 'turtle'])
+      .concat(assets('medium-farm-animals', ['chicken', 'cow', 'duck', 'horse', 'pig', 'sheep']))
+      .concat(assets('medium-forest-animals', ['bear', 'deer', 'fox', 'hedgehog', 'rabbit', 'squirrel']))
+      .concat(assets('medium-puppies', ['puppy-1', 'puppy-2', 'puppy-3', 'puppy-4', 'puppy-5', 'puppy-6']))
+  },
+  {
+    id: 'vehicle', label: '交通工具', assets: assets('easy-vehicles', ['car', 'train', 'airplane', 'sailboat', 'rocket'])
+      .concat(assets('medium-similar-cars', ['car-1', 'car-2', 'car-3', 'car-4', 'car-5', 'car-6']))
+      .concat(assets('high-similar-airplanes', ['airplane-1', 'airplane-2', 'airplane-3', 'airplane-4', 'airplane-5', 'airplane-6', 'airplane-7', 'airplane-8']))
+      .concat(assets('high-similar-rockets', ['rocket-1', 'rocket-2', 'rocket-3', 'rocket-4', 'rocket-5', 'rocket-6', 'rocket-7', 'rocket-8']))
+      .concat(assets('medium-similar-sailboats', ['sailboat-1', 'sailboat-2', 'sailboat-3', 'sailboat-4', 'sailboat-5', 'sailboat-6', 'sailboat-7', 'sailboat-8']))
+  },
+  { id: 'fruit', label: '水果', assets: assets('easy-fruits', ['apple', 'banana', 'grapes', 'pineapple', 'strawberry']) },
+  { id: 'dessert', label: '甜点', assets: assets('easy-foods', ['birthday-cake', 'cupcake', 'donut', 'ice-cream', 'pizza']) },
+  { id: 'music', label: '乐器', assets: assets('medium-musical-instruments', ['drum', 'guitar', 'maracas', 'piano', 'trumpet', 'violin']) },
+  { id: 'flower', label: '花', assets: assets('medium-similar-flowers', ['flower-1', 'flower-2', 'flower-3', 'flower-4', 'flower-5', 'flower-6']) },
+  { id: 'tree', label: '大树', assets: assets('medium-trees', ['tree-1', 'tree-2', 'tree-3', 'tree-4', 'tree-5', 'tree-6']) },
+  {
+    id: 'toy', label: '玩具', assets: assets('medium-toys', ['robot', 'rocking-horse', 'teddy-bear'])
+      .concat(assets('medium-playground-toys', ['blocks', 'kite', 'scooter', 'spinning-top']))
+  }
+]
+
+// 难度 = 列数；一轮排数决定这一轮要看多少排气泡流过去；一局轮数按列数递减，保持整局约 1.5 分钟。
+const COLUMN_TABLE = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
+const ROW_TABLE = [10, 10, 11, 11, 12, 12, 13, 13, 14, 15]
+const ROUND_TABLE = [4, 4, 4, 4, 4, 3, 3, 3, 3, 3]
+
+export function soundFilterConfig(level: number): SoundFilterConfig {
+  const index = Math.max(0, Math.min(9, Math.round(level) - 1))
+  return {
+    level: index + 1,
+    columns: COLUMN_TABLE[index],
+    rowsPerRound: ROW_TABLE[index],
+    rounds: ROUND_TABLE[index],
+    riseSpeed: RISE_SPEED,
+    rowGap: 0,
+    bubbleSize: 0,
+    wrongPenalty: WRONG_PENALTY,
+    demo: false
+  }
+}
+
+// 试玩：一小段单列气泡流（3 排），不扣分、只跑一轮，用来看懂「听类型 → 点同类 → 打勾打叉」。
+export function soundFilterDemoConfig(): SoundFilterConfig {
+  return {
+    level: 1,
+    columns: 1,
+    rowsPerRound: 3,
+    rounds: 1,
+    riseSpeed: RISE_SPEED,
+    rowGap: 0,
+    bubbleSize: 0,
+    wrongPenalty: 0,
+    demo: true
+  }
+}
+
+export function soundFilterTypeById(id: string): SoundFilterType | null {
+  const found = SOUND_FILTER_TYPES.filter((item: SoundFilterType): boolean => item.id == id)
+  return found.length > 0 ? found[0] : null
+}
+
+export function soundFilterLabel(id: string): string {
+  const type = soundFilterTypeById(id)
+  return type == null ? '' : type!.label
+}
+
+// 播报文案：文字与语音用同一句。
+export function soundFilterAnnouncement(id: string): string {
+  const label = soundFilterLabel(id)
+  return label == '' ? '' : '找一找，' + label
+}
+
+export function soundFilterVoicePath(id: string): string {
+  return '/static/audio/sound-filter/' + id + '.mp3'
+}
+
+// 单轮得分：每个正确答案占 100/hits，点错每个扣 wrongPenalty，最低 0、最高 100。
+export function soundFilterRoundScore(correct: number, hits: number, wrong: number, penalty: number): number {
+  const base = hits > 0 ? Math.round(100 * correct / hits) : 0
+  return Math.max(0, Math.min(100, base - Math.max(0, wrong) * penalty))
+}
+
+export function soundFilterProgress(field: SoundFilterField): number {
+  const total = field.config.rounds
+  return total <= 0 ? 0 : Math.max(0, Math.min(1, field.roundScores.length / total))
+}
+
+export function soundFilterFinished(field: SoundFilterField): boolean {
+  return field.phase == 'done'
+}
+
+// 一轮的总时长（秒）：从第一排进场到最后一排完全飘出，用于回归核算与节奏评估。
+export function soundFilterRoundSeconds(config: SoundFilterConfig, height: number): number {
+  const travel = height + config.bubbleSize / 2 + (config.rowsPerRound - 1) * config.rowGap + config.bubbleSize / 2
+  return travel / config.riseSpeed
+}
+
+// ---------- 出题 ----------
+
+function pickIndex(length: number, rand: () => number): number {
+  if (length <= 0) return 0
+  return Math.max(0, Math.min(length - 1, Math.floor(rand() * length)))
+}
+
+function pickType(exclude: string, rand: () => number): SoundFilterType {
+  const pool = SOUND_FILTER_TYPES.filter((item: SoundFilterType): boolean => item.id != exclude)
+  return pool[pickIndex(pool.length, rand)]
+}
+
+function pickAsset(type: SoundFilterType, used: string[], rand: () => number): SoundFilterAsset {
+  const fresh = type.assets.filter((item: SoundFilterAsset): boolean => used.indexOf(item.id) < 0)
+  const pool = fresh.length > 0 ? fresh : type.assets
+  return pool[pickIndex(pool.length, rand)]
+}
+
+function shuffle(list: number[], rand: () => number): number[] {
+  const result = list.slice()
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = pickIndex(i + 1, rand)
+    const value = result[i]
+    result[i] = result[j]
+    result[j] = value
+  }
+  return result
+}
+
+function columnRange(count: number): number[] {
+  const result = [] as number[]
+  for (let i = 0; i < count; i++) result.push(i)
+  return result
+}
+
+// 起一轮：排成一列列的气泡流，每排 1 个正确答案（1 列时逐排交替），其余是别的类型的干扰。
+export function soundFilterStartRound(field: SoundFilterField, typeId: string, rand: () => number) {
+  const config = field.config
+  const bubbles = [] as SoundFilterBubble[]
+  const target = soundFilterTypeById(typeId) as SoundFilterType
+  let previousRow = [] as string[]
+  field.typeId = typeId
+  field.roundCorrect = 0
+  field.roundWrong = 0
+  field.roundHits = 0
+  for (let row = 0; row < config.rowsPerRound; row++) {
+    const slots = shuffle(columnRange(config.columns), rand)
+    const targetsInRow = config.columns == 1 ? (row % 2 == 0 ? 1 : 0) : 1
+    const used = [] as string[]
+    for (let slot = 0; slot < slots.length; slot++) {
+      const column = slots[slot]
+      const isTarget = slot < targetsInRow
+      const type = isTarget ? target : pickType(typeId, rand)
+      const chosen = pickAsset(type, used.concat(previousRow), rand)
+      used.push(chosen.id)
+      bubbles.push({
+        id: 'r' + field.roundIndex.toString() + '-' + row.toString() + '-' + column.toString(),
+        typeId: type.id,
+        assetId: chosen.id,
+        path: chosen.path,
+        column: column,
+        row: row,
+        isTarget: isTarget,
+        x: (column + 0.5) * field.width / config.columns,
+        y: field.height + config.bubbleSize / 2 + row * config.rowGap,
+        tapped: false,
+        correct: false,
+        escaped: false,
+        neutral: false
+      })
+    }
+    previousRow = used
+  }
+  field.bubbles = bubbles
+  field.segmentElapsed = 0
+  field.inputEpoch += 1
+  field.phase = 'announce'
+}
+
+// 只由当前播报结束（或明确文字兜底）触发；重复回调不能延长缓冲。
+export function soundFilterAnnouncementEnded(field: SoundFilterField) {
+  if (field.phase != 'announce') return
+  field.phase = 'buffer'
+  field.gapLeft = SOUND_FILTER_SWITCH_BUFFER
+}
+
+export function soundFilterCreate(config: SoundFilterConfig, width: number, height: number, rand: () => number): SoundFilterField {
+  const field: SoundFilterField = {
+    config: config,
+    width: Math.max(1, width),
+    height: Math.max(1, height),
+    roundIndex: 0,
+    typeId: '',
+    phase: 'play',
+    bubbles: [] as SoundFilterBubble[],
+    correct: 0,
+    wrong: 0,
+    missed: 0,
+    roundCorrect: 0,
+    roundWrong: 0,
+    roundHits: 0,
+    roundScores: [] as number[],
+    elapsed: 0,
+    gapLeft: 0,
+    segmentElapsed: 0,
+    inputEpoch: 0
+  }
+  // 气泡尺寸与排间距按列宽自适应：列多时缩小，保证 5 列也能排得下、不撞在一起。
+  if (config.bubbleSize <= 0) {
+    const perColumn = Math.floor(field.width / Math.max(1, config.columns))
+    field.config.bubbleSize = Math.max(MIN_BUBBLE_SIZE, Math.min(MAX_BUBBLE_SIZE, perColumn - 14))
+  }
+  if (config.rowGap <= 0) field.config.rowGap = field.config.bubbleSize + 18
+  soundFilterStartRound(field, pickType('', rand).id, rand)
+  return field
+}
+
+// 点一个气泡：点对得 1 分（本轮记一次），点错扣一次；已经点过或已飘走的气泡再点无效。
+export function soundFilterTap(field: SoundFilterField, bubbleId: string): string {
+  if (field.phase != 'play') return 'ignored'
+  const found = field.bubbles.filter((item: SoundFilterBubble): boolean => item.id == bubbleId)
+  if (found.length == 0) return 'ignored'
+  const bubble = found[0]
+  if (bubble.tapped || bubble.escaped || bubble.neutral) return 'ignored'
+  if (bubble.y < field.config.bubbleSize / 2 || bubble.y > field.height - field.config.bubbleSize / 2) return 'ignored'
+  bubble.tapped = true
+  if (bubble.isTarget) {
+    bubble.correct = true
+    field.correct += 1
+    field.roundCorrect += 1
+    field.roundHits += 1
+    return 'correct'
+  }
+  field.wrong += 1
+  field.roundWrong += 1
+  return 'wrong'
+}
+
+// 活跃时间不包含播报/缓冲；中途切换保留当前可见气泡，最后一段排空后结算。
+export function soundFilterStep(field: SoundFilterField, dt: number, rand: () => number): SoundFilterEvent[] {
+  const events = [] as SoundFilterEvent[]
+  if (field.phase == 'done' || field.phase == 'announce') return events
+  const seconds = Math.max(0, Math.min(0.2, dt))
+  if (field.phase == 'buffer') {
+    field.gapLeft = Math.max(0, field.gapLeft - seconds)
+    if (field.gapLeft <= 0.000001) { field.phase = 'play'; events.push({ kind: 'resumed', bubbleId: '', detail: '' }) }
+    return events
+  }
+  field.elapsed += seconds
+  field.segmentElapsed += seconds
+  for (let i = 0; i < field.bubbles.length; i++) {
+    const bubble = field.bubbles[i]
+    if (bubble.escaped) continue
+    bubble.y -= field.config.riseSpeed * seconds
+    if (bubble.y + field.config.bubbleSize / 2 <= 0) {
+      bubble.escaped = true
+      if (bubble.isTarget && !bubble.tapped && !bubble.neutral) {
+        field.roundHits += 1
+        field.missed += 1
+        events.push({ kind: 'escaped', bubbleId: bubble.id, detail: bubble.assetId })
+      }
+    }
+  }
+  const segmentSeconds = field.config.rowsPerRound * field.config.rowGap / field.config.riseSpeed
+  const finalSegment = field.roundIndex + 1 >= field.config.rounds
+  if ((!finalSegment && field.segmentElapsed >= segmentSeconds) ||
+      (finalSegment && field.bubbles.every((b: SoundFilterBubble): boolean => b.escaped))) {
+    field.roundScores.push(soundFilterRoundScore(field.roundCorrect, field.roundHits, field.roundWrong, field.config.wrongPenalty))
+    return events.concat(soundFilterNextRound(field, rand))
+  }
+  return events
+}
+
+// 已点击项不复活；旧规则未判定项不在边界追罚，新规则仅统计公平可作答的机会。
+export function soundFilterNextRound(field: SoundFilterField, rand: () => number): SoundFilterEvent[] {
+  const events = [] as SoundFilterEvent[]
+  const size = field.config.bubbleSize
+  const carried = field.bubbles.filter((b: SoundFilterBubble): boolean => !b.escaped && b.y - size / 2 < field.height)
+  field.roundIndex += 1
+  if (field.roundIndex >= field.config.rounds) {
+    field.phase = 'done'
+    field.inputEpoch += 1
+    events.push({ kind: 'finished', bubbleId: '', detail: '' })
+    return events
+  }
+  soundFilterStartRound(field, pickType(field.typeId, rand).id, rand)
+  let lastY = field.height - field.config.rowGap
+  for (let i = 0; i < carried.length; i++) {
+    const b = carried[i]
+    b.isTarget = b.typeId == field.typeId
+    b.neutral = !b.tapped && b.y - size / 2 < field.config.riseSpeed * SOUND_FILTER_FAIR_SECONDS
+    // 原有影子保持不变，不在切换时突然变图；它可以成为新目标。
+    lastY = Math.max(lastY, b.y)
+  }
+  const firstY = Math.max(field.height + size / 2, lastY + field.config.rowGap)
+  const shift = firstY - (field.height + size / 2)
+  for (let i = 0; i < field.bubbles.length; i++) field.bubbles[i].y += shift
+  field.bubbles = carried.concat(field.bubbles)
+  events.push({ kind: 'roundStart', bubbleId: '', detail: field.typeId })
+  return events
+}
+
+export function soundFilterSessionScore(field: SoundFilterField): number {
+  if (field.roundScores.length == 0) return 0
+  let total = 0
+  for (let i = 0; i < field.roundScores.length; i++) total += field.roundScores[i]
+  return Math.floor(total / field.roundScores.length + 0.000001)
+}

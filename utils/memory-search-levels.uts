@@ -1,0 +1,288 @@
+// 记忆与搜索（memory-search）关卡参数与出题：无尽累加的记忆 + 搜索规则。
+// 设计记录见 docs/MEMORY_SEARCH.md。难度阶梯、素材池与计分口径集中在本文件，页面只负责流程与交互。
+//
+// 规则要点：
+// 1) 固定棋盘：每局开局选定 boardSize 张互不相同的图片作为棋盘，整局不变，每轮只重排位置。
+//    目标出场序是棋盘的一个随机排列，第 k 轮（从 1 计）要找该顺序的前 k 张 —— 目标完全随机生成。
+// 2) 零影子图：棋盘与目标只用彩色素材（shadow-match 彩图 + sky-planets 星球），不使用任何影子图。
+// 3) 无尽累加：找齐本轮目标即自动进入下一轮（目标 +1），直到任一结束条件成立：
+//    a. 失败：累计误点达到本档 maxErrors；
+//    b. 满分：累计局分达到满分上限（提前收工）；
+//    c. 找全了：完成 boardSize 轮 —— 此时棋盘上每张图都当过目标并被找到。
+// 4) 累计计分：F = boardSize ×(boardSize+1)/ 2 是找全所需的总点击数，base = 满分 / F。
+//    每点对一张按速度给分（越快越高，单张封顶 2 倍 base，最慢也有 1 分），局分 = 各项之和，上限满分。
+//    因此打得快可以中途攒满满分收工，打得稳可以一路走到「找全了」。图片总数随难度增加。
+
+import { gameScoreMax, searchTargetMs } from './game-scoring.uts'
+
+export type MemorySearchAsset = {
+  id: string,
+  name: string,
+  kind: string,
+  path: string,
+  // 影子版素材仍保留在池定义里，但本游戏只使用彩色图（见 memorySearchTile）。
+  shadowPath: string
+}
+
+export type MemorySearchTile = {
+  id: string,
+  name: string,
+  path: string,
+  isShadow: boolean,
+  isPlanet: boolean
+}
+
+export type MemorySearchLevelConfig = {
+  level: number,
+  boardSize: number,
+  columns: number,
+  previewMs: number,
+  perTargetMs: number,
+  maxErrors: number
+}
+
+export type MemorySearchRound = {
+  index: number,
+  tiles: MemorySearchTile[],
+  targets: MemorySearchTile[],
+  boardSize: number,
+  columns: number,
+  previewMs: number,
+  targetBudgetMs: number
+}
+
+type MemorySearchGroup = {
+  id: string,
+  tier: number,
+  ids: string[],
+  names: string[]
+}
+
+const ILLUSTRATION_BASE = '/static/images/runtime/illustrations/shadow-match/'
+const PLANET_BASE = '/static/images/runtime/sky-planets/'
+
+// 素材池分三层：1 启蒙（跨类别、差异大）、2 成长（同类别自然差异）、3 进阶（同款只差细节）。
+const GROUPS: MemorySearchGroup[] = [
+  { id: 'easy-fruits', tier: 1, ids: ['apple', 'banana', 'grapes', 'pineapple', 'strawberry'], names: ['苹果', '香蕉', '葡萄', '菠萝', '草莓'] },
+  { id: 'easy-animals', tier: 1, ids: ['rabbit', 'squirrel', 'owl', 'turtle', 'elephant'], names: ['兔子', '松鼠', '猫头鹰', '乌龟', '大象'] },
+  { id: 'easy-vehicles', tier: 1, ids: ['car', 'sailboat', 'train', 'airplane', 'rocket'], names: ['小汽车', '帆船', '小火车', '飞机', '火箭'] },
+  { id: 'easy-foods', tier: 1, ids: ['cupcake', 'ice-cream', 'donut', 'pizza', 'birthday-cake'], names: ['纸杯蛋糕', '冰淇淋', '甜甜圈', '披萨', '生日蛋糕'] },
+  { id: 'easy-garden', tier: 1, ids: ['mushroom', 'flower', 'tree', 'cactus', 'snail'], names: ['蘑菇', '小花', '小树', '仙人掌', '小蜗牛'] },
+  { id: 'medium-musical-instruments', tier: 1, ids: ['guitar', 'drum', 'trumpet', 'violin', 'piano', 'maracas'], names: ['吉他', '小鼓', '小号', '小提琴', '钢琴', '沙锤'] },
+  { id: 'medium-farm-animals', tier: 2, ids: ['cow', 'pig', 'sheep', 'horse', 'chicken', 'duck'], names: ['奶牛', '小猪', '绵羊', '小马', '小鸡', '小鸭'] },
+  { id: 'medium-forest-animals', tier: 2, ids: ['bear', 'deer', 'fox', 'hedgehog', 'rabbit', 'squirrel'], names: ['小熊', '小鹿', '狐狸', '刺猬', '森林兔', '森林松鼠'] },
+  { id: 'medium-playground-toys', tier: 2, ids: ['spinning-top', 'kite', 'scooter', 'rocking-horse', 'blocks', 'duck'], names: ['陀螺', '风筝', '滑板车', '摇摇马', '积木', '玩具鸭'] },
+  { id: 'medium-toys', tier: 2, ids: ['robot', 'rocket', 'rocking-horse', 'sailboat', 'teddy-bear', 'train'], names: ['机器人', '玩具火箭', '玩具摇摇马', '玩具帆船', '泰迪熊', '玩具火车'] },
+  { id: 'medium-trees', tier: 2, ids: ['tree-1', 'tree-2', 'tree-3', 'tree-4', 'tree-5', 'tree-6'], names: ['大树 1', '大树 2', '大树 3', '大树 4', '大树 5', '大树 6'] },
+  { id: 'medium-cottages', tier: 2, ids: ['cottage-1', 'cottage-2', 'cottage-3', 'cottage-4', 'cottage-5', 'cottage-6'], names: ['小屋 1', '小屋 2', '小屋 3', '小屋 4', '小屋 5', '小屋 6'] },
+  { id: 'medium-puppies', tier: 2, ids: ['puppy-1', 'puppy-2', 'puppy-3', 'puppy-4', 'puppy-5', 'puppy-6'], names: ['小狗 1', '小狗 2', '小狗 3', '小狗 4', '小狗 5', '小狗 6'] },
+  { id: 'medium-similar-flowers', tier: 3, ids: ['flower-1', 'flower-2', 'flower-3', 'flower-4', 'flower-5', 'flower-6'], names: ['花朵 1', '花朵 2', '花朵 3', '花朵 4', '花朵 5', '花朵 6'] },
+  { id: 'medium-similar-cars', tier: 3, ids: ['car-1', 'car-2', 'car-3', 'car-4', 'car-5', 'car-6'], names: ['赛车 1', '赛车 2', '赛车 3', '赛车 4', '赛车 5', '赛车 6'] },
+  { id: 'medium-similar-birds', tier: 3, ids: ['bird-1', 'bird-2', 'bird-3', 'bird-4', 'bird-5', 'bird-6', 'bird-7', 'bird-8'], names: ['小鸟 1', '小鸟 2', '小鸟 3', '小鸟 4', '小鸟 5', '小鸟 6', '小鸟 7', '小鸟 8'] },
+  { id: 'medium-similar-sailboats', tier: 3, ids: ['sailboat-1', 'sailboat-2', 'sailboat-3', 'sailboat-4', 'sailboat-5', 'sailboat-6', 'sailboat-7', 'sailboat-8'], names: ['帆船 1', '帆船 2', '帆船 3', '帆船 4', '帆船 5', '帆船 6', '帆船 7', '帆船 8'] },
+  { id: 'high-similar-airplanes', tier: 3, ids: ['airplane-1', 'airplane-2', 'airplane-3', 'airplane-4', 'airplane-5', 'airplane-6', 'airplane-7', 'airplane-8'], names: ['飞机 1', '飞机 2', '飞机 3', '飞机 4', '飞机 5', '飞机 6', '飞机 7', '飞机 8'] },
+  { id: 'high-similar-penguins', tier: 3, ids: ['penguin-1', 'penguin-2', 'penguin-3', 'penguin-4', 'penguin-5', 'penguin-6', 'penguin-7', 'penguin-8'], names: ['企鹅 1', '企鹅 2', '企鹅 3', '企鹅 4', '企鹅 5', '企鹅 6', '企鹅 7', '企鹅 8'] },
+  { id: 'high-similar-rockets', tier: 3, ids: ['rocket-1', 'rocket-2', 'rocket-3', 'rocket-4', 'rocket-5', 'rocket-6', 'rocket-7', 'rocket-8'], names: ['火箭 1', '火箭 2', '火箭 3', '火箭 4', '火箭 5', '火箭 6', '火箭 7', '火箭 8'] },
+  { id: 'high-similar-teddy-bears', tier: 3, ids: ['bear-1', 'bear-2', 'bear-3', 'bear-4', 'bear-5', 'bear-6', 'bear-7', 'bear-8'], names: ['小熊玩偶 1', '小熊玩偶 2', '小熊玩偶 3', '小熊玩偶 4', '小熊玩偶 5', '小熊玩偶 6', '小熊玩偶 7', '小熊玩偶 8'] },
+  { id: 'hard-similar-cats', tier: 3, ids: ['cat-1', 'cat-2', 'cat-3', 'cat-4', 'cat-5', 'cat-6', 'cat-7', 'cat-8'], names: ['小猫 1', '小猫 2', '小猫 3', '小猫 4', '小猫 5', '小猫 6', '小猫 7', '小猫 8'] },
+  { id: 'fish', tier: 3, ids: ['angelfish-v1', 'clownfish-smile-v1', 'pufferfish-v1', 'shark-v1', 'swordfish-v1'], names: ['神仙鱼', '小丑鱼', '河豚', '鲨鱼', '剑鱼'] },
+  { id: 'hard-sea', tier: 3, ids: ['angelfish', 'clownfish-smile', 'manta-ray', 'pufferfish', 'seahorse', 'shark', 'swordfish', 'tuna'], names: ['天使鱼', '小丑鱼', '蝠鲼', '河豚', '海马', '鲨鱼', '剑鱼', '金枪鱼'] }
+]
+
+const PLANETS: MemorySearchGroup = {
+  id: 'sky-planets',
+  tier: 1,
+  ids: ['gold-ring', 'gold-purple-ring', 'gold-crater', 'gold-bands', 'amber-ring', 'lemon-ring', 'peach-ring', 'orange-crater', 'blue-ring', 'teal-crater', 'violet-bands', 'pink-ring', 'earth', 'mint-cloud', 'red-lava', 'ice-blue', 'indigo-moons', 'lavender-ring', 'green-dots', 'silver-crater'],
+  names: ['金环星球', '紫金星球', '金色星球', '条纹星球', '琥珀星球', '柠檬星球', '蜜桃星球', '橙色星球', '蓝色星球', '青色星球', '紫色星球', '粉色星球', '地球', '薄荷星球', '火星', '冰蓝星球', '双月星球', '薰衣草星球', '绿点星球', '银色星球']
+}
+
+// 10 档阶梯：难度由「棋盘图片总数（= 找全所需轮数）+ 记忆展示时长 + 单目标目标时间 + 误点预算」共同决定。
+// 单目标目标时间复用 utils/game-scoring.uts 里 memory-search 的 6500 → 4000ms 分档。
+const LEVEL_BOARD = [6, 6, 8, 8, 9, 10, 12, 12, 15, 16]
+// 棋盘固定 4 列（2026-09-18 用户要求）：列数不再随难度变化，格子才能保持足够大；
+// 难度仍由棋盘规模 / 记忆时长 / 单目标时间 / 误点预算承担（难度指标不含 columns）。
+const LEVEL_COLUMNS = [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+const LEVEL_PREVIEW_MS = [2200, 2000, 1800, 1700, 1500, 1400, 1300, 1200, 1100, 1000]
+// 全游戏共享的误点预算：累计误点达到该值即结束。
+const LEVEL_MAX_ERRORS = [8, 8, 7, 7, 6, 6, 5, 5, 4, 4]
+
+export const TRIAL_ROUNDS = 2
+export const TRIAL_BOARD_SIZE = 4
+export const TRIAL_COLUMNS = 4
+export const TRIAL_PREVIEW_MS = 2400
+
+function clampLevel(level: number): number {
+  return Math.max(1, Math.min(10, Math.round(level)))
+}
+
+export function memorySearchLevelConfig(level: number): MemorySearchLevelConfig {
+  const index = clampLevel(level) - 1
+  return {
+    level: index + 1,
+    boardSize: LEVEL_BOARD[index],
+    columns: LEVEL_COLUMNS[index],
+    previewMs: LEVEL_PREVIEW_MS[index],
+    perTargetMs: searchTargetMs('memory-search', index + 1),
+    maxErrors: LEVEL_MAX_ERRORS[index]
+  }
+}
+
+// 试玩配置：4 张图片、2 轮即可，用第 1 档的宽松参数，且不计入正式成绩。
+export function memorySearchTrialConfig(): MemorySearchLevelConfig {
+  const base = memorySearchLevelConfig(1)
+  return {
+    level: 1,
+    boardSize: TRIAL_BOARD_SIZE,
+    columns: TRIAL_COLUMNS,
+    previewMs: TRIAL_PREVIEW_MS,
+    perTargetMs: base.perTargetMs,
+    maxErrors: base.maxErrors
+  }
+}
+
+// 难度指标：只由本档参数算出，用于回归断言严格递增。
+export function memorySearchDifficultyIndex(level: number): number {
+  const config = memorySearchLevelConfig(level)
+  return config.boardSize * 100 - (config.previewMs + config.perTargetMs) / 10 - config.maxErrors * 5
+}
+
+// 找全整张棋盘所需的总点击数：1 + 2 + … + boardSize。
+export function memorySearchTotalFinds(boardSize: number): number {
+  const size = Math.max(0, Math.round(boardSize))
+  return size * (size + 1) / 2
+}
+
+// 单张基础分：把满分平均摊到找全所需的每一次点击上。
+export function memorySearchFindBase(boardSize: number): number {
+  const total = memorySearchTotalFinds(boardSize)
+  if (total <= 0) return 0
+  return gameScoreMax('memory-search') / total
+}
+
+// 每点对一张的得分：比目标时间快就多给，单张封顶 2 倍基础分；最慢也保底 1 分（鼓励继续找）。
+export function memorySearchFindScore(findElapsedMs: number, perTargetMs: number, base: number): number {
+  if (!Number.isFinite(base) || base <= 0) return 0
+  if (!Number.isFinite(perTargetMs) || perTargetMs <= 0) return Math.max(1, Math.floor(base))
+  const elapsed = Number.isFinite(findElapsedMs) && findElapsedMs > 1 ? findElapsedMs : 1
+  const raw = Math.round(base * perTargetMs / elapsed)
+  const cap = Math.max(1, Math.floor(base * 2))
+  return Math.max(1, Math.min(cap, raw))
+}
+
+// 一局分数：累计每张的得分，封顶满分（超过即提前收工）。
+export function memorySearchGameScore(findScores: number[]): number {
+  let total = 0
+  for (let i = 0; i < findScores.length; i++) {
+    const value = findScores[i]
+    if (Number.isFinite(value) && value > 0) total += value
+  }
+  return Math.min(gameScoreMax('memory-search'), Math.floor(total))
+}
+
+function tierOf(level: number): number {
+  return level <= 3 ? 1 : level <= 6 ? 2 : 3
+}
+
+function pushGroup(pool: MemorySearchAsset[], group: MemorySearchGroup, planets: boolean) {
+  for (let i = 0; i < group.ids.length; i++) {
+    const id = group.id + ':' + group.ids[i]
+    if (planets) {
+      pool.push({ id: id, name: group.names[i], kind: 'planet', path: PLANET_BASE + group.ids[i] + '.webp', shadowPath: '' })
+    } else {
+      pool.push({ id: id, name: group.names[i], kind: 'illustration', path: ILLUSTRATION_BASE + group.id + '/' + group.ids[i] + '.webp', shadowPath: ILLUSTRATION_BASE + group.id + '/' + group.ids[i] + '-shadow.webp' })
+    }
+  }
+}
+
+const POOL_CACHE: MemorySearchAsset[][] = [[], [], [], []]
+
+// 本档可用的素材池；缓存按档位复用，避免每轮重新拼装。
+export function memorySearchPool(level: number): MemorySearchAsset[] {
+  const tier = tierOf(clampLevel(level))
+  if (POOL_CACHE[tier].length > 0) return POOL_CACHE[tier]
+  const pool = [] as MemorySearchAsset[]
+  for (let i = 0; i < GROUPS.length; i++) {
+    if (GROUPS[i].tier <= tier) pushGroup(pool, GROUPS[i], false)
+  }
+  pushGroup(pool, PLANETS, true)
+  POOL_CACHE[tier] = pool
+  return pool
+}
+
+function shuffled<T>(items: T[], rand: () => number): T[] {
+  const copy = items.slice()
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1))
+    const tmp = copy[i]
+    copy[i] = copy[j]
+    copy[j] = tmp
+  }
+  return copy
+}
+
+// 棋盘与目标一律使用彩色图：本游戏不上影子图。
+export function memorySearchTile(asset: MemorySearchAsset): MemorySearchTile {
+  return {
+    id: asset.id,
+    name: asset.name,
+    path: asset.path,
+    isShadow: false,
+    isPlanet: asset.kind == 'planet'
+  }
+}
+
+// 从本档素材池里随机取 size 张互不相同的图片作为本局固定棋盘。
+function buildBoard(config: MemorySearchLevelConfig, rand: () => number): MemorySearchTile[] {
+  const pool = shuffled(memorySearchPool(config.level), rand)
+  const tiles = [] as MemorySearchTile[]
+  for (let i = 0; i < pool.length && tiles.length < config.boardSize; i++) {
+    tiles.push(memorySearchTile(pool[i]))
+  }
+  return tiles
+}
+
+// 一轮 = 重排后的整张棋盘 + 当前累加目标集合。棋盘集合整局不变，只有顺序变。
+function buildRound(config: MemorySearchLevelConfig, index: number, targets: MemorySearchTile[], board: MemorySearchTile[], rand: () => number): MemorySearchRound {
+  return {
+    index: index,
+    tiles: shuffled(board, rand),
+    targets: targets.slice(),
+    boardSize: config.boardSize,
+    columns: config.columns,
+    previewMs: config.previewMs,
+    targetBudgetMs: config.perTargetMs * targets.length
+  }
+}
+
+export function generateMemorySearchBoard(level: number, rand: () => number): MemorySearchTile[] {
+  return buildBoard(memorySearchLevelConfig(level), rand)
+}
+
+// 正式训练：固定棋盘 + 随机目标出场序。第 k 轮（从 1 计）找该顺序的前 k 张，
+// 因此第 boardSize 轮正好覆盖整张棋盘 —— 打完就是「找全了」。
+export function generateMemorySearchRounds(level: number, rand: () => number): MemorySearchRound[] {
+  const config = memorySearchLevelConfig(level)
+  const board = buildBoard(config, rand)
+  const order = shuffled(board, rand)
+  const rounds = [] as MemorySearchRound[]
+  for (let k = 0; k < order.length; k++) {
+    const targets = [] as MemorySearchTile[]
+    for (let i = 0; i <= k; i++) targets.push(order[i])
+    rounds.push(buildRound(config, k, targets, board, rand))
+  }
+  return rounds
+}
+
+// 试玩：4 张图片、2 轮，同样随机、非影子、不计分。
+export function generateMemorySearchTrial(rand: () => number): MemorySearchRound[] {
+  const config = memorySearchTrialConfig()
+  const board = buildBoard(config, rand)
+  const order = shuffled(board, rand)
+  const rounds = [] as MemorySearchRound[]
+  for (let k = 0; k < TRIAL_ROUNDS; k++) {
+    const targets = [] as MemorySearchTile[]
+    for (let i = 0; i <= k && i < order.length; i++) targets.push(order[i])
+    rounds.push(buildRound(config, k, targets, board, rand))
+  }
+  return rounds
+}

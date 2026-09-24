@@ -1,0 +1,36 @@
+import { MemoryLinkItem, memoryLinkRound, memoryLinkShuffle, memoryLinkOrder } from './memory-link.uts'
+export type OrderGuessConfig = { count: number, initialCorrect: number, rounds: number, targetAttempts: number }
+export type OrderGuessRound = { paths: string[], secret: number[], initial: number[] }
+export type OrderGuessClue = { order: number[], correct: number, hinted?: boolean }
+export function orderGuessConfig(level: number): OrderGuessConfig {
+  const i = Math.max(0, Math.min(9, Math.round(level) - 1))
+  return { count: [3,3,4,4,4,5,5,5,6,6][i], initialCorrect: [1,1,2,1,0,2,1,0,1,0][i], rounds: [3,3,3,3,4,4,4,4,5,5][i], targetAttempts: [3,2,4,4,4,6,7,6,10,9][i] }
+}
+export function orderGuessCorrect(order: number[], secret: number[]): number {
+  let count = 0
+  for (let i = 0; i < secret.length; i++) if (order[i] == secret[i]) count += 1
+  return count
+}
+export function orderGuessRound(config: OrderGuessConfig, random: () => number): OrderGuessRound {
+  const paths = memoryLinkRound(config.count, random).map((item: MemoryLinkItem): string => item.path)
+  const indexes = paths.map((_path: string, index: number): number => index)
+  const secret = memoryLinkShuffle(indexes, random)
+  const moving = memoryLinkShuffle(indexes, random).slice(config.initialCorrect)
+  const permutation = memoryLinkOrder(moving.length, random)
+  const initial = secret.slice()
+  for (let i = 0; i < moving.length; i++) initial[moving[i]] = secret[moving[permutation[i]]]
+  return { paths, secret, initial }
+}
+export function orderGuessSwap(order: number[], a: number, b: number): number[] {
+  const result = order.slice()
+  if (a < 0 || b < 0 || a >= result.length || b >= result.length) return result
+  const item = result[a]; result[a] = result[b]; result[b] = item
+  return result
+}
+// 必须先平均次数再计分，不能平均倒数，也不按用时加分。
+export function orderGuessScore(attempts: number[], target: number, hints: number = 0): number {
+  if (attempts.length == 0) return 0
+  const sum = attempts.reduce((a: number, b: number): number => a + b, 0)
+  // 提示本身计入一次尝试，另外每次从整局汇总分扣 60 分。
+  return Math.max(0, Math.min(200, Math.floor(200 - 100 * sum / (attempts.length * target)) - 60 * hints))
+}

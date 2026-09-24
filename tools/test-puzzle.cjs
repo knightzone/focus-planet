@@ -4,9 +4,13 @@ const fs = require('node:fs')
 const path = require('node:path')
 const vm = require('node:vm')
 const assert = require('node:assert/strict')
-const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js')
+const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js')
 const root = path.resolve(__dirname, '..')
 const read = file => fs.readFileSync(path.join(root, file), 'utf8')
+const readJson = file => {
+  try { return JSON.parse(read(file)) }
+  catch (error) { throw new Error(`无法解析 ${file}: ${error.message}`) }
+}
 const strip = text => text.replace(/^import .*$/gm, '').replace(/^export /gm, '')
 const bundle = [
   read('utils/local-test.uts'),
@@ -189,7 +193,7 @@ console.log('PASS: 放对数与完成判定（空/未完成/完成/空数组）'
     const source = api.chooseUnseenPuzzleSource(scenes)
     assert(source !== null, '应能取到素材')
     assert(seenThisSession[source.sceneId] === undefined, '同一轮内不应重复场景，实际重复 ' + source.sceneId)
-    assert(source.image === '/a' + Number(source.sceneId.slice(-1)) + '.webp' || source.image === '/b' + Number(source.sceneId.slice(-1)) + '.webp', 'A/B 只取该场景自己的两版')
+    assert.equal(source.image, '/a' + Number(source.sceneId.slice(-1)) + '.webp', '拼图只使用该场景的 A 图')
     seenThisSession[source.sceneId] = true
     api.markPuzzleShown(source.sceneId, scenes)
   }
@@ -199,7 +203,32 @@ console.log('PASS: 放对数与完成判定（空/未完成/完成/空数组）'
   assert(last !== null && next !== null, '看过一轮后应重新开一轮')
   // 空场景表不应崩。
   assert.equal(api.chooseUnseenPuzzleSource([]), null)
-  console.log('PASS: 素材按场景去重、看到即消耗、看完全部后重开一轮，A/B 随机取自同场景')
+  for (let i = 0; i < 200; i++) {
+    const source = api.chooseUnseenPuzzleSource(scenes)
+    assert.equal(source.image, scenes.find(s => s.id === source.sceneId).imageA)
+    api.markPuzzleShown(source.sceneId, scenes)
+  }
+  console.log('PASS: 素材按场景去重、看到即消耗、看完全部后重开一轮，固定 A 图（含200次跨轮检查）')
 }
 
+{
+  for (const key of Object.keys(store)) delete store[key]
+  const scenes = readJson('content/brand/spot-difference-story-v2/runtime-review/manifest.json').scenes
+  assert.equal(scenes.length, 150)
+  let previous = ''
+  for (let cycle = 0; cycle < 2; cycle++) {
+    const seen = new Set()
+    for (let i = 0; i < scenes.length; i++) {
+      const source = api.chooseUnseenPuzzleSource(scenes)
+      assert(!seen.has(source.sceneId))
+      assert.notEqual(source.sceneId, previous)
+      assert.equal(source.image, scenes.find(s => s.id === source.sceneId).imageA)
+      assert(fs.existsSync(path.join(root, source.image)))
+      seen.add(source.sceneId)
+      previous = source.sceneId
+      api.markPuzzleShown(source.sceneId, scenes)
+    }
+  }
+  console.log('PASS: 真实150场景连续两轮不重复，固定A图，跨轮不紧邻重复')
+}
 console.log('拼图工坊回归通过')

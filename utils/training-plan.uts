@@ -1,6 +1,7 @@
-import { TrainingGame, GAMES, getGameName, getGameThumbnail } from './catalog.uts'
+import { TrainingGame, GAMES, getGameName, getGameThumbnail, getGameDimensionId } from './catalog.uts'
 import { TrainingRecord, getLocalDayKey } from './storage.uts'
 import { getGameDifficulty } from './difficulty.uts'
+import { ClientLesson, lessonRole } from './course-plan.uts'
 
 export type DailyPlanItem = {
   role: string,
@@ -14,11 +15,32 @@ export type DailyPlanItem = {
   planId?: string,
   itemId?: string,
   playToken?: string,
-  planRevision?: number
+  planRevision?: number,
+  lessonNo?: number,
+  slotNo?: number
 }
 
-const PLAN_DIMENSIONS = ['focused', 'sustained', 'selective', 'alternating', 'divided']
-const PLAN_ROLES = ['集中', '持续', '选择', '转换', '分配']
+export function buildClientLessonPlan(lesson: ClientLesson): DailyPlanItem[] {
+  const result = [] as DailyPlanItem[]
+  for (let i = 0; i < lesson.items.length; i++) {
+    const item = lesson.items[i]
+    result.push({
+      role: lessonRole(item.slotNo),
+      gameId: item.gameId,
+      name: item.name,
+      dimensionId: item.dimensionId,
+      thumbnail: item.thumbnail,
+      difficultyLevel: item.difficultyLevel,
+      completed: item.completed,
+      lessonNo: item.lessonNo,
+      slotNo: item.slotNo
+    })
+  }
+  return result
+}
+
+const PLAN_DIMENSIONS = ['selective', 'focused', 'sustained', 'alternating', 'divided']
+const PLAN_ROLES = ['观察', '记忆', '反应', '逻辑', '兼顾']
 
 function findDimensionGame(dimensionId: string, start: number): TrainingGame {
   const pool = GAMES.filter((item: TrainingGame): boolean => item.dimensionId == dimensionId && item.status == 'ready')
@@ -94,7 +116,7 @@ export function buildServerPlan(plan: UTSJSONObject): DailyPlanItem[] {
       gameId: gameId,
       serverGameId: serverId,
       name: getGameName(gameId),
-      dimensionId: item['dimensionId'] as string,
+      dimensionId: getGameDimensionId(gameId),
       thumbnail: getGameThumbnail(gameId),
       difficultyLevel: item['difficultyLevel'] as number,
       completed: item['status'] as string == 'COMPLETED',

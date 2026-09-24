@@ -1,5 +1,5 @@
 const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process'),assert=require('node:assert/strict'),vm=require('node:vm');
-const root=path.resolve(__dirname,'..'),ts=require('/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
+const root=path.resolve(__dirname,'..'),ts=require('/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
 const source=fs.readFileSync(path.join(root,'utils/result-dialogue.uts'),'utf8').replace(/^export /gm,'');const ctx={Math};vm.createContext(ctx);vm.runInContext(ts.transpile(source+'\nglobalThis.api={resultCharacter,resultVoiceBand}',{target:ts.ScriptTarget.ES2020}),ctx);
 const paths=new Set();let size=0;
 for(const role of ['yueyue','nuannuan'])for(const [score,band] of [[59,'encourage'],[60,'normal'],[89,'normal'],[90,'praise'],[120,'praise']]){

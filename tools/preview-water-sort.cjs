@@ -4,9 +4,9 @@
 //   http://127.0.0.1:4177/?start=1&level=1   直接进入第 1 档正式训练
 //   http://127.0.0.1:4177/?start=1&level=10  第 10 档（8 根试管）
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http')
-const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js')
+const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js')
 const root = path.resolve(__dirname, '..')
-const vue = process.env.VUE_BROWSER_PATH || '/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/uniapp-cli-vite/node_modules/vue/dist/vue.global.js'
+const vue = process.env.VUE_BROWSER_PATH || '/Applications/HBuilderX.app/Contents/HBuilderX/plugins/uniapp-cli-vite/node_modules/vue/dist/vue.global.js'
 const read = file => fs.readFileSync(path.join(root, file), 'utf8')
 
 function render(url) {
@@ -30,7 +30,8 @@ function render(url) {
     .replace(/<image\b/g, '<img').replace(/<\/image>/g, '')
     .replace(/<TrainingFrame[^>]*>/, '<div class="frame"><div class="nav">‹　倒水小实验</div>')
     .replace('</TrainingFrame>', '</div>')
-  const common = ['training-clock', 'water-sort-levels', 'water-sort', 'game-scoring'].map(name => read('utils/' + name + '.uts').replace(/^import .*$/gm, '').replace(/^export /gm, '')).join('\n')
+  names.push('WATER_SORT_BACKGROUND')
+  const common = ['training-clock', 'water-sort-levels', 'water-sort', 'game-scoring'].map(name => read('utils/' + name + '.uts').replace(/^import .*$/gm, '').replace(/^export /gm, '')).join('\n') + '\n' + read('utils/game-assets.uts').match(/export const WATER_SORT_BACKGROUND[^\n]+/)[0].replace('export ', '')
   const boot = `const {ref,computed,watch,onUnmounted}=Vue;
 const onLoad=f=>f({}),onUnload=f=>onUnmounted(f);
 const getGameDifficulty=()=>${level};

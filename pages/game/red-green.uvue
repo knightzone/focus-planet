@@ -1,75 +1,356 @@
 <template>
-<TrainingFrame title="红绿指令" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
-  <view class="page">
-    <view class="game-header"><view><text class="round-label">转换注意训练</text><text class="game-title">红绿指令</text></view><view class="counter"><text class="counter-value">{{ displayRound }}/{{ totalRounds }}</text></view></view>
-    <view class="progress-track"><view class="progress-fill" :style="{ width: progressWidth }"></view></view>
-    <view class="rule-card" :class="reversed ? 'rule-reversed' : ''">
-      <text class="rule-label">{{ reversed ? '规则已反转' : '当前规则' }}</text>
-      <text class="rule-title">{{ reversed ? '红色执行 · 绿色等待' : '绿色执行 · 红色等待' }}</text>
-      <view class="rule-visual"><view class="rule-dot" :style="{ backgroundColor: reversed ? '#F17C8D' : '#55C9A5' }"></view><text class="rule-action">✓</text><view class="rule-dot rule-second" :style="{ backgroundColor: reversed ? '#55C9A5' : '#F17C8D' }"></view><text class="rule-action">Ⅱ</text></view>
-    </view>
-    <view class="signal-area">
-      <view v-if="!started" class="instruction"><YoungChildCue kind="traffic"></YoungChildCue><button class="tap-target primary" @click="begin">开始</button></view>
-      <view v-else class="challenge">
-        <view class="signal" :style="{ backgroundColor: signalColor == 'green' ? '#55C9A5' : '#F17C8D' }"></view>
-        <text v-if="feedback != ''" :class="feedback == '正确' ? 'good' : 'again'">{{ feedback }}</text>
+  <TrainingFrame :difficulty="config.level" :preparing="!started" title="红绿指令" @back="training.back()" :paused="trainingPaused" :busy="trainingBusy" @pause="training.pause()" @resume="training.resume()" @restart="training.restart()" @exit="training.exit()">
+    <view class="rg-page">
+      <image class="rg-scene" :src="RED_GREEN_BACKGROUND" mode="aspectFill"></image>
+
+      <!-- 开始前：规则卡 -->
+      <view v-if="!started" class="rg-intro training-preview-card">
+        <text class="rg-intro-title">红绿指令</text>
+        <image class="rg-intro-art" src="/static/images/runtime/level-thumbnails/red-green.webp" mode="aspectFill"></image>
+        <view class="rg-rule-row">
+          <view class="rg-rule"><view class="rg-rule-light rg-dot-red-on"></view><text class="rg-rule-title">停进绿框</text></view>
+          <view class="rg-rule"><view class="rg-rule-light rg-dot-green-on"></view><text class="rg-rule-title">亮绿灯就出发</text></view>
+        </view>
+        <text class="rg-intro-hint">看灯换，不抢跑</text>
+        <button class="rg-start training-preview-primary" @click="begin">开始训练</button>
+      </view>
+
+      <view v-else class="rg-play">
+        <view class="rg-hud">
+          <view class="rg-chip"><text class="rg-chip-text">第 {{ displayLap }}/{{ config.laps }} 圈</text></view>
+          <view class="rg-chip"><text class="rg-chip-text">难度 {{ config.level }}</text></view>
+          <view class="rg-chip"><text class="rg-chip-text">✓ {{ passed }}</text></view>
+        </view>
+
+        <view class="rg-board" :style="{ top: (trackY - 8) + 'px', height: (trackH + 16) + 'px' }"></view>
+
+        <!-- 车道：圆角矩形环（粗边框就是路面） -->
+        <view class="rg-track" :style="{ left: trackX + 'px', top: trackY + 'px', width: trackW + 'px', height: trackH + 'px', borderWidth: laneWidth + 'px', borderRadius: outerRadius + 'px' }"></view>
+
+        <!-- 安全区与停车线：和轨道同级（轨道有 border-width，子元素定位原点会在边框内侧），统一用页面坐标 -->
+        <view v-for="(spot, index) in spots" :key="'zone-' + index" class="rg-zone" :style="zoneStyle(index)"></view>
+        <view v-for="(spot, index) in spots" :key="'line-' + index" class="rg-stopline" :style="stopLineStyle(index)"></view>
+
+        <!-- 红绿灯：只有红/绿两盏，倒数时显示 3/2/1 并闪烁即将亮的那盏 -->
+        <view v-for="(spot, index) in spots" :key="'lamp-' + index" class="rg-lamp" :style="lampStyle(index)">
+          <view class="rg-lamp-dot" :class="dotClass(index, 'red')"></view>
+          <view class="rg-lamp-dot" :class="dotClass(index, 'green')"></view>
+          <text class="rg-lamp-count">{{ lightViews[index].countdown }}</text>
+        </view>
+
+        <!-- 小车 -->
+        <view class="rg-car" :style="{ left: carLeft + 'px', top: carTop + 'px', width: carW + 'px', height: carH + 'px', transform: 'rotate(' + carAngle + 'deg)' }">
+          <view class="rg-car-roof"></view>
+          <view class="rg-car-light rg-headlight-left"></view>
+          <view class="rg-car-light rg-headlight-right"></view>
+          <view class="rg-car-wheel rg-wheel-a"></view>
+          <view class="rg-car-wheel rg-wheel-b"></view>
+          <view class="rg-car-wheel rg-wheel-c"></view>
+          <view class="rg-car-wheel rg-wheel-d"></view>
+        </view>
+
+        <view class="rg-feedback"><text :class="feedback != '' ? (feedbackGood ? 'rg-good' : 'rg-bad') : 'rg-prompt'">{{ feedback != '' ? feedback : waitPrompt }}</text></view>
+
+        <view class="rg-actions">
+          <button class="rg-action rg-action-stop" :disabled="!state.moving" @click="pauseCar">■ 停车</button>
+          <button class="rg-action rg-action-go" :disabled="state.moving" @click="goCar">▶ 出发</button>
+        </view>
+
+        <view class="rg-stats">
+          <text class="rg-stat">通过 {{ passed }}</text>
+          <text class="rg-stat">正确停车 {{ goodStops }}</text>
+          <text class="rg-stat">闯红灯 {{ runReds }}</text>
+        </view>
       </view>
     </view>
-    <view v-if="started" class="answer-row"><button class="tap-target answer execute" @click="answer('execute')">✓  执行</button><button class="tap-target answer wait" @click="answer('wait')">Ⅱ  等待</button></view>
-    <view class="footer-stats"><view class="footer-stat"><text class="footer-value">{{ correct }}</text><text class="footer-label">正确</text></view><view class="footer-stat"><text class="footer-value">{{ errors }}</text><text class="footer-label">错误</text></view><view class="footer-stat"><text class="footer-value">{{ switchErrors }}</text><text class="footer-label">反转错误</text></view></view>
-  </view>
-</TrainingFrame>
+  </TrainingFrame>
 </template>
-
 <script setup lang="uts">
 import TrainingFrame from '../../components/TrainingFrame.uvue'
 import { useTrainingSession } from '../../utils/training-session.uts'
 import { ref, computed } from 'vue'
-import YoungChildCue from '../../components/YoungChildCue.uvue'
 import { onLoad, onUnload } from '@dcloudio/uni-app'
-import { getGameTuningAge } from '../../utils/difficulty.uts'
+import { getGameDifficulty } from '../../utils/difficulty.uts'
+import { RED_GREEN_BACKGROUND } from '../../utils/game-assets.uts'
+import {
+  redGreenConfig, redGreenLayout, redGreenSpots, redGreenCreate, redGreenStep, redGreenPause, redGreenGo,
+  redGreenPointAt, redGreenSpeed, redGreenSafeZone, redGreenFinished, redGreenScore, redGreenAheadLight,
+  RedGreenConfig, RedGreenEvent, RedGreenLayout, RedGreenSpot, RedGreenState
+} from '../../utils/red-green.uts'
+
 const training = useTrainingSession()
 const trainingClock = training.clock
 const trainingPaused = training.paused, trainingBusy = training.navigating
 
+const LANE_WIDTH = 54
+const HGAP = 16
+const CAR_W = 26
+const CAR_H = 40
 
-const started = ref(false), totalRounds = ref(14), roundIndex = ref(0)
-const signalColor = ref('green'), reversed = ref(false), justReversed = ref(false)
-const accepting = ref(false), feedback = ref(''), correct = ref(0), errors = ref(0), switchErrors = ref(0)
-const reactions = ref([] as number[])
-let appearedAt = 0, gameStartedAt = 0, nextTimer = 0
-const displayRound = computed((): number => started.value ? Math.min(totalRounds.value, roundIndex.value + 1) : 0)
-const progressWidth = computed((): string => started.value ? Math.round((roundIndex.value / totalRounds.value) * 100).toString() + '%' : '0%')
-function configure() { const age = getGameTuningAge('red-green'); totalRounds.value = age <= 6 ? 10 : age <= 9 ? 14 : age <= 12 ? 18 : 22 }
-function clearTimer() { if (nextTimer > 0) trainingClock.clearTimeout(nextTimer) }
+const started = ref(false)
+const config = ref(redGreenConfig(1))
+const state = ref(redGreenCreate(redGreenConfig(1), redGreenLayout(320, 520, LANE_WIDTH / 2, 60), Math.random))
+const layout = ref(redGreenLayout(320, 520, LANE_WIDTH / 2, 60))
+const spots = ref([] as RedGreenSpot[])
+const trackX = ref(HGAP), trackY = ref(150), trackW = ref(320), trackH = ref(520)
+const outerRadius = ref(60)
+const laneWidth = ref(LANE_WIDTH)
+const carW = ref(CAR_W), carH = ref(CAR_H)
+const carLeft = ref(0), carTop = ref(0), carAngle = ref(0)
+const lightViews = ref([] as { phase: string, countdown: string, upcoming: string, blink: boolean }[])
+const feedback = ref(''), feedbackGood = ref(true)
+const deductions = ref(0), passed = ref(0), goodStops = ref(0), runReds = ref(0)
+let ticker = 0
+let lastTick = 0
+let gameStartedAt = 0
+let feedbackTimer = 0
+
+const displayLap = computed((): number => Math.min(config.value.laps, state.value.lap + 1))
+// 停在绿灯前时的起步预警：把「还要在几秒内出发」直接提示出来，
+// 否则绿灯超时扣分对孩子来说毫无预兆（原来只有扣分那一下才有字）。
+const waitPrompt = computed((): string => {
+  if (!started.value || state.value.moving || feedback.value != '') return ''
+  const ahead = redGreenAheadLight(state.value, config.value, layout.value)
+  if (ahead < 0) return ''
+  const light = state.value.lights[ahead]
+  if (light.phase != 'green') return ''
+  const left = config.value.startWindow - (config.value.green - light.timer)
+  if (left <= 0) return '该出发啦！'
+  return '绿灯了，快出发 ' + Math.max(1, Math.ceil(left)).toString()
+})
+
+// 轨道尺寸：上方留 HUD（56px）、下方留反馈+两个按钮+统计（210px），
+// 并且必须把状态栏垫片减掉（windowHeight 已包含状态栏区域，这与倒水小实验的布局约定一致），
+// 否则轨道会被算高、底部车道与灯箱会被下方控件遮住。
+function measure() {
+  const info = uni.getWindowInfo()
+  const topInset = Math.max(0, info.statusBarHeight)
+  const width = info.windowWidth - HGAP * 2
+  const pageHeight = info.windowHeight - topInset - 44
+  const topReserve = 56, bottomReserve = 210
+  const usable = Math.max(220, pageHeight - topReserve - bottomReserve)
+  const height = Math.max(210, Math.min(Math.round(width * 1.42), usable))
+  const radius = Math.max(24, Math.min(72, Math.round(Math.min(width, height) * 0.16)))
+  trackX.value = HGAP
+  trackY.value = topReserve + Math.max(0, Math.round((usable - height) / 2))
+  trackW.value = width
+  trackH.value = height
+  outerRadius.value = radius
+  layout.value = redGreenLayout(width, height, LANE_WIDTH / 2, Math.max(12, radius - LANE_WIDTH / 2))
+  spots.value = redGreenSpots(layout.value, config.value.lights)
+}
+
+// 以下样式均返回**页面坐标**（几何点 + 轨道左上角偏移）
+function zoneStyle(index: number): string {
+  const spot = spots.value[index]
+  const safe = redGreenSafeZone(config.value, layout.value)
+  const half = LANE_WIDTH / 2
+  const x = trackX.value + spot.x, y = trackY.value + spot.y
+  if (spot.edge == 'top') return 'left:' + (x - safe) + 'px;top:' + (y - half) + 'px;width:' + safe + 'px;height:' + LANE_WIDTH + 'px;'
+  if (spot.edge == 'right') return 'left:' + (x - half) + 'px;top:' + (y - safe) + 'px;width:' + LANE_WIDTH + 'px;height:' + safe + 'px;'
+  if (spot.edge == 'bottom') return 'left:' + x + 'px;top:' + (y - half) + 'px;width:' + safe + 'px;height:' + LANE_WIDTH + 'px;'
+  return 'left:' + (x - half) + 'px;top:' + y + 'px;width:' + LANE_WIDTH + 'px;height:' + safe + 'px;'
+}
+
+function stopLineStyle(index: number): string {
+  const spot = spots.value[index]
+  const half = LANE_WIDTH / 2
+  const thick = 4
+  const x = trackX.value + spot.x, y = trackY.value + spot.y
+  if (spot.edge == 'top' || spot.edge == 'bottom') return 'left:' + (x - thick / 2) + 'px;top:' + (y - half) + 'px;width:' + thick + 'px;height:' + LANE_WIDTH + 'px;'
+  return 'left:' + (x - half) + 'px;top:' + (y - thick / 2) + 'px;width:' + LANE_WIDTH + 'px;height:' + thick + 'px;'
+}
+
+// 灯箱放在车道**内侧**（放在外侧会被屏幕边缘裁掉），因此永远不会被遮挡
+function lampStyle(index: number): string {
+  const spot = spots.value[index]
+  const inset = LANE_WIDTH / 2 + 18
+  const size = 30, height = 52
+  let x = trackX.value + spot.x, y = trackY.value + spot.y
+  // 内侧方向：上直道往下、下直道往上、左直道往右、右直道往左
+  if (spot.edge == 'top') y += inset
+  else if (spot.edge == 'bottom') y -= inset
+  else if (spot.edge == 'left') x += inset
+  else x -= inset
+  return 'left:' + (x - size / 2) + 'px;top:' + (y - height / 2) + 'px;width:' + size + 'px;height:' + height + 'px;'
+}
+
+// 红绿灯只有红/绿两盏：闪烁的是**当前**颜色 ——
+// 绿灯最后 3 秒（warnRed）绿灯闪；红灯最后 3 秒（warnGreen）红灯闪。
+// 语义与路上的信号灯一致：绿灯闪 = 还可以过但要快；红灯闪 = 仍然算红灯（冲出去就是闯红灯）。
+function dotClass(index: number, color: string): string {
+  if (index < 0 || index >= lightViews.value.length) return color == 'red' ? 'rg-dot-red' : 'rg-dot-green'
+  const view = lightViews.value[index]
+  if (color == 'red') {
+    const on = view.phase == 'red' || (view.phase == 'warnGreen' && view.blink)
+    return on ? 'rg-dot-red-on' : 'rg-dot-red'
+  }
+  const on = view.phase == 'green' || (view.phase == 'warnRed' && view.blink)
+  return on ? 'rg-dot-green-on' : 'rg-dot-green'
+}
+
+function refreshViews() {
+  const views = [] as { phase: string, countdown: string, upcoming: string, blink: boolean }[]
+  for (let i = 0; i < state.value.lights.length; i++) {
+    const light = state.value.lights[i]
+    let countdown = '', upcoming = ''
+    let blink = false
+    if (light.phase == 'warnRed' || light.phase == 'warnGreen') {
+      // 3 秒倒数：数字按秒跳 3→2→1，同时闪烁即将亮的那盏灯
+      countdown = Math.max(1, Math.ceil(light.timer)).toString()
+      upcoming = light.phase == 'warnRed' ? 'red' : 'green'
+      blink = Math.floor(light.timer * 2) % 2 == 0
+    }
+    views.push({ phase: light.phase, countdown: countdown, upcoming: upcoming, blink: blink })
+  }
+  lightViews.value = views
+  const point = redGreenPointAt(layout.value, state.value.carS)
+  carLeft.value = trackX.value + point.x - CAR_W / 2
+  carTop.value = trackY.value + point.y - CAR_H / 2
+  // 车头朝向：CSS 小车长轴朝上，而角度 0 表示向右行驶，所以补偿 90°
+  carAngle.value = point.angle + 90
+  deductions.value = state.value.deductions
+  passed.value = state.value.passed
+}
+
+function showFeedback(events: RedGreenEvent[]) {
+  for (let i = 0; i < events.length; i++) {
+    const event = events[i]
+    if (event.kind == 'pass') continue
+    if (feedbackTimer > 0) trainingClock.clearTimeout(feedbackTimer)
+    feedbackGood.value = event.kind == 'stopGood'
+    if (event.kind == 'stopGood') { goodStops.value += 1; feedback.value = '停得真好'; training.playFeedback('correct') }
+    else {
+      feedback.value = event.detail
+      training.playFeedback('wrong')
+      if (event.kind == 'runRed') runReds.value += 1
+    }
+    feedbackTimer = trainingClock.setTimeout(() => { feedback.value = '' }, 1200)
+  }
+}
+
+function tick() {
+  if (trainingPaused.value || !started.value) return
+  const now = trainingClock.now()
+  const dt = Math.max(0, Math.min(0.1, (now - lastTick) / 1000))
+  lastTick = now
+  if (dt <= 0) return
+  const events = redGreenStep(state.value, dt, config.value, layout.value)
+  refreshViews()
+  if (events.length > 0) showFeedback(events)
+  if (redGreenFinished(state.value, config.value)) finish()
+}
+
+function begin() {
+  if (trainingPaused.value) return
+  started.value = true
+  measure()
+  config.value = redGreenConfig(getGameDifficulty('red-green'))
+  state.value = redGreenCreate(config.value, layout.value, Math.random)
+  spots.value = redGreenSpots(layout.value, config.value.lights)
+  deductions.value = 0
+  passed.value = 0
+  goodStops.value = 0
+  runReds.value = 0
+  feedback.value = ''
+  feedbackGood.value = true
+  carW.value = CAR_W
+  carH.value = CAR_H
+  gameStartedAt = trainingClock.now()
+  lastTick = gameStartedAt
+  refreshViews()
+  if (ticker > 0) trainingClock.clearInterval(ticker)
+  ticker = trainingClock.setInterval(() => tick(), 33)
+}
+
+function pauseCar() {
+  if (trainingPaused.value || !started.value || !state.value.moving) return
+  showFeedback(redGreenPause(state.value, config.value, layout.value))
+  refreshViews()
+}
+
+function goCar() {
+  if (trainingPaused.value || !started.value || state.value.moving) return
+  showFeedback(redGreenGo(state.value, config.value))
+  refreshViews()
+}
+
 function finish() {
-  clearTimer(); const accuracy = Math.round((correct.value / totalRounds.value) * 100)
-  const sum = reactions.value.reduce((total: number, value: number): number => total + value, 0); const average = reactions.value.length == 0 ? 0 : Math.round(sum / reactions.value.length)
+  if (ticker > 0) trainingClock.clearInterval(ticker)
+  ticker = 0
+  const total = config.value.laps
+  const score = redGreenScore(state.value.deductions)
+  const accuracy = redGreenScore(state.value.deductions)
   const duration = Math.max(1, Math.round((trainingClock.now() - gameStartedAt) / 1000))
-  uni.redirectTo({ url: '/pages/result/result?gameId=red-green&dimensionId=alternating&score=' + accuracy.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + average.toString() + '&duration=' + duration.toString() + '&switchErrors=' + switchErrors.value.toString() })
+  uni.redirectTo({ url: '/pages/result/result?gameId=red-green&dimensionId=sustained&score=' + score.toString() + '&accuracy=' + accuracy.toString() + '&reaction=0&duration=' + duration.toString() + '&falseAlarms=' + runReds.value.toString() + '&completed=' + total.toString() + '&total=' + total.toString() })
 }
-function prepare() {
-  if (roundIndex.value >= totalRounds.value) { finish(); return }
-  justReversed.value = roundIndex.value == Math.floor(totalRounds.value / 2)
-  if (justReversed.value) reversed.value = true
-  signalColor.value = Math.random() < 0.5 ? 'green' : 'red'; feedback.value = ''; accepting.value = true; appearedAt = trainingClock.now()
-}
-function begin() { if (trainingPaused.value) return; started.value = true; gameStartedAt = trainingClock.now(); prepare() }
-function expected(): string { const shouldExecute = reversed.value ? signalColor.value == 'red' : signalColor.value == 'green'; return shouldExecute ? 'execute' : 'wait' }
-function answer(value: string) { if (trainingPaused.value) return;
-  if (!accepting.value) return; accepting.value = false; reactions.value.push(trainingClock.now() - appearedAt)
-  if (value == expected()) { { correct.value += 1; training.playFeedback('correct') } feedback.value = '正确' } else { { errors.value += 1; training.playFeedback('wrong') } if (justReversed.value) switchErrors.value += 1; feedback.value = '再看规则' }
-  nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepare() }, 480)
-}
-onLoad((_options: OnLoadOptions) => configure()); onUnload(() => clearTimer())
-// 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
+
+onLoad(() => {
+  measure()
+  config.value = redGreenConfig(getGameDifficulty('red-green'))
+  state.value = redGreenCreate(config.value, layout.value, Math.random)
+  spots.value = redGreenSpots(layout.value, config.value.lights)
+  refreshViews()
+})
+onUnload(() => {
+  if (ticker > 0) trainingClock.clearInterval(ticker)
+  if (feedbackTimer > 0) trainingClock.clearTimeout(feedbackTimer)
+})
+// 准备阶段直接返回；进入正式训练后才拦截返回。
 training.setStartedCheck((): boolean => started.value)
 </script>
-
 <style>
-.page { flex: 1; padding: 20px; }.game-header { flex-direction: row; justify-content: space-between; align-items: center; }.round-label { color: #8062bf; font-size: 12px; font-weight: 700; }.game-title { margin-top: 4px; color: #1f2a44; font-size: 21px; font-weight: 700; }.counter { width: 62px; height: 38px; border-radius: 19px; background-color: #eee9fa; align-items: center; justify-content: center; }.counter-value { color: #785bb7; font-size: 13px; font-weight: 700; }
-.progress-track { margin-top: 18px; height: 8px; border-radius: 4px; background-color: #e5eaf2; overflow: hidden; }.progress-fill { height: 8px; border-radius: 4px; background-color: #9b7ede; }.rule-card { margin-top: 14px; padding: 16px; border-radius: 18px; background-color: #eaf7f2; }.rule-reversed { background-color: #fff0f2; }.rule-label { color: #7d8799; font-size: 10px; }.rule-title { margin-top: 4px; color: #3f4b60; font-size: 16px; font-weight: 700; }.rule-visual { margin-top: 10px; flex-direction: row; align-items: center; }.rule-dot { width: 24px; height: 24px; border-radius: 12px; }.rule-second { margin-left: 24px; }.rule-action { margin-left: 7px; color: #53617c; font-size: 19px; font-weight: 700; }
-.signal-area { margin-top: 14px; height: 310px; border-radius: 25px; background-color: #ffffff; align-items: center; justify-content: center; }.instruction { width: 80%; align-items: center; }.instruction-title { color: #344059; font-size: 17px; font-weight: 700; }.instruction-copy { margin-top: 8px; color: #818a9f; font-size: 11px; line-height: 18px; text-align: center; }.primary { margin-top: 18px; width: 140px; height: 48px; line-height: 48px; border-radius: 14px; background-color: #9b7ede; color: #ffffff; font-size: 14px; font-weight: 700; }
-.challenge { align-items: center; }.signal { width: 118px; height: 118px; border-radius: 59px; }.question { margin-top: 18px; color: #6f7990; font-size: 13px; }.good { margin-top: 10px; color: #338e72; font-size: 12px; font-weight: 700; }.again { margin-top: 10px; color: #c65b66; font-size: 12px; font-weight: 700; }
-.answer-row { margin-top: 12px; flex-direction: row; }.answer { flex: 1; height: 58px; line-height: 58px; border-radius: 17px; font-size: 15px; font-weight: 700; }.execute { margin-right: 6px; background-color: #e5f6ef; color: #318e71; }.wait { margin-left: 6px; background-color: #fde9ec; color: #c65b68; }.footer-stats { margin-top: 13px; flex-direction: row; }.footer-stat { flex: 1; align-items: center; }.footer-value { color: #25314a; font-size: 17px; font-weight: 700; }.footer-label { margin-top: 3px; color: #8a93a7; font-size: 10px; }
+.rg-page { flex: 1; position: relative; background-color: #dff0dc; }
+.rg-scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+.rg-intro { position: relative; margin: 42px 22px 16px; padding: 20px 16px; border-radius: 28px; background-color: rgba(255,255,255,0.65); align-items: center; border-width: 2px; border-color: rgba(255,255,255,0.9); }
+.rg-intro-art { width: 100%; height: 168px; border-radius: 20px; margin-top: 16px; }
+.rg-rule-row { width: 100%; margin-top: 18px; flex-direction: row; justify-content: space-around; }
+.rg-rule { align-items: center; }
+.rg-rule-light { width: 28px; height: 28px; border-radius: 14px; border-width: 4px; border-color: rgba(255,255,255,0.85); }
+.rg-rule-title { margin-top: 8px; color: #426454; font-size: 13px; font-weight: 700; }
+.rg-board { position: absolute; left: 8px; right: 8px; border-radius: 36px; background-color: rgba(255,255,255,0.5); }
+.rg-intro-title { color: #24503a; font-size: 22px; font-weight: 700; }
+.rg-intro-line { margin-top: 10px; color: #3d5c4c; font-size: 14px; }
+.rg-intro-hint { margin-top: 12px; color: #7b8f83; font-size: 12px; }
+.rg-start { margin-top: 20px; width: 180px; height: 48px; line-height: 48px; border-radius: 24px; background-color: #43a06b; color: #ffffff; font-size: 17px; font-weight: 700; }
+.rg-play { flex: 1; }
+.rg-hud { position: absolute; left: 16px; right: 16px; top: 6px; flex-direction: row; justify-content: space-between; }
+.rg-chip { padding: 6px 12px; border-radius: 14px; background-color: rgba(255,255,255,0.92); }
+.rg-chip-bad { background-color: #ffe2e2; }
+.rg-chip-text { color: #2f5f45; font-size: 12px; font-weight: 700; }
+.rg-track { position: absolute; border-style: solid; border-color: #b8cbd0; background-color: rgba(237,249,222,0.7); }
+.rg-zone { position: absolute; border-radius: 8px; background-color: rgba(76,201,124,0.35); border-width: 2px; border-style: dashed; border-color: rgba(35,140,84,0.7); }
+.rg-stopline { position: absolute; background-color: #fff9e9; }
+.rg-lamp { position: absolute; border-radius: 9px; background-color: #2b3440; align-items: center; justify-content: center; }
+.rg-lamp-dot { width: 13px; height: 13px; margin: 2px 0; border-radius: 7px; }
+.rg-dot-red { background-color: #6b3a36; }
+.rg-dot-red-on { background-color: #ff5747; }
+.rg-dot-green { background-color: #2f6b45; }
+.rg-dot-green-on { background-color: #4ddc82; }
+.rg-lamp-count { margin-top: 1px; color: #ffe9a8; font-size: 13px; font-weight: 800; }
+.rg-car { position: absolute; border-radius: 7px; background-color: #ffd24a; border-width: 2px; border-style: solid; border-color: #d9a32b; align-items: center; justify-content: center; }
+.rg-car-roof { width: 60%; height: 34%; border-radius: 4px; background-color: #f6f2e6; }
+.rg-car-light { position: absolute; top: 2px; width: 5px; height: 4px; border-radius: 2px; background-color: #fffce0; }
+.rg-headlight-left { left: 2px; }
+.rg-headlight-right { right: 2px; }
+.rg-car-wheel { position: absolute; width: 6px; height: 11px; border-radius: 3px; background-color: #3a3f47; }
+.rg-wheel-a { left: -5px; top: 5px; }
+.rg-wheel-b { right: -5px; top: 5px; }
+.rg-wheel-c { left: -5px; bottom: 5px; }
+.rg-wheel-d { right: -5px; bottom: 5px; }
+.rg-feedback { position: absolute; left: 16px; right: 16px; bottom: 96px; align-items: center; }
+.rg-good { color: #1f7a4d; font-size: 15px; font-weight: 700; }
+.rg-prompt { color: #d9822b; font-size: 15px; font-weight: 700; }
+.rg-bad { color: #c0402c; font-size: 15px; font-weight: 700; }
+.rg-actions { position: absolute; left: 16px; right: 16px; bottom: 38px; flex-direction: row; justify-content: space-between; }
+.rg-action { width: 47%; height: 52px; line-height: 52px; border-radius: 26px; font-size: 17px; font-weight: 700; }
+.rg-action-stop { background-color: #e67570; color: #ffffff; }
+.rg-action-go { background-color: #43a06b; color: #ffffff; }
+.rg-stats { position: absolute; left: 16px; right: 16px; bottom: 8px; flex-direction: row; justify-content: space-around; }
+.rg-stat { color: #43604f; font-size: 12px; font-weight: 700; }
+
+/* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
+.training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
+.training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
+.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

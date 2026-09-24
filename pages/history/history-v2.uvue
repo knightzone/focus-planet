@@ -1,0 +1,293 @@
+<template>
+  <scroll-view class="page" direction="vertical">
+    <view class="hero">
+      <view class="hero-copy">
+        <text class="hero-kicker">训练足迹</text>
+        <text class="hero-title">{{ hasLessons ? '第 ' + currentLessonNo.toString() + ' 课' : '还没有训练记录' }}</text>
+        <text class="hero-score">{{ hasLessons ? totalScore.toString() + ' 分' : '完成训练后会在这里留下足迹' }}</text>
+      </view>
+      <view v-if="hasLessons" class="performance-orb">
+        <text class="orb-value">{{ performanceScore }}</text>
+        <text class="orb-label">表现</text>
+      </view>
+      <image class="hero-star" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image>
+    </view>
+
+    <view v-if="hasLessons" class="lesson-nav">
+      <view class="nav-button" :class="currentLessonNo <= 1 || loading ? 'nav-disabled' : ''" @click="previousLesson"><text class="nav-arrow">‹</text><text class="nav-label">上一课</text></view>
+      <text class="lesson-progress">{{ completedCount }} / 5 完成</text>
+      <view class="nav-button nav-button-right" :class="currentLessonNo >= maxLessonNo || loading ? 'nav-disabled' : ''" @click="nextLesson"><text class="nav-label">下一课</text><text class="nav-arrow">›</text></view>
+    </view>
+
+    <scroll-view v-if="hasLessons" class="lesson-picker" direction="horizontal" :show-scrollbar="false">
+      <view class="lesson-chip-row">
+        <view v-for="lessonNo in lessonNumbers" :key="lessonNo.toString()" class="lesson-chip" :class="lessonNo == currentLessonNo ? 'lesson-chip-active' : ''" @click="selectLesson(lessonNo)">
+          <text class="lesson-chip-text" :class="lessonNo == currentLessonNo ? 'lesson-chip-text-active' : ''">第{{ lessonNo }}课</text>
+        </view>
+      </view>
+    </scroll-view>
+
+    <view v-if="loading" class="state-card"><text class="state-text">正在整理星星...</text></view>
+    <view v-else-if="errorMessage != ''" class="state-card">
+      <image class="state-image" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.webp" mode="aspectFit"></image>
+      <text class="state-text">{{ errorMessage }}</text>
+    </view>
+    <view v-else-if="!hasLessons" class="state-card empty-state">
+      <image class="state-image empty-image" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.webp" mode="aspectFit"></image>
+      <text class="empty-title">还没有训练数据</text>
+      <text class="state-text">完成一课后，成长足迹会出现在这里</text>
+      <view class="train-button" @click="goTrain"><text class="train-button-text">去训练</text></view>
+    </view>
+    <view v-else>
+      <text class="section-title">五维表现</text>
+      <view class="dimension-card">
+        <view v-for="dimension in dimensionRows" :key="dimension.id" class="dimension-row">
+          <image class="dimension-icon" :src="dimension.thumbnail" mode="aspectFit"></image>
+          <text class="dimension-name">{{ dimension.shortName }}</text>
+          <view class="dimension-track"><view class="dimension-fill" :style="{ width: scoreWidth(dimension.score), backgroundColor: dimension.color }"></view></view>
+          <text class="dimension-score">{{ dimension.score < 0 ? '—' : dimension.score }}</text>
+        </view>
+      </view>
+
+      <text class="section-title">本课训练</text>
+      <view class="training-list">
+        <view v-for="item in items" :key="item['gameId'] as string" class="training-card">
+          <image class="game-image" :src="gameThumbnail(item)" mode="aspectFit"></image>
+          <view class="game-copy">
+            <view class="game-heading"><text class="game-name">{{ gameName(item) }}</text><text class="difficulty-chip">难度 {{ item['difficultyLevel'] }}</text></view>
+            <ScoreStars :score="item['score'] as number" :report="true" :size="16"></ScoreStars>
+            <text class="comparison" :class="comparisonGood(item) ? 'comparison-good' : ''">{{ comparisonText(item) }}</text>
+            <text class="metric">{{ metricText(item) }}</text>
+          </view>
+          <text class="game-score">{{ item['score'] }}分</text>
+        </view>
+      </view>
+    </view>
+    <view class="bottom-space"></view>
+  </scroll-view>
+</template>
+
+<script setup lang="uts">
+import ScoreStars from '../../components/ScoreStars.uvue'
+import { ref } from 'vue'
+import { onShow } from '@dcloudio/uni-app'
+import { DIMENSIONS, getGameName, getGameThumbnail } from '../../utils/catalog.uts'
+import { getDailyReport, getMaxLessonTrainingResults } from '../../utils/server-api.uts'
+import { getAuthSession } from '../../utils/auth.uts'
+import { getRecords, TrainingRecord } from '../../utils/storage.uts'
+
+type DimensionRow = { id: string, shortName: string, color: string, thumbnail: string, score: number }
+const currentLessonNo = ref(0)
+const maxLessonNo = ref(0)
+const hasLessons = ref(false)
+const lessonNumbers = ref([] as number[])
+const totalScore = ref(0)
+const performanceScore = ref(0)
+const completedCount = ref(0)
+const items = ref([] as UTSJSONObject[])
+const dimensionRows = ref([] as DimensionRow[])
+const loading = ref(false)
+const errorMessage = ref('')
+const localRecords = ref([] as TrainingRecord[])
+
+function resetDimensions(raw: UTSJSONObject[]) {
+  const rows = [] as DimensionRow[]
+  for (let i = 0; i < DIMENSIONS.length; i++) {
+    const dimension = DIMENSIONS[i]
+    const found = raw.find((item: UTSJSONObject): boolean => item['dimensionId'] as string == dimension.id)
+    rows.push({ id: dimension.id, shortName: dimension.shortName, color: dimension.color, thumbnail: dimension.thumbnail, score: found == null || found!['score'] == null ? -1 : found!['score'] as number })
+  }
+  dimensionRows.value = rows
+}
+
+function loadLesson(lessonNo: number) {
+  if (!hasLessons.value || lessonNo < 1 || lessonNo > maxLessonNo.value || loading.value) return
+  loading.value = true
+  errorMessage.value = ''
+  currentLessonNo.value = lessonNo
+  getDailyReport(lessonNo, (data: UTSJSONObject) => {
+    loading.value = false
+    const raw = data['lesson']
+    if (raw == null) { errorMessage.value = '这一课还没有记录'; return }
+    const lesson = JSON.parse<UTSJSONObject>(JSON.stringify(raw))!
+    currentLessonNo.value = lesson['lessonNo'] as number
+    completedCount.value = lesson['completedCount'] as number
+    items.value = lesson['items'] == null ? [] as UTSJSONObject[] : JSON.parse<UTSJSONObject[]>(JSON.stringify(lesson['items']))!
+    const summary = lesson['summary'] == null ? {} : JSON.parse<UTSJSONObject>(JSON.stringify(lesson['summary']))!
+    totalScore.value = summary['totalScore'] == null ? 0 : summary['totalScore'] as number
+    performanceScore.value = summary['performanceScore'] == null ? 0 : summary['performanceScore'] as number
+    const dimensions = summary['dimensionScores'] == null ? [] as UTSJSONObject[] : JSON.parse<UTSJSONObject[]>(JSON.stringify(summary['dimensionScores']))!
+    resetDimensions(dimensions)
+  }, (_message: string, code: string) => {
+    loading.value = false
+    errorMessage.value = code == 'LESSON_REPORT_NOT_FOUND' ? '这一课还没有记录' : '报告暂时没有连上'
+  })
+}
+
+function resolveLatestLesson() {
+  loading.value = true
+  errorMessage.value = ''
+  getMaxLessonTrainingResults((data: UTSJSONObject) => {
+    const lessonValue = data['lessonNo']
+    if (lessonValue == null) {
+      loading.value = false
+      hasLessons.value = false
+      currentLessonNo.value = 0
+      maxLessonNo.value = 0
+      lessonNumbers.value = [] as number[]
+      items.value = [] as UTSJSONObject[]
+      totalScore.value = 0
+      performanceScore.value = 0
+      completedCount.value = 0
+      resetDimensions([] as UTSJSONObject[])
+      return
+    }
+    const latestLessonNo = lessonValue as number
+    const numbers = [] as number[]
+    for (let lessonNo = 1; lessonNo <= latestLessonNo; lessonNo++) numbers.push(lessonNo)
+    maxLessonNo.value = latestLessonNo
+    currentLessonNo.value = latestLessonNo
+    lessonNumbers.value = numbers
+    hasLessons.value = true
+    loading.value = false
+    loadLesson(latestLessonNo)
+  }, (_message: string, _code: string) => {
+    loading.value = false
+    hasLessons.value = false
+    errorMessage.value = '训练历史暂时没有连上'
+  })
+}
+
+onShow(() => {
+  if (getAuthSession() == null) { uni.redirectTo({ url: '/pages/login/login' }); return }
+  localRecords.value = getRecords()
+  resolveLatestLesson()
+})
+
+function previousLesson() { if (currentLessonNo.value > 1 && !loading.value) loadLesson(currentLessonNo.value - 1) }
+function nextLesson() { if (currentLessonNo.value < maxLessonNo.value && !loading.value) loadLesson(currentLessonNo.value + 1) }
+function selectLesson(lessonNo: number) { if (lessonNo != currentLessonNo.value && !loading.value) loadLesson(lessonNo) }
+function goTrain() { uni.switchTab({ url: '/pages/index/index' }) }
+function scoreWidth(score: number): string { return score < 0 ? '0%' : Math.max(4, Math.min(100, score / 2)).toString() + '%' }
+function gameName(item: UTSJSONObject): string { return getGameName(item['gameId'] as string) }
+function gameThumbnail(item: UTSJSONObject): string { return getGameThumbnail(item['gameId'] as string) }
+function comparison(item: UTSJSONObject): UTSJSONObject | null { return item['comparison'] == null ? null : JSON.parse<UTSJSONObject>(JSON.stringify(item['comparison'])) }
+function comparisonGood(item: UTSJSONObject): boolean {
+  const value = comparison(item)
+  if (value == null) return false
+  const difficulty = value!['difficultyDelta'] == null ? 0 : value!['difficultyDelta'] as number
+  const score = value!['scoreDelta'] == null ? 0 : value!['scoreDelta'] as number
+  return difficulty > 0 || score > 0
+}
+function signed(value: number): string { return value > 0 ? '+' + value.toString() : value.toString() }
+function comparisonText(item: UTSJSONObject): string {
+  if (item['previousSameGame'] == null) return '第一次完成这个训练'
+  const value = comparison(item)
+  if (value == null) return '已完成'
+  const delta = value!['difficultyDelta'] == null ? 0 : value!['difficultyDelta'] as number
+  if (delta != 0) {
+    const previous = JSON.parse<UTSJSONObject>(JSON.stringify(item['previousSameGame']))!
+    return '难度 ' + (previous['difficultyLevel'] as number).toString() + ' → ' + (item['difficultyLevel'] as number).toString()
+  }
+  const score = value!['scoreDelta'] == null ? 0 : value!['scoreDelta'] as number
+  return score == 0 ? '和上次一样稳' : '比上次 ' + signed(score) + ' 分'
+}
+function bestLocalRecord(gameId: string, lessonNo: number, targetScore: number): TrainingRecord | null {
+  let best = null as TrainingRecord | null
+  for (let i = 0; i < localRecords.value.length; i++) {
+    const record = localRecords.value[i]
+    if (record.gameId != gameId || record.lessonNo != lessonNo) continue
+    if (record.score == targetScore) return record
+    if (best == null || record.score > best!.score) best = record
+  }
+  return best
+}
+function previousLocalRecord(gameId: string, beforeLessonNo: number): TrainingRecord | null {
+  let found = null as TrainingRecord | null
+  for (let i = 0; i < localRecords.value.length; i++) {
+    const record = localRecords.value[i]
+    if (record.gameId != gameId || record.lessonNo == null || record.lessonNo! >= beforeLessonNo) continue
+    if (found == null || record.lessonNo! > found!.lessonNo! || (record.lessonNo == found!.lessonNo && record.score > found!.score)) found = record
+  }
+  return found
+}
+function metricText(item: UTSJSONObject): string {
+  const gameId = item['gameId'] as string
+  const local = bestLocalRecord(gameId, currentLessonNo.value, item['score'] as number)
+  const previous = previousLocalRecord(gameId, currentLessonNo.value)
+  if (local != null && local!.totalCount != null && local!.totalCount! > 0) {
+    const completed = local!.completedCount == null ? 0 : local!.completedCount!
+    let text = '完成 ' + completed.toString() + ' / ' + local!.totalCount!.toString()
+    if (previous != null && previous!.completedCount != null) text += ' · ' + signed(completed - previous!.completedCount!)
+    return text
+  }
+  if (local != null && local!.switchErrors != null && local!.switchErrors! > 0) return '规则切换失误 ' + local!.switchErrors!.toString() + ' 次'
+  if (local != null && local!.interferenceErrors != null && local!.interferenceErrors! > 0) return '干扰误点 ' + local!.interferenceErrors!.toString() + ' 次'
+  const value = comparison(item)
+  if (value != null && value!['reactionImprovementMs'] != null) {
+    const delta = value!['reactionImprovementMs'] as number
+    if (delta != 0) return delta > 0 ? '反应快了 ' + delta.toString() + 'ms' : '反应慢了 ' + Math.abs(delta).toString() + 'ms'
+  }
+  if (value != null && value!['accuracyDelta'] != null) {
+    const delta = value!['accuracyDelta'] as number
+    if (delta != 0) return '正确率 ' + signed(delta) + '%'
+  }
+  if (item['accuracy'] != null) return '正确率 ' + (item['accuracy'] as number).toString() + '%'
+  return '用时 ' + Math.round((item['durationSeconds'] as number) / 60).toString() + ' 分钟'
+}
+</script>
+
+<style>
+.page { height: 100%; background-color: #f3f7ff; }
+.hero { margin: 18px 16px 0; height: 154px; padding: 22px; border-radius: 27px; background-color: #5b8def; flex-direction: row; align-items: center; overflow: hidden; }
+.hero-copy { flex: 1; z-index: 2; }
+.hero-kicker { color: #dce7ff; font-size: 12px; }
+.hero-title { margin-top: 5px; color: #ffffff; font-size: 25px; font-weight: 700; }
+.hero-score { margin-top: 8px; color: #fff4b8; font-size: 18px; font-weight: 700; }
+.performance-orb { width: 70px; height: 70px; border-radius: 35px; background-color: #ffffff; align-items: center; justify-content: center; z-index: 2; }
+.orb-value { color: #4e75c8; font-size: 24px; font-weight: 700; }
+.orb-label { color: #8795b3; font-size: 10px; }
+.hero-star { margin-left: 4px; width: 76px; height: 86px; }
+.lesson-nav { margin: 12px 18px 0; height: 50px; flex-direction: row; align-items: center; justify-content: space-between; }
+.lesson-picker { margin-top: 2px; height: 48px; }
+.lesson-chip-row { padding: 3px 16px; flex-direction: row; }
+.lesson-chip { margin-right: 8px; height: 36px; padding: 0 15px; border-radius: 18px; background-color: #ffffff; align-items: center; justify-content: center; }
+.lesson-chip-active { background-color: #5b8def; }
+.lesson-chip-text { color: #687791; font-size: 12px; font-weight: 600; }
+.lesson-chip-text-active { color: #ffffff; }
+.nav-button { min-width: 88px; height: 42px; padding: 0 12px; border-radius: 15px; background-color: #ffffff; flex-direction: row; align-items: center; justify-content: center; }
+.nav-button-right { justify-content: flex-end; }
+.nav-disabled { opacity: 0.35; }
+.nav-arrow { color: #5b8def; font-size: 25px; }
+.nav-label { margin: 0 4px; color: #526481; font-size: 12px; font-weight: 600; }
+.lesson-progress { color: #78869e; font-size: 12px; }
+.section-title { margin: 22px 18px 10px; color: #293750; font-size: 18px; font-weight: 700; }
+.dimension-card, .training-list, .state-card { margin: 0 16px; border-radius: 23px; background-color: #ffffff; overflow: hidden; }
+.dimension-card { padding: 9px 16px; }
+.dimension-row { height: 56px; border-bottom: 1px solid #edf1f7; flex-direction: row; align-items: center; }
+.dimension-icon { width: 34px; height: 34px; border-radius: 11px; }
+.dimension-name { margin-left: 9px; width: 42px; color: #45526a; font-size: 12px; }
+.dimension-track { flex: 1; height: 9px; border-radius: 5px; background-color: #edf1f7; overflow: hidden; }
+.dimension-fill { height: 9px; border-radius: 5px; }
+.dimension-score { margin-left: 9px; width: 28px; color: #56657e; font-size: 12px; text-align: right; }
+.training-list { padding: 2px 15px; }
+.training-card { min-height: 126px; padding: 14px 0; border-bottom: 1px solid #edf1f7; flex-direction: row; align-items: center; }
+.game-image { width: 70px; height: 70px; border-radius: 17px; }
+.game-copy { margin-left: 12px; flex: 1; }
+.game-heading { flex-direction: row; align-items: center; }
+.game-name { color: #34415a; font-size: 14px; font-weight: 700; }
+.difficulty-chip { margin-left: 8px; padding: 3px 7px; border-radius: 9px; background-color: #eef3ff; color: #5b78b2; font-size: 9px; }
+.comparison { margin-top: 5px; color: #7d879b; font-size: 11px; }
+.comparison-good { color: #33a17c; font-weight: 600; }
+.metric { margin-top: 3px; color: #9aa2b1; font-size: 10px; }
+.game-score { margin-left: 8px; color: #5b8def; font-size: 18px; font-weight: 700; }
+.state-card { margin-top: 20px; min-height: 190px; align-items: center; justify-content: center; }
+.state-image { width: 92px; height: 92px; }
+.state-text { margin-top: 8px; color: #738098; font-size: 13px; }
+.empty-state { margin-top: 14px; padding: 24px; }
+.empty-image { width: 116px; height: 116px; }
+.empty-title { margin-top: 4px; color: #34415a; font-size: 18px; font-weight: 700; }
+.train-button { margin-top: 20px; width: 142px; height: 46px; border-radius: 23px; background-color: #5b8def; align-items: center; justify-content: center; }
+.train-button-text { color: #ffffff; font-size: 15px; font-weight: 700; }
+.bottom-space { height: 34px; }
+</style>

@@ -170,7 +170,7 @@ function saveChanges() {
   saveProfile(updated)
   uni.showToast({ title: '档案已保存', icon: 'success' })
 }
-function openHistory() { uni.navigateTo({ url: '/pages/history/history' }) }
+function openHistory() { uni.navigateTo({ url: '/pages/history/history-v2' }) }
 function confirmClear() {
   if (!requireParentMode()) return
   uni.showModal({

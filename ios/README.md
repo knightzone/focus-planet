@@ -4,15 +4,15 @@
 
 ## 首次配置
 
-1. 使用 HBuilderX **5.25 alpha** 打开已启用蒸汽模式的项目。在“发行 → 原生App-本地打包”中选择“生成本地打包App资源”。iOS 蒸汽模式要求 5.25 及以上，HBuilderX 与原生 SDK 必须使用相同版本。
+1. 使用 HBuilderX **5.26** 打开已启用蒸汽模式的项目。在“发行 → 原生App-本地打包”中选择“生成本地打包App资源”。iOS 蒸汽模式要求 5.26 及以上，HBuilderX 与原生 SDK 必须使用相同版本。
 2. 安装官方 SDK：
 
    ```bash
    ios/scripts/install-sdk.sh
    ```
 
-   已下载并解压 SDK 时，也可执行 `ios/scripts/install-sdk.sh /path/to/UniAppXSDK-iOS-Vapor@5.25`。
-3. 首次安装 SDK 后，用一个命令生成 5.25 iOS Vapor 资源、同步到 Xcode，并按需重编面部/坐姿检测插件：
+   已下载并解压 SDK 时，也可执行 `ios/scripts/install-sdk.sh /path/to/UniAppXSDK-iOS-Vapor@5.26`。
+3. 首次安装 SDK 后，用一个命令生成 5.26 iOS Vapor 资源、同步到 Xcode，并按需重编面部/坐姿检测插件：
 
    ```bash
    ios/scripts/prepare-xcode.sh
@@ -45,7 +45,7 @@ Archive 完成后在 Organizer 中执行 Validate App 和 Distribute App。命�
 
 - `ios/SDK`、`ios/CustomFrameworks`、`ios/TemporarySampleFramework`、编译出的插件 Framework、DerivedData 和 Archive 都不提交 Git；换电脑后由脚本恢复。
 - `uni-app-x/apps/__UNI__B5780B0` 是 HBuilderX 的发行产物，不手工编辑，也不提交 Git。
-- 不要把官方示例中包含全部 API 的 `DCloudUTSExtAPI.framework` 直接放进主工程；`build-extapi.sh` 只编译本项目需要的提示、存储、系统信息、网络、音频与相机模块，可显著降低安装体积。
+- 不要把官方示例中包含全部 API 的 `DCloudUTSExtAPI.framework` 直接放进主工程；`build-extapi.sh` 只编译本项目需要的提示、存储、系统信息、网络、音频、相机、Apple 登录与 Apple 订阅模块，可显著降低安装体积。
 - 插件源代码会提交。`sync-resources.sh` 会用当前 HBuilderX 生成的 `index.swift` 更新桥接层，再由 Xcode 编译 arm64 Framework。
 - 当前插件是 arm64 真机产物；相机检测应在真机验证，不把模拟器作为验收环境。
 - 不直接运行 `sync-resources.sh` 作为日常入口；统一运行 `prepare-xcode.sh`，确保“导出、同步、插件按需重编、校验”是一条完整链路。

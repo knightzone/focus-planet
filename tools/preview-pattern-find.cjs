@@ -4,9 +4,9 @@
 //   http://127.0.0.1:4179/?start=1&level=3   跳过演示，直接进入第 3 档
 //   http://127.0.0.1:4179/?start=1&auto=1   自动答题跑完整局，用于回归目检
 const fs = require('node:fs'), path = require('node:path'), http = require('node:http')
-const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js')
+const ts = require(process.env.TYPESCRIPT_PATH || '/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js')
 const root = path.resolve(__dirname, '..')
-const vue = process.env.VUE_BROWSER_PATH || '/Applications/HBuilderX-Alpha.app/Contents/HBuilderX/plugins/uniapp-cli-vite/node_modules/vue/dist/vue.global.js'
+const vue = process.env.VUE_BROWSER_PATH || '/Applications/HBuilderX.app/Contents/HBuilderX/plugins/uniapp-cli-vite/node_modules/vue/dist/vue.global.js'
 const read = file => fs.readFileSync(path.join(root, file), 'utf8')
 
 function render(url) {

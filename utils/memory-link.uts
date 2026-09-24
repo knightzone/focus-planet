@@ -1,0 +1,49 @@
+import { CHANGE_LOW_GROUPS } from './spot-change-assets.uts'
+
+export type MemoryLinkConfig = { count: number, memoryMs: number, answerMs: number, durationMs: number, failureLimit: number }
+export type MemoryLinkItem = { path: string, number: number }
+export function memoryLinkConfig(level: number): MemoryLinkConfig {
+  const i = Math.max(0, Math.min(9, Math.round(level) - 1))
+  const count = [3,3,4,4,4,5,5,5,6,6][i]
+  return { count, memoryMs: (count * 2 + 2) * 2000, answerMs: (count * 6 + 4) * 1000, durationMs: [85,95,105,115,130,145,155,170,190,210][i] * 1000, failureLimit: [4,4,3,3,3,3,2,2,2,2][i] }
+}
+export function memoryLinkShuffle(values: number[], random: () => number): number[] {
+  const result = values.slice()
+  for (let i = result.length - 1; i > 0; i--) { const j = Math.floor(random() * (i + 1)); const value = result[i]; result[i] = result[j]; result[j] = value }
+  return result
+}
+export function memoryLinkRound(count: number, random: () => number): MemoryLinkItem[] {
+  const groups = CHANGE_LOW_GROUPS.filter((group: string[]): boolean => group.length >= count)
+  const group = groups[Math.floor(random() * groups.length)]
+  const indexes = memoryLinkShuffle(group.map((_path: string, index: number): number => index), random).slice(0, count)
+  const numbers = memoryLinkShuffle(indexes.map((_index: number, index: number): number => index + 1), random)
+  return indexes.map((index: number, at: number): MemoryLinkItem => ({ path: group[index], number: numbers[at] }))
+}
+// 每个图形都离开原来的行，避免用位置代替记忆。
+export function memoryLinkOrder(count: number, random: () => number): number[] {
+  const original: number[] = []
+  for (let i = 0; i < count; i++) original.push(i)
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const order = memoryLinkShuffle(original, random)
+    if (order.every((value: number, index: number): boolean => value != index)) return order
+  }
+  return original.slice(1).concat([0])
+}
+export function memoryLinkAssign(answers: number[], row: number, number: number): number[] {
+  const result = answers.slice()
+  if (row < 0 || row >= result.length || number < 1 || number > result.length) return result
+  for (let i = 0; i < result.length; i++) if (result[i] == number) result[i] = 0
+  result[row] = number
+  return result
+}
+export function memoryLinkMatches(items: MemoryLinkItem[], order: number[], answers: number[]): number {
+  let correct = 0
+  for (let i = 0; i < order.length; i++) if (answers[i] == items[order[i]].number) correct += 1
+  return correct
+}
+// 部分连对按比例得分；全部连对才奖励更快回忆，慢一些也能达标。
+export function memoryLinkScore(correct: number, count: number, elapsedMs: number): number {
+  if (correct < count) return Math.floor(100 * correct / count)
+  const target = count * 3500
+  return Math.min(200, 100 + Math.max(0, Math.floor(100 * (target - Math.max(0, elapsedMs)) / target)))
+}
