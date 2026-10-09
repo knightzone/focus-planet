@@ -2,8 +2,10 @@
 // Source A/B PNGs remain untouched. Only annotated local regions enter runtime B.
 const fs=require('fs'),path=require('path'),cp=require('child_process'),assert=require('assert/strict');
 const root=path.resolve(__dirname,'..'),base=path.join(root,'content/brand/spot-difference-story-v2');
-const spec=JSON.parse(fs.readFileSync(path.join(base,'runtime-regions.json')));
-const supplements=JSON.parse(fs.readFileSync(path.join(base,'runtime-supplements.json')));
+function readText(file){try{return fs.readFileSync(file,'utf8')}catch(error){throw new Error('无法读取 '+file+'：'+error.message)}}
+function readJson(file){try{return JSON.parse(readText(file))}catch(error){throw new Error('无法解析 '+file+'：'+error.message)}}
+const spec=readJson(path.join(base,'runtime-regions.json'));
+const supplements=readJson(path.join(base,'runtime-supplements.json'));
 const output=path.join(root,'static/images/runtime/spot-difference/story-v2');
 const review=path.join(base,'runtime-review');fs.mkdirSync(output,{recursive:true});fs.mkdirSync(review,{recursive:true});
 // Approved 768px samples used target-size encoding; equivalent mean q≈24.2.
@@ -13,12 +15,12 @@ const quality=30,width=768,height=432,records=[],sources=[];
 // Rebuild selected reviewed boundaries only; never silently reuse different specs.
 const onlyArg=process.argv.find(arg=>arg.startsWith('--only='));
 const only=onlyArg?new Set(onlyArg.slice(7).split(',').map(Number)):null;
-const previous=only?JSON.parse(fs.readFileSync(path.join(review,'manifest.json'))):null;
+const previous=only?readJson(path.join(review,'manifest.json')):null;
 for(let chapter=1;chapter<=15;chapter++){
  const dir=path.join(base,`chapter-${String(chapter).padStart(2,'0')}`);
- for(const s of JSON.parse(fs.readFileSync(path.join(dir,'manifest.json'))).scenes){const resolve=p=>path.isAbsolute(p)?p:path.join(dir,p);sources.push({...s,a:resolve(s.aFile||s.file),b:resolve(s.bFile)});}
+ for(const s of readJson(path.join(dir,'manifest.json')).scenes){const resolve=p=>path.isAbsolute(p)?p:path.join(dir,p);sources.push({...s,a:resolve(s.aFile||s.file),b:resolve(s.bFile)});}
 }
-const story=fs.readFileSync(path.join(root,'docs/SPOT_DIFFERENCE_STORY_AND_150_V2.md'),'utf8');
+const story=readText(path.join(root,'docs/SPOT_DIFFERENCE_STORY_AND_150_V2.md'));
 const decode=file=>cp.execFileSync('/usr/local/bin/ffmpeg',['-v','error','-i',file,'-vf',`scale=${width}:${height}`,'-f','rawvideo','-pix_fmt','rgb24','pipe:1'],{maxBuffer:2000000});
 const png=buf=>cp.execFileSync('/usr/local/bin/ffmpeg',['-v','error','-f','rawvideo','-pix_fmt','rgb24','-s',`${width}x${height}`,'-i','pipe:0','-frames:v','1','-f','image2pipe','-vcodec','png','pipe:1'],{input:buf,maxBuffer:2000000});
 const overlap=(a,b)=>Math.max(a[0],b[0])<Math.min(a[0]+a[2],b[0]+b[2])&&Math.max(a[1],b[1])<Math.min(a[1]+a[3],b[1]+b[3]);
@@ -62,7 +64,7 @@ for(const s of spec.scenes){
     for(let c=0;c<3;c++)selectedPixels[p+c]=pixels[p+c];
    }
   }
-  if(changed/((x1-x0)*(y1-y0))<=.015){ console.error(id+'/'+label+' has no meaningful pixel change'); if(!process.argv.includes('--audit'))throw Error('Invalid region'); }
+  if(changed/((x1-x0)*(y1-y0))<=.015){ console.error(id+'/'+label+' has no meaningful pixel change'); if(!process.argv.includes('--audit'))throw new Error('Invalid region'); }
   return {id:'d'+(i+1),x,y,w,h,label,changedRatio:changed/((x1-x0)*(y1-y0))};
  });
  for(let pixel=0;pixel<alphas.length;pixel++){const alpha=alphas[pixel],p=pixel*3;for(let c=0;c<3;c++)clean[p+c]=Math.round(a[p+c]*(1-alpha)+selectedPixels[p+c]*alpha);}

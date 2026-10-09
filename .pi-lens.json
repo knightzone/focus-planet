@@ -5,5 +5,23 @@
   },
   "autofix": {
     "enabled": false
+  },
+  "ignore": [
+    "unpackage/**",
+    "ios/SDK/**",
+    "ios/.derived/**",
+    "ios/CustomFrameworks/**",
+    "ios/Plugins/**",
+    "ios/FocusPlanet/FocusPlanet/uni-app-x/apps/**",
+    "outputs/**",
+    "content/ai-assets/archive/**",
+    "backend/**/node_modules/**"
+  ],
+  "rules": {
+    "project-policy": {
+      "disable": [
+        "no-reserved-identifiers"
+      ]
+    }
   }
 }

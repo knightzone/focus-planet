@@ -22,15 +22,25 @@
           <button class="code-button" :class="codeCooldownActive || sendingCode ? 'code-button-disabled' : ''" @click="sendCode">{{ codeButtonText }}</button>
         </view>
 
-        <button class="primary-button" :class="canSubmit && !loggingIn ? '' : 'primary-disabled'" @click="phoneLogin">{{ loggingIn ? '登录中…' : '登录并继续' }}</button>
+        <button class="primary-button" :class="canSubmit && consented && !loggingIn ? '' : 'primary-disabled'" @click="phoneLogin">{{ loggingIn ? '登录中…' : '登录并继续' }}</button>
 
         <!-- #ifdef APP-IOS -->
         <view class="or-row"><view class="or-line"></view><text class="or-text">或</text><view class="or-line"></view></view>
-        <ActionSurface class="apple-button" :class="appleLogging ? 'apple-disabled' : ''" :disabled="appleLogging" @click="appleLogin"><text class="apple-mark"></text><text class="apple-label">{{ appleLogging ? '登录中…' : '使用 Apple 登录' }}</text></ActionSurface>
+        <ActionSurface class="apple-button" :class="consented && !appleLogging ? '' : 'apple-disabled'" :disabled="appleLogging || !consented" @click="appleLogin"><text class="apple-mark"></text><text class="apple-label">{{ appleLogging ? '登录中…' : '使用 Apple 登录' }}</text></ActionSurface>
         <!-- #endif -->
       </view>
 
-      <text class="agreement">登录即同意用户协议与隐私政策</text>
+      <view class="agreement-card">
+        <view class="consent-row" @click="toggleConsent">
+          <view class="consent-box" :class="consented ? 'consent-box-on' : ''"><text class="consent-mark">{{ consented ? '✓' : '' }}</text></view>
+          <text class="consent-text">我已阅读并同意以下条款</text>
+        </view>
+        <view class="consent-links">
+          <text class="consent-link" @click="openDoc('terms')">《用户协议》</text>
+          <text class="consent-link" @click="openDoc('privacy')">《隐私政策》</text>
+          <text class="consent-link" @click="openDoc('children')">《儿童个人信息保护规则》</text>
+        </view>
+      </view>
     </view>
   </scroll-view>
 </template>
@@ -40,7 +50,9 @@ import ActionSurface from '../../components/ActionSurface.uvue'
 import { ref, computed } from 'vue'
 import { onShow, onUnload } from '@dcloudio/uni-app'
 import { requestPhoneCode, loginWithPhone, loginWithApple, AuthAttemptResult } from '../../utils/auth.uts'
+import { openLegalDoc } from '../../utils/legal.uts'
 
+const consented = ref(false)
 const phone = ref('')
 const code = ref('')
 const sendingCode = ref(false)
@@ -59,6 +71,15 @@ const codeButtonText = computed((): string => {
   if (codeCooldownActive.value) return secondsLeft.value.toString() + 's 后重发'
   return '获取验证码'
 })
+
+// 协议要求：注册/登录前单独展示儿童规则并主动勾选，不默认勾选，未勾选不得继续。
+function toggleConsent() { consented.value = !consented.value }
+function openDoc(docId: string) { openLegalDoc(docId) }
+function requireConsent(): boolean {
+  if (consented.value) return true
+  uni.showToast({ title: '请先阅读并勾选同意条款', icon: 'none' })
+  return false
+}
 
 onShow(() => {
   const savedEnd = uni.getStorageSync(CODE_COOLDOWN_END_KEY)
@@ -127,6 +148,7 @@ function sendCode() {
 
 function phoneLogin() {
   if (loggingIn.value) return
+  if (!requireConsent()) return
   const phoneValue = phone.value.trim()
   const codeValue = code.value.trim()
   if (phoneValue.length != 11 || codeValue.length != 6) { uni.showToast({ title: '请填写手机号和 6 位验证码', icon: 'none' }); return }
@@ -136,6 +158,7 @@ function phoneLogin() {
 
 function appleLogin() {
   if (appleLogging.value || loggingIn.value) return
+  if (!requireConsent()) return
   appleLogging.value = true
   loginWithApple((result: AuthAttemptResult, needsProfile: boolean, suggestPhoneBinding: boolean) => showResult(result, needsProfile, suggestPhoneBinding))
 }
@@ -169,5 +192,12 @@ function appleLogin() {
 .apple-mark { margin-right: 7px; color: #ffffff; font-size: 21px; }
 .apple-label { color: #ffffff; font-size: 15px; font-weight: 600; }
 .apple-disabled { background-color: #737986; }
-.agreement { margin-top: 18px; color: #9aa3b3; font-size: 10px; text-align: center; }
+.agreement-card { margin-top: 18px; padding: 13px; border-radius: 14px; background-color: #ffffff; }
+.consent-row { flex-direction: row; align-items: center; }
+.consent-box { width: 20px; height: 20px; border-radius: 6px; border: 1px solid #c7d0de; align-items: center; justify-content: center; }
+.consent-box-on { border-color: #5b8def; background-color: #5b8def; }
+.consent-mark { color: #ffffff; font-size: 13px; font-weight: 700; }
+.consent-text { margin-left: 8px; color: #6b7688; font-size: 11px; }
+.consent-links { margin: 7px 0 0 28px; flex-direction: row; flex-wrap: wrap; }
+.consent-link { margin: 0 9px 3px 0; color: #4b75ca; font-size: 11px; font-weight: 600; }
 </style>

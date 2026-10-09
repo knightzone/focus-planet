@@ -1,0 +1,40 @@
+// 法律文档统一入口。
+// App 内不维护正文，统一用 web 页承载线上站点（zhuanzhuapp.com/legal）的同一份文案，
+// 避免出现「App 内文本与线上公示不一致」的合规问题；文案更新只需改站点。
+export type LegalDoc = {
+  id: string,
+  title: string,
+  url: string
+}
+
+export const LEGAL_SITE_BASE = 'https://zhuanzhuapp.com/legal'
+
+export const LEGAL_DOCS: LegalDoc[] = [
+  { id: 'terms', title: '用户协议', url: LEGAL_SITE_BASE + '/terms' },
+  { id: 'privacy', title: '隐私政策', url: LEGAL_SITE_BASE + '/privacy' },
+  { id: 'children', title: '儿童个人信息保护规则', url: LEGAL_SITE_BASE + '/children' },
+  { id: 'sdk', title: '第三方信息共享清单', url: LEGAL_SITE_BASE + '/privacy#sdk' }
+]
+
+export function getLegalDoc(id: string): LegalDoc | null {
+  for (let index = 0; index < LEGAL_DOCS.length; index++) {
+    if (LEGAL_DOCS[index].id == id) return LEGAL_DOCS[index]
+  }
+  return null
+}
+
+export function legalDocTitle(id: string): string {
+  const doc = getLegalDoc(id)
+  return doc == null ? '法律与合规' : doc.title
+}
+
+export function legalDocUrl(id: string): string {
+  const doc = getLegalDoc(id)
+  return doc == null ? LEGAL_SITE_BASE + '/privacy' : doc.url
+}
+
+// 打开 App 内 web 页（pages/legal/legal），doc 为 LEGAL_DOCS 的 id。
+// hideBar = true 时不展示 App 自绘顶部（导航传 bar=0），线上页面占满整屏。
+export function openLegalDoc(id: string, hideBar: boolean = false) {
+  uni.navigateTo({ url: '/pages/legal/legal?doc=' + id + (hideBar ? '&bar=0' : '') })
+}

@@ -77,8 +77,18 @@ module_sources = %w[
   uni-virtualPayment-UniStoreKit+Closure.swift
 ]
 
+# 法律文档页用 <web-view> 承载线上页面；iOS 侧需编译并注册 web-view 元素（Android 由运行时自带）。
+web_view_sources = %w[
+  uni-web-view-index.swift
+  uni-web-view-InnerWebView.swift
+  uni-web-view-Snapshot.swift
+  uni-web-view-UniBaseWebView.swift
+  uni-web-view-UniViewLifecycle.swift
+  uni-web-view-WebViewNestedScrollCoordinator.swift
+]
+
 prompt_sources = Dir.children(source_dir).grep(/\Auni-prompt-Uni(?:Alert|Toast)-.*\.swift\z/).sort
-swift_sources = base_sources + prompt_sources + module_sources
+swift_sources = base_sources + prompt_sources + module_sources + web_view_sources
 required = swift_sources + %w[UTSOC.h UTSOC.mm]
 missing = required.reject { |name| File.exist?(File.join(source_dir, name)) }
 abort "Missing SDK ExtApiSrc files: #{missing.join(', ')}" unless missing.empty?

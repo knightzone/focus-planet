@@ -44,28 +44,32 @@ const DT = 100
   const levels = []
   for (let level = 1; level <= 10; level++) levels.push(api.dualTrackConfig(level))
   assert.equal(levels[0].durationMs, 60000, '第 1 档 60 秒')
-  assert.equal(levels[9].durationMs, 120000, '第 10 档 120 秒（1—2 分钟）')
+  // 2026-09-29 整体下调：原来 10 档只保留前 7 档铺满新的 1—10 档，新第 10 档 = 原第 7 档
+  assert.equal(levels[9].durationMs, 100000, '第 10 档 100 秒（= 原来第 7 档）')
   assert.equal(levels[0].startScore, 150, '第 1 档起始分 150')
-  assert.equal(levels[0].spawnGapMs, 1200, '第 1 档障碍间隔 1200ms（密度整体降一档）')
-  assert.equal(levels[9].spawnGapMs, 430, '第 10 档障碍间隔 430ms')
-  assert.equal(levels[9].startScore, 100, '第 10 档起始分 100')
+  assert.equal(levels[0].spawnGapMs, 1200, '第 1 档障碍间隔 1200ms')
+  assert.equal(levels[9].spawnGapMs, 640, '第 10 档障碍间隔 640ms（= 原来第 7 档）')
+  assert.equal(levels[9].startScore, 117, '第 10 档起始分 117（= 原来第 7 档）')
   assert.equal(levels[0].collisionPenalty, 10, '每次碰撞扣 10')
   assert.equal(levels[0].slots, 3, '每一半 3 个停靠位')
   for (let level = 1; level <= 10; level++) {
     const config = api.dualTrackConfig(level)
     assert.equal(config.speedPxPerSec, api.OBSTACLE_SPEED, 'L' + level + ' 障碍速度全档一致（难度只靠密度）')
-    assert(config.durationMs >= 60000 && config.durationMs <= 120000, 'L' + level + ' 时长在 1—2 分钟')
+    assert(config.durationMs >= 60000 && config.durationMs <= 100000, 'L' + level + ' 时长在 1—100 秒')
     if (level > 1) {
       const previous = api.dualTrackConfig(level - 1)
       assert(config.spawnGapMs <= previous.spawnGapMs, 'L' + level + ' 密度逐档变高（间隔不增）')
       assert(config.startScore <= previous.startScore, 'L' + level + ' 起始分逐档不增')
       assert(config.durationMs >= previous.durationMs, 'L' + level + ' 时长逐档不缩短')
+      // 平滑：档与档之间应该是插值出来的一小步，而不是整档跳变
+      assert(previous.spawnGapMs - config.spawnGapMs <= 100, 'L' + level + ' 密度变化平滑（单档间隔缩短 ≤ 100ms）')
+      assert(previous.startScore - config.startScore <= 6, 'L' + level + ' 起始分变化平滑（单档 ≤ 6 分）')
     }
   }
   assert(levels[9].spawnGapMs < levels[0].spawnGapMs, '最高档障碍明显更密')
   const demo = api.dualTrackDemoConfig()
   assert(demo.demo && demo.durationMs <= 20000 && demo.collisionPenalty == 0, '试玩：短、不扣分')
-  console.log('PASS: 难度参数（时长 60→120s、起始分 150→100、每次碰撞扣 10、密度 1200→430ms（已整体降一档）、速度全档一致）')
+  console.log('PASS: 难度参数（整体下调：新 1—10 档 = 原 1—7 档插值，时长 60→100s、起始分 150→117、每次碰撞扣 10、密度 1200→640ms、速度全档一致）')
 }
 
 // ---------- 素材 ----------

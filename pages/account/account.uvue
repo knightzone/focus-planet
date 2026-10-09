@@ -45,10 +45,16 @@
           <text v-if="!appleBound" class="arrow">›</text>
         </view>
         <!-- #endif -->
-        <view class="bind-row bind-row-last">
+        <view class="bind-row">
           <view class="bind-icon wechat-icon"><text class="bind-symbol">微</text></view>
           <text class="bind-name">微信</text>
           <text class="bind-state">即将开放</text>
+        </view>
+        <view class="bind-row bind-row-last" @click="requestDeletion">
+          <view class="bind-icon delete-icon"><text class="bind-symbol">✕</text></view>
+          <text class="bind-name">注销账号</text>
+          <text class="bind-state">{{ deleting ? '提交中…' : '7 天后删除' }}</text>
+          <text class="arrow">›</text>
         </view>
       </view>
 
@@ -63,8 +69,8 @@
 <script setup lang="uts">
 import { ref, computed } from 'vue'
 import { onLoad, onShow, onUnload } from '@dcloudio/uni-app'
-import { getAuthSession, requestAppleBindingCode, completeApplePhoneBinding, skipPendingApplePhoneBinding, authorizeAppleAccountLink, AuthAttemptResult } from '../../utils/auth.uts'
-import { getAccountSummary } from '../../utils/server-api.uts'
+import { getAuthSession, clearAuthSession, requestAppleBindingCode, completeApplePhoneBinding, skipPendingApplePhoneBinding, authorizeAppleAccountLink, AuthAttemptResult } from '../../utils/auth.uts'
+import { getAccountSummary, requestAccountDeletion } from '../../utils/server-api.uts'
 import { isParentAreaUnlocked } from '../../utils/parent-lock.uts'
 
 const onboarding = ref(false)
@@ -76,6 +82,7 @@ const phoneBound = ref(false)
 const appleBound = ref(false)
 const sending = ref(false)
 const binding = ref(false)
+const deleting = ref(false)
 const secondsLeft = ref(0)
 let countdownTimer = 0
 
@@ -169,6 +176,35 @@ function startAppleBinding() {
 }
 
 function cancelPhoneForm() { showPhoneForm.value = false; code.value = '' }
+
+// 协议写明的注销路径是「账号 — 设置 — 注销」；注销不可逆，先过家长验证。
+function requestDeletion() {
+  if (deleting.value) return
+  if (!isParentAreaUnlocked()) { uni.navigateTo({ url: '/pages/parent-lock/parent-lock?action=delete' }); return }
+  confirmDeletion()
+}
+
+function confirmDeletion() {
+  uni.showModal({
+    title: '注销账号？',
+    content: '提交后账号将立即不可登录，7 天后删除训练数据、成长报告与儿童档案，且无法恢复；此操作不可撤销。',
+    confirmText: '确认注销',
+    confirmColor: '#D95C68',
+    success: (result) => {
+      if (!result.confirm) return
+      deleting.value = true
+      requestAccountDeletion((_data: UTSJSONObject) => {
+        deleting.value = false
+        clearAuthSession()
+        uni.showToast({ title: '已提交注销申请', icon: 'none', duration: 2500 })
+        setTimeout(() => uni.reLaunch({ url: '/pages/index/index' }), 900)
+      }, (message: string, _code: string) => {
+        deleting.value = false
+        uni.showToast({ title: message, icon: 'none' })
+      })
+    }
+  })
+}
 </script>
 
 <style>
@@ -208,6 +244,7 @@ function cancelPhoneForm() { showPhoneForm.value = false; code.value = '' }
 .phone-icon { background-color: #e8f7f1; }
 .apple-icon { background-color: #edf0f5; }
 .wechat-icon { background-color: #e8f8ee; }
+.delete-icon { background-color: #fdeced; }
 .bind-symbol { color: #52647f; font-size: 15px; font-weight: 700; }
 .apple-symbol { color: #202734; font-size: 20px; }
 .bind-name { margin-left: 13px; flex: 1; color: #344059; font-size: 15px; font-weight: 700; }

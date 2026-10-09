@@ -64,11 +64,21 @@ const PLANETS = [
 ]
 const SEA_CREATURES = ['angelfish', 'clownfish-smile', 'manta-ray', 'pufferfish', 'seahorse', 'shark', 'swordfish', 'tuna']
 
-// 时长 60s → 120s；密度（生成间隔）1100ms → 380ms；起始分 150 → 100。
-const LEVEL_DURATION_MS = [60000, 60000, 70000, 70000, 80000, 90000, 100000, 110000, 120000, 120000]
-// 密度（生成间隔）整体降一档：每档用原来上一档的间隔，最松一档再加长到 1200ms。
-const LEVEL_SPAWN_GAP_MS = [1200, 1100, 1000, 900, 800, 720, 640, 560, 490, 430]
-const LEVEL_START_SCORE = [150, 144, 139, 133, 128, 122, 117, 111, 106, 100]
+// 难度曲线（2026-09-29 整体下调）：原来 10 档的参数只保留前 7 档，新的 1—10 档均匀铺在原来 1—7 档之间
+// （即「新的第 10 档 = 原来的第 7 档」），档与档之间用线性插值，避免整档跳变。
+// 表头 = 最轻松一档，表尾 = 最难一档。
+const LEVEL_DURATION_MS = [60000, 60000, 70000, 70000, 80000, 90000, 100000]
+const LEVEL_SPAWN_GAP_MS = [1200, 1100, 1000, 900, 800, 720, 640]
+const LEVEL_START_SCORE = [150, 144, 139, 133, 128, 122, 117]
+
+// 在参数表上按曲线位置取连续值：level 1 → 表头，level 10 → 表尾。
+function curveValue(table: number[], level: number): number {
+  const last = table.length - 1
+  const position = (Math.max(1, Math.min(10, Math.round(level))) - 1) * last / 9
+  const lower = Math.floor(position)
+  const upper = Math.min(last, lower + 1)
+  return table[lower] + (table[upper] - table[lower]) * (position - lower)
+}
 
 // 背景与载具素材（2026-09-18 换成正式素材）：整屏背景上下两半 = 天空 / 大海；
 // 跃跃开火箭、暖暖开潜艇都是 4:3 的整张插画，朝右（迎面来的障碍物从右侧进入）。
@@ -77,13 +87,13 @@ export const ROCKET_PATH = '/static/images/runtime/dual-track/yueyue-rocket-4x3.
 export const SUBMARINE_PATH = '/static/images/runtime/dual-track/nuannuan-submarine-4x3.webp'
 
 export function dualTrackConfig(level: number): DualTrackConfig {
-  const index = Math.max(0, Math.min(9, Math.round(level) - 1))
+  const clamped = Math.max(1, Math.min(10, Math.round(level)))
   return {
-    level: index + 1,
-    durationMs: LEVEL_DURATION_MS[index],
-    spawnGapMs: LEVEL_SPAWN_GAP_MS[index],
+    level: clamped,
+    durationMs: Math.round(curveValue(LEVEL_DURATION_MS, clamped) / 1000) * 1000,
+    spawnGapMs: Math.round(curveValue(LEVEL_SPAWN_GAP_MS, clamped) / 10) * 10,
     speedPxPerSec: OBSTACLE_SPEED,
-    startScore: LEVEL_START_SCORE[index],
+    startScore: Math.round(curveValue(LEVEL_START_SCORE, clamped)),
     collisionPenalty: 10,
     slots: DUAL_TRACK_SLOTS,
     demo: false

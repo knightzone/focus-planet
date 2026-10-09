@@ -92,10 +92,9 @@
 
 <script setup lang="uts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { reportStarCount } from '../../utils/star-rating.uts'
 import { onShow } from '@dcloudio/uni-app'
 import { DIMENSIONS, getGameRoute } from '../../utils/catalog.uts'
-import { getProfile, getRecords, getWeeklyRecords, getLocalDayKey, calculateStreak, TrainingRecord } from '../../utils/storage.uts'
+import { getProfile, getLocalDayKey, TrainingRecord } from '../../utils/storage.uts'
 import { DailyPlanItem, buildDailyPlan, buildClientLessonPlan, nextPendingPlanItem } from '../../utils/training-plan.uts'
 import { requireLogin, getAuthSession } from '../../utils/auth.uts'
 import { getRecentTrainingResults } from '../../utils/server-api.uts'
@@ -103,6 +102,8 @@ import { getAvatarPath } from '../../utils/profile-options.uts'
 import { ClientLesson, ClientLessonItem, getActiveLesson, resolveLessonAfterSync, startTodayLesson, beginLessonItem, lessonCompleted, parseRecentTrainingResults, recentResultsSyncedToday } from '../../utils/course-plan.uts'
 import { pendingResultCount, hasPendingOlderThan, recoverUnsyncedLessonResults, flushResults } from '../../utils/offline-sync.uts'
 import { MembershipState, cachedMembership, refreshMembership } from '../../utils/membership.uts'
+// 首页统计（今日时长 / 本周次数 / 能量 / 连续天数）统一走服务端口径，本地只做首帧与离线兜底。
+import { TrainingStats, localTrainingStats, cachedTrainingStats, applyTrainingRecords } from '../../utils/training-stats.uts'
 
 const topDimensions = DIMENSIONS.slice(0, 3)
 const bottomDimensions = DIMENSIONS.slice(3, 5)
@@ -142,6 +143,14 @@ function showLesson(lesson: ClientLesson) {
   dailyPlan.value = buildClientLessonPlan(lesson)
 }
 
+// 统计的唯一入口：不论来自服务端、缓存还是本地，都写这四个数字。
+function applyStats(stats: TrainingStats) {
+  todayEffectiveSeconds.value = stats.todaySeconds
+  weeklySessions.value = stats.weeklySessions
+  energy.value = stats.stars
+  streak.value = stats.streakDays
+}
+
 function syncLesson(age: number) {
   if (!membershipActive.value || planSyncing.value) return
   recoverUnsyncedLessonResults()
@@ -161,6 +170,8 @@ function syncLesson(age: number) {
     const resolvedLesson = resolveLessonAfterSync(age, history, todayKey)
     console.log('[lesson-sync] active lesson resolved=' + resolvedLesson.lessonNo.toString() + ' day=' + resolvedLesson.createdDay)
     showLesson(resolvedLesson)
+    // 同一个响应直接算出统计，不再为首页数字多发一次请求。
+    applyStats(applyTrainingRecords(data, Date.now()))
     // 服务端响应后才可能首次创建/恢复 active lesson；此时再扫描一次，才能给旧版空课号记录补上课程上下文。
     recoverUnsyncedLessonResults()
     flushResults()
@@ -201,17 +212,12 @@ function refresh() {
   membershipActive.value = cachedMembership().active
   nickname.value = profile.nickname
   avatarPath.value = getAvatarPath(profile.avatarId)
-  const records = getRecords()
-  const todayKey = getLocalDayKey(Date.now())
-  todayEffectiveSeconds.value = records
-    .filter((item: TrainingRecord): boolean => getLocalDayKey(item.completedAt) == todayKey)
-    .reduce((total: number, item: TrainingRecord): number => total + Math.max(0, item.durationSeconds == null ? 0 : item.durationSeconds!), 0)
+  // 先拿缓存/本地的数字渲染，服务端响应回来后（syncLesson 里 applyTrainingRecords）覆盖。
+  const cachedStats = cachedTrainingStats()
+  applyStats(cachedStats == null ? localTrainingStats(Date.now()) : cachedStats!)
   const localLesson = getActiveLesson()
   if (localLesson != null) showLesson(localLesson!)
   else dailyPlan.value = [] as DailyPlanItem[]
-  weeklySessions.value = getWeeklyRecords(records).length
-  energy.value = records.reduce((total: number, item): number => total + reportStarCount(item.score), 0)
-  streak.value = calculateStreak(records)
   if (getAuthSession() != null) {
     membershipChecking.value = true
     refreshMembership((state: MembershipState) => {

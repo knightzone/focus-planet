@@ -108,14 +108,15 @@
 import { LOCAL_TEST_MODE } from '../../utils/local-test.uts'
 import { checkAppUpdate, installedVersionName } from '../../utils/app-update.uts'
 import { ref } from 'vue'
-import { reportStarCount } from '../../utils/star-rating.uts'
 import { onShow } from '@dcloudio/uni-app'
-import { getProfile, getRecords, getWeeklyRecords, calculateStreak } from '../../utils/storage.uts'
+import { getProfile } from '../../utils/storage.uts'
 import { getCompanionRecords, getCompanionModeName, getCompanionTotalMinutes, formatCompanionDate } from '../../utils/companion-storage.uts'
 import { isParentAreaUnlocked } from '../../utils/parent-lock.uts'
 import { getAuthSession, clearAuthSession, requireLogin } from '../../utils/auth.uts'
 import { getCompanionSummary, getCompanionSessions } from '../../utils/server-api.uts'
 import { getAvatarPath } from '../../utils/profile-options.uts'
+// 训练统计统一走服务端优先的口径，本地只做首帧与离线兜底。
+import { TrainingStats, localTrainingStats, cachedTrainingStats, refreshTrainingStats } from '../../utils/training-stats.uts'
 
 const nickname = ref('探索家')
 const age = ref(8)
@@ -152,11 +153,9 @@ onShow(() => {
   nickname.value = profile.nickname
   age.value = profile.age
   avatarPath.value = getAvatarPath(profile.avatarId)
-  const records = getRecords()
-  recordsCount.value = records.length
-  weeklySessions.value = getWeeklyRecords(records).length
-  energy.value = records.reduce((total: number, item): number => total + reportStarCount(item.score), 0)
-  streak.value = calculateStreak(records)
+  // 星小屋的四个数字：缓存/本地先渲染，随后用服务端 /reports/overview + /training/records/latest 覆盖。
+  const cachedStats = cachedTrainingStats()
+  applyStats(cachedStats == null ? localTrainingStats(Date.now()) : cachedStats!)
   const companionRecords = getCompanionRecords()
   companionCount.value = companionRecords.length
   companionMinutes.value = getCompanionTotalMinutes(companionRecords)
@@ -169,6 +168,7 @@ onShow(() => {
     lastCompanionMeta.value = '从“星陪伴”完成第一轮专注吧'
   }
   if (getAuthSession() != null) {
+    refreshTrainingStats((stats: TrainingStats) => applyStats(stats), (_message: string, _code: string) => {})
     getCompanionSummary(90, (data: UTSJSONObject) => {
       companionCount.value = data['sessionCount'] as number
       companionMinutes.value = Math.round((data['durationSeconds'] as number) / 60)
@@ -176,6 +176,13 @@ onShow(() => {
     getCompanionSessions((_data: UTSJSONObject) => {}, (_message: string, _code: string) => {})
   }
 })
+
+function applyStats(stats: TrainingStats) {
+  recordsCount.value = stats.totalSessions
+  weeklySessions.value = stats.weeklySessions
+  energy.value = stats.stars
+  streak.value = stats.streakDays
+}
 
 function openReport() { uni.navigateTo({ url: '/pages/report/report-v2' }) }
 function openHistory() { uni.navigateTo({ url: '/pages/history/history-v2' }) }

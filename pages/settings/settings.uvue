@@ -34,6 +34,31 @@
       <view class="age-note"><text class="age-note-text">{{ age }} 岁 · {{ sessionMinutes }} 分钟/次</text></view>
       <button class="tap-target save-button" @click="saveChanges">保存档案</button>
     </view>
+    <view class="menu-card">
+      <view class="menu-row menu-row-last" @click="openMembership">
+        <view class="tap-content"><text class="menu-title">订阅管理</text></view>
+        <text class="arrow tap-content">›</text>
+      </view>
+    </view>
+    <view class="legal-card">
+      <text class="legal-title">法律与合规</text>
+      <view class="legal-row" @click="openDoc('terms')">
+        <text class="legal-link tap-content">用户协议</text>
+        <text class="arrow tap-content">›</text>
+      </view>
+      <view class="legal-row" @click="openDoc('privacy')">
+        <text class="legal-link tap-content">隐私政策</text>
+        <text class="arrow tap-content">›</text>
+      </view>
+      <view class="legal-row" @click="openDoc('children')">
+        <text class="legal-link tap-content">儿童个人信息保护规则</text>
+        <text class="arrow tap-content">›</text>
+      </view>
+      <view class="legal-row legal-row-last" @click="openDoc('sdk')">
+        <text class="legal-link tap-content">第三方信息共享清单</text>
+        <text class="arrow tap-content">›</text>
+      </view>
+    </view>
     <view class="test-card">
       <view class="test-heading">
         <view><text class="test-title">测试难度</text></view>
@@ -49,21 +74,6 @@
       </view>
       <button class="tap-target auto-button" :class="testDifficulty == 0 ? 'auto-button-active' : ''" @click="useAutoDifficulty">{{ testDifficulty == 0 ? '当前为自动难度' : '恢复自动难度' }}</button>
     </view>
-    <view class="menu-card">
-      <view class="menu-row" @click="openHistory">
-        <view class="tap-content"><text class="menu-title">训练历史</text></view>
-        <text class="arrow tap-content">›</text>
-      </view>
-      <view class="menu-row menu-row-last" @click="confirmClear">
-        <view class="tap-content"><text class="danger-title">清除训练记录</text></view>
-        <text class="arrow danger-title tap-content">›</text>
-      </view>
-    </view>
-    <button class="leave-button" @click="leaveParentMode">退出家长模式</button>
-    <view class="privacy-card">
-      <text class="privacy-title">单机数据说明</text>
-      <text class="privacy-copy">数据仅保存在本机，卸载后无法恢复。</text>
-    </view>
   </view>
 </template>
 
@@ -73,11 +83,12 @@ import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getAgeBand } from '../../utils/catalog.uts'
 import { defaultDifficultyForAge, getTestDifficultyOverride, setTestDifficultyOverride } from '../../utils/difficulty.uts'
-import { getProfile, saveProfile, clearTrainingRecords, ChildProfile } from '../../utils/storage.uts'
+import { getProfile, saveProfile, ChildProfile } from '../../utils/storage.uts'
 import { getAuthSession } from '../../utils/auth.uts'
 import { updateRemoteProfile, saveServerProfile } from '../../utils/server-api.uts'
-import { isParentAreaUnlocked, lockParentArea } from '../../utils/parent-lock.uts'
+import { isParentAreaUnlocked } from '../../utils/parent-lock.uts'
 import { PROFILE_AVATARS, randomNickname, calculateAge, getAvatarPath, genderLabel } from '../../utils/profile-options.uts'
+import { openLegalDoc } from '../../utils/legal.uts'
 
 const now = new Date()
 const birthYears = [] as number[]
@@ -170,27 +181,9 @@ function saveChanges() {
   saveProfile(updated)
   uni.showToast({ title: '档案已保存', icon: 'success' })
 }
-function openHistory() { uni.navigateTo({ url: '/pages/history/history-v2' }) }
-function confirmClear() {
-  if (!requireParentMode()) return
-  uni.showModal({
-    title: '清除训练记录？',
-    content: '所有本地训练结果和游戏难度进度将被删除，且无法恢复。儿童档案会保留。',
-    confirmText: '确认清除',
-    confirmColor: '#D95C68',
-    success: (result) => {
-      if (result.confirm) {
-        clearTrainingRecords()
-        uni.showToast({ title: '训练记录已清除', icon: 'none' })
-      }
-    }
-  })
-}
-function leaveParentMode() {
-  lockParentArea()
-  uni.navigateBack()
-}
-
+// 协议第八节写的取消路径是「账号 — 设置 — 订阅管理」，这里保持一致。
+function openMembership() { uni.navigateTo({ url: '/pages/membership/membership' }) }
+function openDoc(docId: string) { openLegalDoc(docId) }
 </script>
 
 <style>
@@ -238,9 +231,9 @@ function leaveParentMode() {
 .menu-title { color: #344059; font-size: 14px; font-weight: 600; }
 .menu-copy { margin-top: 5px; color: #8992a4; font-size: 11px; }
 .arrow { color: #9da5b4; font-size: 24px; }
-.danger-title { color: #d95c68; font-size: 14px; font-weight: 600; }
-.leave-button { margin-top: 16px; height: 46px; line-height: 46px; border-radius: 14px; background-color: #e9edf5; color: #65718a; font-size: 13px; font-weight: 600; }
-.privacy-card { margin-top: 16px; padding: 16px; border-radius: 17px; background-color: #eef3fb; }
-.privacy-title { color: #596987; font-size: 13px; font-weight: 700; }
-.privacy-copy { margin-top: 6px; color: #748099; font-size: 11px; line-height: 17px; }
+.legal-card { margin-top: 16px; padding: 16px 19px 6px; border-radius: 17px; background-color: #ffffff; }
+.legal-title { margin-bottom: 6px; color: #596987; font-size: 13px; font-weight: 700; }
+.legal-row { min-height: 54px; border-bottom: 1px solid #edf0f5; flex-direction: row; align-items: center; justify-content: space-between; }
+.legal-row-last { border-bottom-width: 0; }
+.legal-link { color: #4a6cb3; font-size: 13px; font-weight: 600; }
 </style>

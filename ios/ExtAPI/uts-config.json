@@ -1,4 +1,9 @@
 {
+  "components": [
+    {
+      "delegateClass": "UniWebViewElementRegister"
+    }
+  ],
   "providers": [
     {
       "name": "apple",

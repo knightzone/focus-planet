@@ -75,7 +75,7 @@ for (const node of ast.statements) {
   if (ts.isVariableStatement(node)) for (const declaration of node.declarationList.declarations) names.push(declaration.name.getText(ast))
   if (ts.isFunctionDeclaration(node)) names.push(node.name.text)
 }
-const exposed = names.concat(['puzzleConfig', 'puzzleSolved', 'puzzlePlacedCount', 'puzzleEmptySlots', 'DIFFERENCE_SCENES'])
+const exposed = names.concat(['puzzleConfig', 'puzzleSolved', 'puzzlePlacedCount', 'puzzleEmptySlots', 'DIFFERENCE_SCENES', 'localTestKey'])
 const sandbox = {
   ref: makeRef,
   computed: makeComputed,
@@ -344,7 +344,8 @@ loadCallback({})
   assert.equal(storage.size, 0, '图片没显示出来之前不算看过')
   api.onBoardLoaded()
   assert.equal(api.boardReady.value, true)
-  const seen = storage.get('focus_puzzle_seen_v1' + '_local_test')
+  // 「已看」键名由 localTestKey 决定（当前 LOCAL_TEST_MODE = false，不带测试后缀）
+  const seen = storage.get(api.localTestKey('focus_puzzle_seen_v1'))
   assert(Array.isArray(seen) && seen.length === 1, '图片一显示就记进「已看」，实际 ' + JSON.stringify(seen))
   // 放错记失误，拼块留在格子里
   const piece = api.tray.value[0]
@@ -483,7 +484,7 @@ loadCallback({})
   assert.equal(redirects.length, 1, '3 轮打完应跳结算页，实际 ' + redirects.length + ' 次')
   const url = redirects[0]
   assert(url.indexOf('gameId=puzzle') >= 0, '结算带 gameId=puzzle')
-  assert(url.indexOf('dimensionId=selective') >= 0, '主维度是选择注意')
+  assert(url.indexOf('dimensionId=alternating') >= 0, '主维度是逻辑空间（catalog: puzzle = alternating）')
   assert(url.indexOf('roundScores=') >= 0, '结算带每轮分数')
   assert(url.indexOf('total=3') >= 0, '结算带总轮数')
   assert(url.indexOf('completed=3') >= 0, '三轮达标')

@@ -27,7 +27,7 @@ echo "[1/4] Exporting iOS Vapor resources with HBuilderX $cli_version..."
 echo "[2/4] Syncing resources into the Xcode host..."
 "$SCRIPT_DIR/sync-resources.sh"
 
-plugin_binary="$IOS_DIR/Plugins/unimoduleFocusFaceDetector.framework/unimoduleFocusFaceDetector"
+plugin_binary="$IOS_DIR/Plugins/unimoduleFocusFaceDetector.xcframework/ios-arm64/unimoduleFocusFaceDetector.framework/unimoduleFocusFaceDetector"
 plugin_source="$IOS_DIR/Plugins/Source/unimoduleFocusFaceDetector/unimoduleFocusFaceDetector/index.swift"
 native_source="$IOS_DIR/Plugins/Source/unimoduleFocusFaceDetector/unimoduleFocusFaceDetector/FocusFaceDetectorNative.swift"
 gradient_source="$IOS_DIR/Plugins/Source/unimoduleFocusFaceDetector/unimoduleFocusFaceDetector/FocusGradientNative.swift"

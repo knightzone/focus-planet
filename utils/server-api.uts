@@ -36,6 +36,11 @@ export function getAccountSummary(success: ApiSuccess, failure: ApiFailure) {
   apiRequest('/me', 'POST', {}, true, success, failure)
 }
 
+// 申请注销：服务端置为 DELETION_PENDING（此后不可登录）并撤销刷新 Token，7 天后删数据。
+export function requestAccountDeletion(success: ApiSuccess, failure: ApiFailure) {
+  apiRequest('/me/delete', 'POST', {}, true, success, failure)
+}
+
 export function sendAppleBindCode(phone: string, success: ApiSuccess, failure: ApiFailure) {
   apiRequest('/auth/sms/send', 'POST', { countryCode: '86', phone: phone, purpose: 'apple_bind' }, false, (data: UTSJSONObject) => {
     uni.setStorageSync(CHALLENGE_KEY, data['challengeId'] as string)

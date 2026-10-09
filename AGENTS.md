@@ -18,6 +18,7 @@
 
 - 本工程约定即本文件；资源流水线与回归/iOS 流程的按需说明在 `.pi/skills/focus-planet-pipeline/`（已加入用户级 `settings.json` 的 `skills`，任意目录启动 pi 都可用）。
 - `.pi-lens.json` 关掉了 pi-lens 的 `format` 与 `autofix`：本仓库无格式化配置且 `.uvue`/`.uts` 非标准 JS/TS，避免插件自动改写文件。诊断与 LSP 仍启用；需要格式化时手动执行并自行核对 diff。
+- 同文件里还有两条约定：① `ignore` 列出构建产物与外部源码（`unpackage/**`、`ios/{SDK,.derived,CustomFrameworks,Plugins}/**`、导出的 apps 目录、`outputs/**` 等），否则 Apple 生成的 Swift 桥接头会被当源码分析；② `rules.project-policy.disable` 关掉了 `no-reserved-identifiers`——本仓库没有自研 C/ObjC 源码，该规则只会命中构建产物里 Apple 自己写的 `__arm64__` / `__has_include` 这类保留宏，改不了也不该改。调整这两处前先确认是不是真的引入了新的 C/ObjC 源码。
 
 ## 常用命令
 
@@ -31,7 +32,10 @@ bash tools/optimize-runtime-assets.sh  # 图片转 WebP、音频转 MP3、源图
 cd backend/asset-service && npm start  # 素材审核服务，127.0.0.1:4310，零第三方依赖
 ```
 
-- 已知失败：`node tools/test-action-surface.cjs` 断言 `ActionSurface >= 14`，当前实际 12（工作区在研改动所致）。这是**代码状态问题，不是环境问题**，不要为了让它变绿去改断言。
+- 回归现状（2026-09-29）：`node tools/test-*.cjs` + `node tests/*.cjs` 共 53 项全部通过，没有已知失败。改动页面/工具后请重跑；如果新增失败，先判断是「用例跟不上实现」还是「实现真的回退」，不要直接改断言迁就代码。
+- 测试里要用 ffmpeg/ffprobe/cwebp 时统一 `require('./media-tools.cjs')`（环境变量 → PATH → Homebrew 前缀），不要写死 `/usr/local/bin`：Apple Silicon 上 Homebrew 在 `/opt/homebrew`。
+- 测试把页面脚本装进 `vm` 跑时，页面新引入的工具函数（例如 `getRecords`/`saveRecords`/`getCachedRecentResults`）需要在沙箱里补齐；只捕获最后一次记录的 `addRecord` 桩会让结果页的回读校验失败（`storage-readback-failed`），要模拟真实的追加 + `saveRecords` 回滚。
+- `tools/test-action-surface.cjs` 的 `ActionSurface` 数量是哨兵下限（当前 13：magic-rule 4 / number-track 4 / pattern-find 2 / login 1 / color-command 1 / sound-location 1）；真要用原生按钮替掉某处时，同步下调下限并说明原因。
 
 ## 代码约定
 

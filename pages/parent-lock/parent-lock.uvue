@@ -28,6 +28,7 @@ import { ref } from 'vue'
 import { onLoad } from '@dcloudio/uni-app'
 import { unlockParentArea } from '../../utils/parent-lock.uts'
 import { clearAuthSession } from '../../utils/auth.uts'
+import { requestAccountDeletion } from '../../utils/server-api.uts'
 
 const gestureStage = ref(0)
 const touching = ref(false)
@@ -50,6 +51,18 @@ function completeGesture() {
     if (lockAction.value == 'logout') {
       clearAuthSession()
       uni.switchTab({ url: '/pages/mine/mine' })
+      return
+    }
+    if (lockAction.value == 'delete') {
+      // 家长验证通过后再真正提交注销；成功后本地会话立即失效。
+      requestAccountDeletion((_data: UTSJSONObject) => {
+        clearAuthSession()
+        uni.showToast({ title: '已提交注销申请', icon: 'none', duration: 2500 })
+        setTimeout(() => uni.reLaunch({ url: '/pages/index/index' }), 900)
+      }, (message: string, _code: string) => {
+        uni.showToast({ title: message, icon: 'none' })
+        setTimeout(() => uni.navigateBack(), 900)
+      })
       return
     }
     if (lockAction.value == 'settings') {

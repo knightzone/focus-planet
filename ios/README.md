@@ -45,7 +45,9 @@ Archive 完成后在 Organizer 中执行 Validate App 和 Distribute App。命�
 
 - `ios/SDK`、`ios/CustomFrameworks`、`ios/TemporarySampleFramework`、编译出的插件 Framework、DerivedData 和 Archive 都不提交 Git；换电脑后由脚本恢复。
 - `uni-app-x/apps/__UNI__B5780B0` 是 HBuilderX 的发行产物，不手工编辑，也不提交 Git。
-- 不要把官方示例中包含全部 API 的 `DCloudUTSExtAPI.framework` 直接放进主工程；`build-extapi.sh` 只编译本项目需要的提示、存储、系统信息、网络、音频、相机、Apple 登录与 Apple 订阅模块，可显著降低安装体积。
-- 插件源代码会提交。`sync-resources.sh` 会用当前 HBuilderX 生成的 `index.swift` 更新桥接层，再由 Xcode 编译 arm64 Framework。
-- 当前插件是 arm64 真机产物；相机检测应在真机验证，不把模拟器作为验收环境。
+- 不要把官方示例中包含全部 API 的 `DCloudUTSExtAPI.framework` 直接放进主工程；`build-extapi.sh` 只编译本项目需要的提示、存储、系统信息、网络、音频、相机、Apple 登录、Apple 订阅与 `<web-view>`（法律文档页）模块，可显著降低安装体积。
+- `<web-view>` 在 iOS 上是按需 ExtAPI 元素：`build-extapi.sh` 的 `web_view_sources` 与 `ios/ExtAPI/uts-config.json` 的 `UniWebViewElementRegister` 必须同时保留，少一个 iOS 上就渲染不出法律文档页（Android 由运行时自带）。改动这两处后 `prepare-xcode.sh` 会自动重编 ExtAPI，HBuilderX 侧需重新制作/运行自定义基座，热更新不会带上新的原生框架。
+- 插件源代码会提交。`sync-resources.sh` 会用当前 HBuilderX 生成的 `index.swift` 更新桥接层，再由 `build-plugin.sh` 编译出真机（arm64）与模拟器（arm64/x86_64）双切片的 `Plugins/unimoduleFocusFaceDetector.xcframework`。
+- 插件必须是 xcframework：真机与模拟器切片同为 arm64 但平台不同，单个 `.framework` 装不下。只有真机切片时模拟器启动会因 `Library not loaded ... incompatible platform (have 'iOS', need 'iOS-simulator')` 闪退；`verify.sh` 会提前报缺切片。
+- 模拟器可以构建并运行 UI（终端 `xcodebuild -scheme UniAppX -destination 'platform=iOS Simulator,name=...'`），模拟器使用 ad-hoc 签名、不需要 Team。相机与端侧检测仍以真机为准。
 - 不直接运行 `sync-resources.sh` 作为日常入口；统一运行 `prepare-xcode.sh`，确保“导出、同步、插件按需重编、校验”是一条完整链路。

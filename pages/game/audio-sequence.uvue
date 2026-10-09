@@ -15,16 +15,16 @@
         <view v-else class="play-area">
           <view class="target-display" :class="phase == 'target' ? 'target-active' : ''">
             <text class="music">{{ phase == 'target' ? '♫' : phase == 'error' ? '!' : '✓' }}</text>
-            <view class="target-copy"><text class="state">{{ stateLabel }}</text><text class="hint">{{ phase == 'target' ? '第 ' + (targetPlayed + 1) + ' / 2 次' : phase == 'error' ? '本轮不计分，请重新训练' : '点音乐键试听，点“选这个”作答' }}</text></view>
+            <view class="target-copy"><text class="state">{{ stateLabel }}</text><text class="hint">{{ phase == 'target' ? '第 ' + (targetPlayed + 1) + ' / 2 次' : phase == 'error' ? '本轮不计分，请重新训练' : '点整条试听，听过才能选' }}</text></view>
           </view>
           <view v-if="phase == 'target'" class="waiting">
             <image class="melody-decoration tap-content" src="/static/images/runtime/backgrounds/audio-melody-staff.svg" mode="aspectFit"></image>
           </view>
           <view v-if="phase == 'choices' || phase == 'feedback'" class="options">
-            <view v-for="(sound, index) in options" :key="sound.id" class="option" :class="phase == 'feedback' && sound.id == target.id ? 'option-correct' : ''">
-              <button class="listen" :class="[padClass(index), previewIndex == index ? 'listening' : '']" :disabled="phase != 'choices'" @click="preview(index)">{{ previewIndex == index ? '♫' : '♪' }}</button>
-              <view class="option-copy"><text class="option-name">声音 {{ index + 1 }}</text><text v-if="previewIndex == index" class="option-hint">正在试听</text></view>
-              <button class="choose" :disabled="phase != 'choices'" @click="choose(index)">{{ phase == 'feedback' && sound.id == target.id ? '✓' : '选这个' }}</button>
+            <view v-for="(sound, index) in options" :key="sound.id" class="option" :class="phase == 'feedback' && sound.id == target.id ? 'option-correct' : ''" @click="preview(index)">
+              <view class="listen" :class="[padClass(index), previewIndex == index ? 'listening' : '']">{{ previewIndex == index ? '♫' : '♪' }}</view>
+              <view class="option-copy"><text class="option-name">声音 {{ index + 1 }}</text><text v-if="previewIndex == index" class="option-hint">正在试听</text><text v-else-if="listened.indexOf(index) < 0" class="option-hint">点一下试听</text></view>
+              <button v-if="showChoose(index)" class="choose" :disabled="phase != 'choices'" @click.stop="choose(index)">{{ phase == 'feedback' && sound.id == target.id ? '✓' : '选这个' }}</button>
             </view>
           </view>
           <text v-if="feedback != ''" class="feedback">{{ feedback }}</text>
@@ -49,6 +49,8 @@ const trainingPaused = training.paused, trainingBusy = training.navigating
 const trial = ref(false)
 const started = ref(false), phase = ref('ready'), level = ref(1)
 const roundIndex = ref(0), correct = ref(0), errors = ref(0), targetPlayed = ref(0), previewIndex = ref(-1)
+// 本轮已经点过试听的选项下标：没听过的选项不展示「选这个」。
+const listened = ref([] as number[])
 const target = ref<MatchSound>({ id: 'i0-p0-r0', instrument: 0, pitch: 0, rhythm: 0 }), options = ref([] as MatchSound[])
 const feedback = ref(''), reactions = [] as number[]
 const remainingTargets = matchSounds()
@@ -58,6 +60,12 @@ const displayRound = computed((): number => Math.min(8, roundIndex.value + 1))
 const progressWidth = computed((): string => roundIndex.value / 8 * 100 + '%')
 const stateLabel = computed((): string => phase.value == 'target' ? '先听目标声音' : phase.value == 'error' ? '声音没有播放成功' : '目标已播放完')
 function padClass(index: number): string { return ['pink', 'blue', 'green', 'yellow', 'purple'][index] }
+// 「选这个」只在听过那一条之后出现；反馈阶段只保留正确答案的 ✓。
+function showChoose(index: number): boolean {
+  if (index < 0 || index >= options.value.length) return false
+  if (phase.value == 'feedback') return options.value[index].id == target.value.id
+  return phase.value == 'choices' && listened.value.indexOf(index) >= 0
+}
 function stopAudio() {
   playbackToken += 1
   if (watchdog > 0) trainingClock.clearTimeout(watchdog)
@@ -100,7 +108,7 @@ function prepareRound() {
   if (trial.value) {
     target.value = { id: 'i0-p0-r0', instrument: 0, pitch: 0, rhythm: 0 }
     options.value = audioMatchChoices(target.value, 1)
-    targetPlayed.value = 0; feedback.value = ''; phase.value = 'target'; playSound(target.value, true, -1); return
+    targetPlayed.value = 0; feedback.value = ''; phase.value = 'target'; listened.value = [] as number[]; playSound(target.value, true, -1); return
   }
   if (roundIndex.value >= 8) { finish(); return }
   const index = Math.floor(Math.random() * remainingTargets.length)
@@ -108,6 +116,7 @@ function prepareRound() {
   remainingTargets.splice(index, 1)
   options.value = audioMatchChoices(target.value, level.value)
   targetPlayed.value = 0; feedback.value = ''; phase.value = 'target'
+  listened.value = [] as number[]
   playSound(target.value, true, -1)
 }
 function resetSession() {
@@ -125,6 +134,8 @@ function begin() {
 function retryAfterError() { if (trial.value) beginTrial(); else training.restart() }
 function preview(index: number) {
   if (trainingPaused.value || phase.value != 'choices' || index < 0 || index >= options.value.length) return
+  // 点整条就开始播；点过就算「听过」，这条的「选这个」随之出现。
+  if (listened.value.indexOf(index) < 0) listened.value.push(index)
   feedback.value = ''; playSound(options.value[index], false, index)
 }
 function choose(index: number) {
@@ -172,7 +183,7 @@ training.setStartedCheck((): boolean => started.value && !trial.value)
 .options { margin-top: 10px; }
 .option { flex-direction: row; align-items: center; margin-top: 8px; padding: 8px; border-radius: 21px; background-color: #ffffff; border-width: 2px; border-color: #ffffff; }
 .option-correct { border-color: #68bea0; }
-.listen { width: 50px; height: 48px; line-height: 46px; padding: 0; margin: 0; border-radius: 18px; border-width: 0; color: #ffffff; font-size: 30px; font-weight: 700; }
+.listen { width: 50px; height: 48px; border-radius: 18px; color: #ffffff; font-size: 30px; font-weight: 700; align-items: center; justify-content: center; }
 .pink { background-color: #d58dd9; }.blue { background-color: #70b2e9; }.green { background-color: #76bda1; }.yellow { background-color: #dbb366; }.purple { background-color: #9e91dd; }
 .listening { border-width: 3px; border-color: #ffffff; }
 .option-copy { flex: 1; padding-left: 10px; }

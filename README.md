@@ -25,6 +25,9 @@
 - 完整训练历史与本机数据清理
 - AI 游戏素材的候选、审核与发布结构
 - 森林寻宝、网格异同/记忆搜索、分类车站已统一使用审核通过的卡通对象素材
+- 法律与合规：设置页可打开《用户协议》《隐私政策》《儿童个人信息保护规则》《第三方信息共享清单》，正文用 `<web-view>` 直接加载线上 `zhuanzhuapp.com/legal/*`，不在包内维护副本；登录前必须主动勾选同意条款（不默认勾选）。该页顶部由 App 自绘，默认显示（标题 + 返回），导航带 `bar=0` 时整页只剩 web 内容（`openLegalDoc(id, true)`）
+- 账号自助：设置页「订阅管理」进会员页，账号页「注销账号」走 `POST /me/delete`（提交后 7 天删除，需家长验证）
+- 首页与星小屋的统计走服务端优先口径：今日时长/本周次数/能量/连续天数取 `/training/records/latest`（与本地记录去重合并），累计次数/累计时长/活跃天数取 `/reports/overview` 的 `allTime`；本地只做首帧渲染与离线兜底，缓存按账号隔离（见 `utils/training-stats.uts`）
 
 ## 运行方式
 
@@ -56,7 +59,9 @@ pages/
   result/       单次训练结果
   report/       五维成长报告
   history/      完整训练历史
+  membership/   会员订阅（StoreKit 购买、恢复购买、方案展示）
   settings/     档案与本地数据管理
+  legal/        法律文档 web 页（web-view 承载线上站点）
 static/         仅包含会进入安装包的运行资源
 utils/          年龄、游戏目录与本地存储
 docs/           产品结构与后续路线
@@ -91,3 +96,5 @@ iOS 已提供可直接打开的 Xcode 原生宿主。日常修改后执行 `ios/
 购买时先获取当前账号 appAccountToken。原生桥接按交易 ID 从 StoreKit 2 VerificationResult 读取 jwsRepresentation，作为 signedTransaction 验单；仅验单成功后 finishTransaction，再重新查询完整 VIP 状态。恢复购买使用同一链路，不结束其他账号或非白名单商品的交易。验单响应不是完整 status，不能用它覆盖商品与账号 token。
 
 本次增加了原生 Swift/UTS 桥接，须重新制作自定义基座并重新运行 iOS，热更新无效。Apple 沙盒购买/退款/续订仍需启用后端 APPLE_IAP_ENABLED、配置真实商品、证书及环境后真机验收。不要将客户端 jsonRepresentation 当作签名 JWS。
+
+用户协议第八节点名的两条路径已在客户端对齐：设置页「订阅管理」进会员页（会员状态、方案、恢复购买；关闭自动续费仍需到 App Store 的订阅管理中操作，会员页会写明），账号页「注销账号」调 `POST /me/delete`（家长验证 + 二次确认，提交后 7 天删除且不可撤销）。三份协议正文与第三方信息共享清单在设置页「法律与合规」用 `<web-view>` 打开线上页面，不在包内维护副本。

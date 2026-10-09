@@ -1,0 +1,70 @@
+<template>
+  <view class="page">
+    <!-- 顶部为应用自绘：默认显示（有标题与返回），传 bar=0 时整页只剩 web 内容 -->
+    <view v-if="showBar" class="topbar" :style="{ paddingTop: topInset + 'px' }">
+      <view class="back-button" @click="goBack"><text class="back-icon">‹</text></view>
+      <text class="top-title">{{ docTitle }}</text>
+      <view class="top-spacer"></view>
+    </view>
+    <web-view v-if="webViewReady" class="doc-view" :src="docUrl" @error="onWebViewError"></web-view>
+    <view v-else class="fallback">
+      <text class="fallback-title">{{ docTitle }}</text>
+      <text class="fallback-copy">网页暂时打不开，请检查网络后重试。</text>
+      <text class="fallback-url">{{ docUrl }}</text>
+      <button class="fallback-button" @click="retry">重新加载</button>
+    </view>
+  </view>
+</template>
+
+<script setup lang="uts">
+import { ref } from 'vue'
+import { onLoad } from '@dcloudio/uni-app'
+import { LEGAL_DOCS, legalDocTitle, legalDocUrl } from '../../utils/legal.uts'
+
+const topInset = Math.max(0, uni.getWindowInfo().statusBarHeight)
+const docId = ref(LEGAL_DOCS[0].id)
+const docTitle = ref('')
+const docUrl = ref('')
+const webViewReady = ref(false)
+// 默认展示 App 顶部（带标题与返回）；bar=0 时隐藏，让线上页面占满整屏。
+const showBar = ref(true)
+
+onLoad((options: UTSJSONObject) => {
+  const requested = options['doc']
+  docId.value = requested == null || requested == '' ? LEGAL_DOCS[0].id : requested as string
+  const bar = options['bar']
+  showBar.value = bar == null || bar == '' ? true : (bar as string) != '0'
+  docTitle.value = legalDocTitle(docId.value)
+  docUrl.value = legalDocUrl(docId.value)
+  webViewReady.value = true
+})
+
+function goBack() {
+  uni.navigateBack({ delta: 1, fail: () => uni.reLaunch({ url: '/pages/index/index' }) })
+}
+
+function retry() {
+  webViewReady.value = false
+  docUrl.value = legalDocUrl(docId.value)
+  webViewReady.value = true
+}
+
+function onWebViewError(_event: UniWebViewErrorEvent) {
+  webViewReady.value = false
+}
+</script>
+
+<style>
+.page { height: 100%; background-color: #f5f8fc; }
+.topbar { padding: 0 20px 6px; flex-direction: row; align-items: center; justify-content: space-between; background-color: #f5f8fc; }
+.back-button { width: 42px; height: 42px; border-radius: 21px; background-color: #ffffff; align-items: center; justify-content: center; }
+.back-icon { margin-top: -3px; color: #2c3850; font-size: 36px; font-weight: 300; }
+.top-title { color: #1f2a44; font-size: 18px; font-weight: 700; }
+.top-spacer { width: 42px; }
+.doc-view { flex: 1; }
+.fallback { padding: 40px 24px; align-items: center; }
+.fallback-title { color: #344059; font-size: 16px; font-weight: 700; }
+.fallback-copy { margin-top: 10px; color: #8992a4; font-size: 12px; text-align: center; }
+.fallback-url { margin-top: 14px; color: #5b8def; font-size: 11px; text-align: center; }
+.fallback-button { margin-top: 20px; height: 44px; line-height: 44px; padding: 0 22px; border-radius: 14px; background-color: #5b8def; color: #ffffff; font-size: 14px; font-weight: 600; }
+</style>

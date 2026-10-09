@@ -16,24 +16,24 @@ const root = path.resolve(__dirname, '..');
 const args = process.argv.slice(2);
 const opt = (name, def) => { const i = args.indexOf('--' + name); return i >= 0 ? args[i + 1] : def };
 const id = (opt('id', '') || '').toUpperCase();
-if (!/^SD2-\d{3}$/.test(id)) throw Error('usage: node tools/generate-story-pair.cjs --id SD2-0NN --chapter N');
+if (!/^SD2-\d{3}$/.test(id)) throw new Error('usage: node tools/generate-story-pair.cjs --id SD2-0NN --chapter N');
 const chapter = String(opt('chapter', '4')).padStart(2, '0');
 const base = (process.env.STORY_IMAGE_BASE || 'https://api.openai.com/v1').replace(/\/$/, '');
 const key = process.env.STORY_IMAGE_KEY;
-if (!key) throw Error('STORY_IMAGE_KEY is not set');
+if (!key) throw new Error('STORY_IMAGE_KEY is not set');
 const model = process.env.STORY_IMAGE_MODEL || 'gpt-image-1';
 const size = process.env.STORY_IMAGE_SIZE || '1536x1024';
 const dir = path.join(root, 'content/brand/spot-difference-story-v2', `chapter-${chapter}`);
 const promptFile = path.join(dir, `${id}-PROMPTS.md`);
-if (!fs.existsSync(promptFile)) throw Error('missing prompt file: ' + promptFile);
+if (!fs.existsSync(promptFile)) throw new Error('missing prompt file: ' + promptFile);
 const md = fs.readFileSync(promptFile, 'utf8');
 const section = name => {
   const m = md.match(new RegExp('## ' + name + '[\\s\\S]*?\\n([\\s\\S]*?)(?=\\n## |$)'));
-  if (!m) throw Error('prompt section not found in ' + promptFile + ': ' + name);
+  if (!m) throw new Error('prompt section not found in ' + promptFile + ': ' + name);
   return m[1].replace(/```\w*/g, '').trim();
 };
 const promptA = section('A 完整提示词'), promptB = section('B 完整提示词');
-if (!promptA || !promptB) throw Error('empty prompt section in ' + promptFile);
+if (!promptA || !promptB) throw new Error('empty prompt section in ' + promptFile);
 const stem = id.toLowerCase();
 const outA = path.join(dir, `${stem}-a.png`), outB = path.join(dir, `${stem}-b.png`);
 const ffmpeg = '/usr/local/bin/ffmpeg';
@@ -47,16 +47,16 @@ const save16x9 = (buf, file) => {
 };
 async function resultBuffer(data) {
   const item = (data.data || [])[0];
-  if (!item) throw Error('empty data in provider response');
+  if (!item) throw new Error('empty data in provider response');
   if (item.b64_json) return Buffer.from(item.b64_json, 'base64');
   if (item.url) return Buffer.from(await (await fetch(item.url)).arrayBuffer());
-  throw Error('provider returned neither b64_json nor url');
+  throw new Error('provider returned neither b64_json nor url');
 }
 async function post(url, body, json = true) {
   const headers = { Authorization: 'Bearer ' + key };
   if (json) headers['Content-Type'] = 'application/json';
   const res = await fetch(base + url, { method: 'POST', headers, body });
-  if (!res.ok) throw Error(url + ' -> HTTP ' + res.status + ' ' + (await res.text()).slice(0, 400));
+  if (!res.ok) throw new Error(url + ' -> HTTP ' + res.status + ' ' + (await res.text()).slice(0, 400));
   return res.json();
 }
 async function generateA() {
@@ -66,7 +66,7 @@ async function generateA() {
   console.log('A: saved ' + outA);
 }
 async function generateB() {
-  if (!fs.existsSync(outA)) throw Error('A file missing, run without --b-only first: ' + outA);
+  if (!fs.existsSync(outA)) throw new Error('A file missing, run without --b-only first: ' + outA);
   console.log('B: editing A with ' + model + ' ...');
   const form = new FormData();
   form.append('model', model);

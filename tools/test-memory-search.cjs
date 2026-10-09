@@ -313,7 +313,7 @@ function boardKey(tiles) { return tiles.map((tile) => tile.id).sort().join('|') 
   h.tick(700)
   const url = h.url()
   assert(url.includes('/pages/result/result?gameId=memory-search'), '失败进入结算：' + url)
-  assert(url.includes('dimensionId=divided'), '写入分配注意维度')
+  assert(url.includes('dimensionId=focused'), '写入主维度（catalog: memory-search = focused）')
   assert(url.includes('scoreVersion=goal-v2'))
   assert.equal(t.completedRounds.value, 0)
   assert.equal(t.foundTotal.value, 0)
@@ -497,8 +497,8 @@ function boardKey(tiles) { return tiles.map((tile) => tile.id).sort().join('|') 
   catch (error) { assert.fail('pages.json 解析失败：' + error.message) }
   assert(pages.includes('pages/game/memory-search'), 'pages.json 已注册 memory-search 路由')
   const catalog = fs.readFileSync(path.join(root, 'utils/catalog.uts'), 'utf8')
-  assert(catalog.includes("{ id: 'memory-search', dimensionId: 'divided', name: '记忆与搜索'"), 'catalog 条目与新页面一致（gameId/dimensionId 相同）')
-  assert(page.includes("gameId=memory-search&dimensionId=divided"), '页面写入的成绩使用 catalog 的 gameId 与维度')
+  assert(catalog.includes("{ id: 'memory-search', dimensionId: 'focused', name: '记忆与搜索'"), 'catalog 条目与新页面一致（gameId/dimensionId 相同）')
+  assert(page.includes("gameId=memory-search&dimensionId=focused"), '页面写入的成绩使用 catalog 的 gameId 与维度')
   // catalog 里出现的页面路由都必须已经在 pages.json 注册（避免再次出现指向不存在页面的路由）
   // 只认「单引号包裹、且以 /pages/ 开头」的字符串；否则注释里提到 /pages/ 也会被当成路由。
   for (const match of catalog.matchAll(/'(\/pages\/[^']*)'/g)) {

@@ -2,7 +2,7 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),asse
 const ts=require(process.env.TYPESCRIPT_PATH||'/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
 const root=path.resolve(__dirname,'..'),page=fs.readFileSync(path.join(root,'pages/game/audio-sequence.uvue'),'utf8');
 const source=fs.readFileSync(path.join(root,'utils/audio-match.uts'),'utf8').replace(/^export /gm,'')+'\n'+page.match(/<script setup lang="uts">([\s\S]*?)<\/script>/)[1].replace(/^import .*$/gm,'');
-const code=ts.transpile(source+'\nglobalThis.api={trial,beginTrial,training,phase,started,target,targetPlayed,options,correct,errors,roundIndex,reactions,begin,preview,choose,matchSounds,matchSoundPath,audioMatchChoices,getAudioMatchConfig,soundDifference}',{target:ts.ScriptTarget.ES2020});
+const code=ts.transpile(source+'\nglobalThis.api={trial,beginTrial,training,phase,started,target,targetPlayed,options,correct,errors,roundIndex,reactions,listened,showChoose,begin,preview,choose,matchSounds,matchSoundPath,audioMatchChoices,getAudioMatchConfig,soundDifference}',{target:ts.ScriptTarget.ES2020});
 function harness(level){let now=10000,id=0,url='',load,unload;const timers=new Map(),players=[];
  const ctx={ref:value=>({value}),computed:f=>({get value(){return f()}}),getGameDifficulty:()=>level,Math,Date:{now:()=>now},onLoad:f=>load=f,onHide:()=>{},onUnload:f=>unload=f,
  setTimeout:(f,ms)=>{timers.set(++id,{f,at:now+ms});return id},clearTimeout:id=>timers.delete(id),uni:{redirectTo:o=>url=o.url,createInnerAudioContext(){
@@ -37,6 +37,23 @@ for(let level=1;level<=10;level++){
  const x=harness(10),a=x.t;a.begin();x.last().ended();x.tick(450);x.last().ended();a.preview(0);x.last().error({});assert.equal(a.phase.value,'choices');a.preview(1);assert.equal(x.last().paused,false);a.training.pause();assert(x.last().paused);a.training.resume();assert.equal(x.last().paused,false);a.choose(a.options.value.findIndex(s=>s.id!==a.target.value.id));assert.equal(a.errors.value,1);x.unload();x.tick(10000);assert.equal(a.roundIndex.value,0);
 }
 assert(!page.includes('再听一次'));assert(!page.includes('function replay'));
+// 整条选项都是播放区；「选这个」只在听过那一条之后才出现。
+assert(/class="option"[^>]*@click="preview\(index\)"/.test(page),'选项整条都要能点击播放声音');
+assert(/<view class="listen"/.test(page),'试听图标不再是一个独立按钮，点击区是整条');
+assert(/@click\.stop="choose\(index\)"/.test(page),'「选这个」要 stop 冒泡，避免顺手又播一次');
+assert(/v-if="showChoose\(index\)"/.test(page),'「选这个」必须按是否听过显隐');
+assert(/function showChoose\(index: number\): boolean/.test(page) && /listened\.value\.indexOf\(index\) >= 0/.test(page),'没听过的选项不展示「选这个」');
+assert(page.includes('点整条试听'),'提示文案要说明整条可点、听过才能选');
+{
+ // 行为：进 choices 时没有任何已听选项；点过哪一条，哪一条才出现「选这个」
+ const h=harness(1),t=h.t;t.begin();
+ h.last().ended();h.tick(450);h.last().ended();assert.equal(t.phase.value,'choices');
+ assert.equal(t.listened.value.length,0,'还没试听时已听列表为空');
+ for(let i=0;i<t.options.value.length;i++)assert.equal(t.showChoose(i),false,'没听过的选项不展示「选这个」');
+ t.preview(1);assert.equal(t.showChoose(1),true,'听过的那条才展示「选这个」');
+ assert.equal(t.showChoose(0),false,'没听过的其它选项仍不展示');
+ h.unload();
+}
 assert(!page.includes('waiting-note'));assert(!page.includes('♪　♫　♪'),'target waiting area must not resemble option buttons');
 const decoration=page.match(/<image class="melody-decoration[^>]*>/)[0];
 assert(!decoration.includes('@'));assert(decoration.includes('tap-content'));

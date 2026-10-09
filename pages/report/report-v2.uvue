@@ -3,7 +3,7 @@
     <view class="hero">
       <view class="hero-copy">
         <text class="hero-kicker">成长报告</text>
-        <text class="hero-number">{{ overallAbility }}</text>
+        <view class="hero-score"><text class="hero-number">{{ overallAbility }}</text><text class="hero-max">/ 1000</text></view>
         <text class="hero-label">综合能力</text>
       </view>
       <view class="hero-side">
@@ -27,7 +27,7 @@
     <view v-else>
       <view class="section-heading">
         <text class="section-title">五维能力</text>
-        <text class="section-meta">{{ lessonCount }} 课</text>
+        <text class="section-meta">{{ lessonCount }} 课 · 满分 1000</text>
       </view>
       <view class="dimension-card">
         <view v-for="dimension in dimensionRows" :key="dimension.id" class="dimension-row">
@@ -75,6 +75,11 @@ type ScopeOption = { id: string, label: string }
 type DimensionRow = { id: string, name: string, color: string, thumbnail: string, score: number, trend: number }
 type GameRow = { gameId: string, name: string, thumbnail: string, trained: boolean, difficulty: number, ability: number, subtitle: string }
 
+// 成长报告用 1000 分制展示：接口仍返回 0—100 的能力分，这里 ×10 再显示，
+// 免得初期只有十几分时看起来像不及格（服务端口径不变，只改展示）。
+const REPORT_MAX_SCORE = 1000
+function toReportScore(value: number): number { return Math.max(0, Math.min(REPORT_MAX_SCORE, Math.round(value * 10))) }
+
 const scopeOptions: ScopeOption[] = [
   { id: 'last30', label: '近30课' },
   { id: 'last14', label: '近14课' },
@@ -98,7 +103,7 @@ function trendText(value: number): string {
   if (value < -0.4) return '继续加油'
   return '稳定'
 }
-function signedScore(value: number): string { return value > 0 ? '+' + Math.round(value).toString() : Math.round(value).toString() }
+function signedScore(value: number): string { const scaled = Math.round(value * 10); return scaled > 0 ? '+' + scaled.toString() : scaled.toString() }
 function updateTrendText() {
   if (lessonCount.value == 0) overallTrendText.value = '开始积累成长'
   else if (overallTrend.value > 0.4) overallTrendText.value = '比上一阶段 ' + signedScore(overallTrend.value)
@@ -120,7 +125,7 @@ function applyScope(scopeId: string) {
   }
   lessonCount.value = numberValue(scope!['lessonCount'], 0)
   const overall = scope!['overall'] == null ? {} : JSON.parse<UTSJSONObject>(JSON.stringify(scope!['overall']))!
-  overallAbility.value = Math.round(numberValue(overall['abilityScore'], 0))
+  overallAbility.value = toReportScore(numberValue(overall['abilityScore'], 0))
   overallTrend.value = numberValue(overall['trend'], 0)
   updateTrendText()
 
@@ -134,7 +139,7 @@ function applyScope(scopeId: string) {
       name: catalog.name,
       color: catalog.color,
       thumbnail: catalog.thumbnail,
-      score: report == null ? 0 : Math.round(numberValue(report!['abilityScore'], 0)),
+      score: report == null ? 0 : toReportScore(numberValue(report!['abilityScore'], 0)),
       trend: report == null ? 0 : numberValue(report!['trend'], 0)
     })
   }
@@ -146,14 +151,14 @@ function applyScope(scopeId: string) {
     const raw = rawGames[i]
     const gameId = raw['gameId'] as string
     const trained = raw['trained'] == null ? false : raw['trained'] as boolean
-    const ability = Math.round(numberValue(raw['abilityScore'], 0))
+    const ability = toReportScore(numberValue(raw['abilityScore'], 0))
     const difficulty = Math.round(numberValue(raw['currentDifficulty'], 1))
     const recent = Math.round(numberValue(raw['recentAverageScore'], 0))
     const trend = numberValue(raw['trend'], 0)
     let subtitle = '待探索'
     if (trained) {
       subtitle = '近期 ' + recent.toString() + ' 分'
-      if (Math.abs(trend) > 0.4) subtitle += trend > 0 ? ' · 成长 +' + Math.round(trend).toString() : ' · 继续积累'
+      if (Math.abs(trend) > 0.4) subtitle += trend > 0 ? ' · 成长 +' + Math.round(trend * 10).toString() : ' · 继续积累'
     }
     nextGames.push({ gameId: gameId, name: getGameName(gameId), thumbnail: getGameThumbnail(gameId), trained: trained, difficulty: difficulty, ability: ability, subtitle: subtitle })
   }
@@ -181,7 +186,7 @@ onShow(() => {
 })
 
 function selectScope(scopeId: string) { applyScope(scopeId) }
-function abilityWidth(score: number): string { return Math.max(0, Math.min(100, score)).toString() + '%' }
+function abilityWidth(score: number): string { return Math.max(0, Math.min(100, score / REPORT_MAX_SCORE * 100)).toString() + '%' }
 function openHistory() { uni.navigateTo({ url: '/pages/history/history-v2' }) }
 </script>
 
@@ -191,6 +196,8 @@ function openHistory() { uni.navigateTo({ url: '/pages/history/history-v2' }) }
 .hero-copy { flex: 1; }
 .hero-kicker { color: #dce7ff; font-size: 13px; }
 .hero-number { margin-top: 3px; color: #ffffff; font-size: 43px; font-weight: 700; }
+.hero-score { flex-direction: row; align-items: flex-end; }
+.hero-max { margin: 0 0 7px 6px; color: #dfe8ff; font-size: 14px; font-weight: 700; }
 .hero-label { color: #eef3ff; font-size: 12px; }
 .hero-side { width: 126px; align-items: center; }
 .hero-image { width: 94px; height: 99px; }
@@ -216,7 +223,7 @@ function openHistory() { uni.navigateTo({ url: '/pages/history/history-v2' }) }
 .dimension-trend { color: #8c98aa; font-size: 10px; }
 .dimension-track { height: 9px; border-radius: 5px; background-color: #edf1f7; overflow: hidden; }
 .dimension-fill { height: 9px; border-radius: 5px; }
-.dimension-score { margin-left: 10px; width: 30px; color: #52617a; font-size: 14px; font-weight: 700; text-align: right; }
+.dimension-score { margin-left: 10px; width: 46px; color: #52617a; font-size: 14px; font-weight: 700; text-align: right; }
 .game-list { padding: 2px 15px; }
 .game-card { min-height: 94px; padding: 11px 0; border-bottom: 1px solid #edf1f7; flex-direction: row; align-items: center; }
 .game-image { width: 61px; height: 61px; border-radius: 16px; }

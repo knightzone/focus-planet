@@ -30,8 +30,9 @@
 
 <script setup lang="uts">
 import { ref } from 'vue'
-import { onLoad } from '@dcloudio/uni-app'
+import { onLoad, onShow } from '@dcloudio/uni-app'
 import { DIMENSIONS, gamesForDimension, getGameThumbnail, TrainingGame } from '../../utils/catalog.uts'
+import { resumeMembership } from '../../utils/membership.uts'
 
 const visibleDimensions = ref(DIMENSIONS)
 const pageTitle = ref('五维专注力')
@@ -46,6 +47,8 @@ onLoad((options: UTSJSONObject) => {
   visibleDimensions.value = [exists]
   pageTitle.value = exists.name
 })
+// 训练列表是会员限制的入口之一，回到本页时刷一次会员状态（节流在 resumeMembership 内部）。
+onShow(() => resumeMembership())
 function openGame(id: string) { uni.navigateTo({ url: '/pages/dimensions/game-showcase?gameId=' + id }) }
 </script>
 

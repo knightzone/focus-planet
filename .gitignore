@@ -16,6 +16,7 @@ ios/TemporarySampleFramework
 ios/CustomFrameworks
 ios/ExtAPI/DCloudUTSExtAPI.xcodeproj
 ios/.derived/
+ios/Plugins/unimoduleFocusFaceDetector.xcframework/
 ios/Plugins/unimoduleFocusFaceDetector.framework/
 ios/FocusPlanet/FocusPlanet/uni-app-x/apps/*
 !ios/FocusPlanet/FocusPlanet/uni-app-x/apps/.gitkeep

@@ -1,0 +1,277 @@
+// 星训练（首页）与星小屋的统计口径。
+//
+// 原则：能用服务端就用服务端 —— 换设备、重装、清掉本地缓存后数字仍然正确；
+// 本地记录只做首帧渲染和离线兜底。所有字段一律取「服务端与本地里更大的那个」，
+// 避免刚练完刷新时数字反而变小（服务端只会回最近 100 局，本地可能更多）。
+import { LOCAL_TEST_MODE } from './local-test.uts'
+import { getLocalDayKey, getRecords, TrainingRecord } from './storage.uts'
+import { reportStarCount } from './star-rating.uts'
+import { getOverviewReport, getRecentTrainingResults } from './server-api.uts'
+
+export type TrainingStats = {
+  todaySeconds: number,
+  weeklySessions: number,
+  stars: number,
+  streakDays: number,
+  totalSessions: number,
+  totalDurationSeconds: number,
+  activeDays: number,
+  source: string,
+  syncedAt: number
+}
+
+// 本地记录与服务端成绩都能映射进来的最小视图，保证两端口径一致。
+type StatRecord = {
+  score: number,
+  durationSeconds: number,
+  completedAt: number
+}
+
+const CACHE_KEY = 'focus_training_stats_v1_'
+// 展示用缓存；超过这个时间认为可以重新拉一次。
+const CACHE_TTL_MS = 30 * 60 * 1000
+// 连续失败时的重试间隔，避免每次 onShow 都打请求。
+const RETRY_INTERVAL_MS = 30 * 1000
+const ONE_DAY_MS = 24 * 60 * 60 * 1000
+const WEEK_DAYS = 7
+
+let refreshing = false
+let lastAttemptAt = 0
+
+function accountSuffix(): string {
+  if (LOCAL_TEST_MODE) return 'local-test'
+  const raw = uni.getStorageSync('focus_planet_auth_session')
+  if (raw == null || raw == '') return 'guest'
+  const session = JSON.parse<UTSJSONObject>(JSON.stringify(raw))!
+  const userId = session['userId']
+  return userId == null || userId == '' ? 'guest' : userId as string
+}
+
+function cacheKey(): string { return CACHE_KEY + accountSuffix() }
+
+function emptyStats(): TrainingStats {
+  return {
+    todaySeconds: 0, weeklySessions: 0, stars: 0, streakDays: 0,
+    totalSessions: 0, totalDurationSeconds: 0, activeDays: 0,
+    source: 'local', syncedAt: 0
+  }
+}
+
+function dayStartOf(timestamp: number): number {
+  const date = new Date(timestamp)
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
+}
+
+function toStatRecords(records: TrainingRecord[]): StatRecord[] {
+  const result = [] as StatRecord[]
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i]
+    const duration = record.durationSeconds == null ? 0 : record.durationSeconds!
+    result.push({ score: record.score, durationSeconds: Math.max(0, duration), completedAt: record.completedAt })
+  }
+  return result
+}
+
+// /training/records/latest 的 records：字段与 record_data 一致，这里只取统计需要的三项。
+export function parseTrainingRecords(data: UTSJSONObject): StatRecord[] {
+  const result = [] as StatRecord[]
+  const raw = data['records']
+  if (raw == null) return result
+  const records = JSON.parse<UTSJSONObject[]>(JSON.stringify(raw))!
+  for (let i = 0; i < records.length; i++) {
+    const value = records[i]
+    const score = value['score']
+    const completedAtRaw = value['clientCompletedAt']
+    if (score == null || completedAtRaw == null) continue
+    const completedAt = Date.parse(completedAtRaw as string)
+    if (!Number.isFinite(completedAt)) continue
+    const duration = value['durationSeconds']
+    result.push({
+      score: score as number,
+      durationSeconds: duration == null ? 0 : Math.max(0, duration as number),
+      completedAt: completedAt
+    })
+  }
+  return result
+}
+
+// 服务端与本地可能包含同一条成绩（本地先落盘、稍后补传），按完成时间 + 分数 + 时长去重。
+function unionRecords(serverRecords: StatRecord[], localRecords: StatRecord[]): StatRecord[] {
+  const keys = [] as string[]
+  const result = [] as StatRecord[]
+  const append = (record: StatRecord) => {
+    const key = record.completedAt.toString() + '|' + record.score.toString() + '|' + record.durationSeconds.toString()
+    if (keys.indexOf(key) >= 0) return
+    keys.push(key)
+    result.push(record)
+  }
+  for (let i = 0; i < localRecords.length; i++) append(localRecords[i])
+  for (let i = 0; i < serverRecords.length; i++) append(serverRecords[i])
+  return result
+}
+
+// 今日时长、本周次数、能量与连续天数：与 storage.uts 的 getWeeklyRecords / calculateStreak 同一口径
+// （本周 = 含今天在内的最近 7 天；连续天数从今天或昨天往前数）。
+function windowStats(records: StatRecord[], now: number): TrainingStats {
+  const stats = emptyStats()
+  if (records.length == 0) return stats
+  const todayKey = getLocalDayKey(now)
+  const weekStart = dayStartOf(now) - (WEEK_DAYS - 1) * ONE_DAY_MS
+  const uniqueDays = [] as number[]
+  for (let i = 0; i < records.length; i++) {
+    const record = records[i]
+    if (getLocalDayKey(record.completedAt) == todayKey) stats.todaySeconds += record.durationSeconds
+    if (record.completedAt >= weekStart) stats.weeklySessions += 1
+    stats.stars += reportStarCount(record.score)
+    const dayStart = dayStartOf(record.completedAt)
+    if (uniqueDays.indexOf(dayStart) < 0) uniqueDays.push(dayStart)
+  }
+  uniqueDays.sort((left: number, right: number): number => right - left)
+  const todayStart = dayStartOf(now)
+  if (uniqueDays[0] >= todayStart - ONE_DAY_MS) {
+    let streak = 1
+    for (let i = 1; i < uniqueDays.length; i++) {
+      if (Math.round((uniqueDays[i - 1] - uniqueDays[i]) / ONE_DAY_MS) == 1) streak += 1
+      else break
+    }
+    stats.streakDays = streak
+  }
+  return stats
+}
+
+function activeDaysOf(records: StatRecord[]): number {
+  const days = [] as string[]
+  for (let i = 0; i < records.length; i++) {
+    const key = getLocalDayKey(records[i].completedAt)
+    if (days.indexOf(key) < 0) days.push(key)
+  }
+  return days.length
+}
+
+function maxOf(left: number, right: number): number { return left > right ? left : right }
+
+// 逐字段取较大值：只在「服务端更低」时保留本地值，服务端更高时以服务端为准。
+function mergeHigher(base: TrainingStats, other: TrainingStats): TrainingStats {
+  return {
+    todaySeconds: maxOf(base.todaySeconds, other.todaySeconds),
+    weeklySessions: maxOf(base.weeklySessions, other.weeklySessions),
+    stars: maxOf(base.stars, other.stars),
+    streakDays: maxOf(base.streakDays, other.streakDays),
+    totalSessions: maxOf(base.totalSessions, other.totalSessions),
+    totalDurationSeconds: maxOf(base.totalDurationSeconds, other.totalDurationSeconds),
+    activeDays: maxOf(base.activeDays, other.activeDays),
+    source: base.source == 'server' || other.source == 'server' ? 'server' : 'local',
+    syncedAt: maxOf(base.syncedAt, other.syncedAt)
+  }
+}
+
+// 本地口径：完全按本机记录算，用于首帧渲染与离线兜底。
+export function localTrainingStats(now: number): TrainingStats {
+  const localRecords = toStatRecords(getRecords())
+  const stats = windowStats(localRecords, now)
+  stats.totalSessions = localRecords.length
+  stats.totalDurationSeconds = localRecords.reduce((total: number, item: StatRecord): number => total + item.durationSeconds, 0)
+  stats.activeDays = activeDaysOf(localRecords)
+  return stats
+}
+
+export function cachedTrainingStats(): TrainingStats | null {
+  if (LOCAL_TEST_MODE) return null
+  const raw = uni.getStorageSync(cacheKey())
+  if (raw == null || raw == '') return null
+  const cache = JSON.parse<UTSJSONObject>(JSON.stringify(raw))!
+  const savedAt = cache['savedAt']
+  if (savedAt == null || Date.now() - (savedAt as number) > CACHE_TTL_MS) {
+    uni.removeStorageSync(cacheKey())
+    return null
+  }
+  const data = cache['stats']
+  if (data == null) return null
+  return JSON.parse<TrainingStats>(JSON.stringify(data))
+}
+
+export function saveTrainingStats(stats: TrainingStats) {
+  if (LOCAL_TEST_MODE) return
+  if (accountSuffix() == 'guest') return
+  uni.setStorageSync(cacheKey(), { savedAt: Date.now(), stats: stats })
+}
+
+function currentBase(now: number): TrainingStats {
+  const local = localTrainingStats(now)
+  const cached = cachedTrainingStats()
+  return cached == null ? local : mergeHigher(local, cached!)
+}
+
+export function trainingStatsStale(): boolean { return cachedTrainingStats() == null }
+
+// 页面自己已经拿到 /training/records/latest 的响应时用这个，不再重复请求。
+// 今日/本周/能量/连续取「服务端成绩 ∪ 本地记录」；累计项维持现有值等待 /reports/overview。
+export function applyTrainingRecords(data: UTSJSONObject, now: number): TrainingStats {
+  const base = currentBase(now)
+  const server = windowStats(unionRecords(parseTrainingRecords(data), toStatRecords(getRecords())), now)
+  server.totalSessions = base.totalSessions
+  server.totalDurationSeconds = base.totalDurationSeconds
+  server.activeDays = base.activeDays
+  server.source = 'server'
+  server.syncedAt = now
+  return mergeHigher(base, server)
+}
+
+// /reports/overview 的 allTime 是服务端全量累计，跨设备也正确。
+export function applyTrainingOverview(data: UTSJSONObject, now: number): TrainingStats {
+  const base = currentBase(now)
+  const allTime = data['allTime']
+  if (allTime == null) return base
+  const summary = JSON.parse<UTSJSONObject>(JSON.stringify(allTime))!
+  const games = summary['completedGames']
+  const duration = summary['trainingDurationSeconds']
+  const days = summary['activeDays']
+  const server = emptyStats()
+  server.totalSessions = games == null ? 0 : games as number
+  server.totalDurationSeconds = duration == null ? 0 : duration as number
+  server.activeDays = days == null ? 0 : days as number
+  server.source = 'server'
+  server.syncedAt = now
+  return mergeHigher(base, server)
+}
+
+// 主动刷新：/training/records/latest（本地窗口口径的对照） + /reports/overview（全量累计）。
+// 并发去重 + 失败 30 秒内不重试；两个请求都失败才算失败，页面继续用缓存/本地值。
+export function refreshTrainingStats(success: (stats: TrainingStats) => void, failure: (message: string, code: string) => void) {
+  if (LOCAL_TEST_MODE) { failure('本地测试模式暂不连接服务器', 'LOCAL_TEST_MODE'); return }
+  if (accountSuffix() == 'guest') { failure('未登录', 'UNAUTHORIZED'); return }
+  const now = Date.now()
+  if (refreshing) return
+  if (lastAttemptAt > 0 && now - lastAttemptAt < RETRY_INTERVAL_MS) return
+  refreshing = true
+  lastAttemptAt = now
+  let pending = 2
+  let merged: TrainingStats | null = null
+  let lastError = ''
+  let lastCode = ''
+  const absorb = (stats: TrainingStats) => { merged = merged == null ? stats : mergeHigher(merged!, stats) }
+  const finish = () => {
+    pending -= 1
+    if (pending > 0) return
+    refreshing = false
+    if (merged == null) { failure(lastError == '' ? '暂时无法获取训练数据' : lastError, lastCode); return }
+    saveTrainingStats(merged!)
+    success(merged!)
+  }
+  getRecentTrainingResults(100, (data: UTSJSONObject) => {
+    absorb(applyTrainingRecords(data, Date.now()))
+    finish()
+  }, (message: string, code: string) => {
+    lastError = message
+    lastCode = code
+    finish()
+  })
+  getOverviewReport((data: UTSJSONObject) => {
+    absorb(applyTrainingOverview(data, Date.now()))
+    finish()
+  }, (message: string, code: string) => {
+    lastError = message
+    lastCode = code
+    finish()
+  })
+}

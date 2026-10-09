@@ -4,7 +4,7 @@ const root=path.resolve(__dirname,'..'),stage=path.join(root,'outputs/audio-revi
 fs.mkdirSync(stage,{recursive:true});
 const source=fs.readFileSync(path.join(root,'utils/training-feedback.uts'),'utf8');
 const lines=[...source.match(/FINISH_VOICE_LINES = \[([^\n]+)\]/)[1].matchAll(/'([^']+)'/g)].map(m=>m[1]);
-if(lines.length!==4)throw Error('Expected four settlement lines');
+if(lines.length!==4)throw new Error('Expected four settlement lines');
 const cli=process.env.EDGE_TTS_CLI||'/private/tmp/focus-natural-voice-env/bin/edge-tts';
 for(let i=0;i<lines.length;i++){
  const file=path.join(stage,'finish-'+(i+1)+'.mp3'),raw=path.join(stage,'raw-'+(i+1)+'.mp3');
@@ -13,7 +13,7 @@ for(let i=0;i<lines.length;i++){
  cp.execFileSync('/usr/local/bin/ffmpeg',['-v','error','-i',raw,'-af','loudnorm=I=-21:TP=-3:LRA=7','-ar','24000','-ac','1','-c:a','libmp3lame','-b:a','64k',file],{timeout:20000,stdio:'inherit'});
  }
  const duration=Number(cp.execFileSync('/usr/local/bin/ffprobe',['-v','error','-show_entries','format=duration','-of','default=noprint_wrappers=1:nokey=1',file],{encoding:'utf8'}));
- if(!(duration>1&&duration<11))throw Error('Invalid duration: '+file);
+ if(!(duration>1&&duration<11))throw new Error('Invalid duration: '+file);
  console.log('Validated '+path.basename(file)+' '+duration+'s');
 }
 if(process.argv.includes('--install')){

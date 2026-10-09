@@ -12,13 +12,14 @@ const h=harness(119);assert.equal(h.timers.size,0);h.change(120);assert.equal(h.
 const result=fs.readFileSync(path.join(root,'pages/result/result.uvue'),'utf8').split('</template>')[0];assert(!/\{\{\s*(score|accuracy|reaction)/.test(result));assert(!result.includes('100分'));assert(result.includes('v-if="!specialCelebration"'));
 const staticStars=read('components/ScoreStars.uvue');assert(!staticStars.includes('setInterval'));assert(!staticStars.includes('animation'));
 for(const p of ['pages/report/report-v2.uvue','pages/history/history-v2.uvue']){const s=read(p);assert(!s.includes('ResultCelebration'))}
+// 能量口径已收进 utils/training-stats.uts：首页与星小屋都只展示统一的 stats.stars，避免两边各算一套。
+const statsSource = fs.readFileSync(path.join(root,'utils/training-stats.uts'),'utf8');
+assert(statsSource.includes("import { reportStarCount } from './star-rating.uts'"), 'training-stats 必须用 reportStarCount');
+assert(/stats\.stars \+= reportStarCount\(record\.score\)/.test(statsSource), '能量必须是 0–6 报告星累加，不是原始分');
+assert.equal([0,19,20,40,60,80,90,99,100,120,200].reduce((total,score)=>total+a.reportStarCount(score),0), 38, '样本总分 38 颗星');
 for(const p of ['pages/index/index.uvue','pages/mine/mine.uvue']) {
  const s=fs.readFileSync(path.join(root,p),'utf8');
- assert(s.includes("import { reportStarCount } from '../../utils/star-rating.uts'"));
- const expression=s.match(/energy.value = (records.reduce\([^\n]+)/)[1];
- const context={records:[0,19,20,40,60,80,90,99,100,120,200].map(score=>({score})),reportStarCount:a.reportStarCount};
- const value=vm.runInNewContext(ts.transpile(expression,{target:ts.ScriptTarget.ES2020}),context);
- assert.equal(value,38,p+' energy uses 0–6 report stars, not raw score');
- context.records=[];assert.equal(vm.runInNewContext(ts.transpile(expression),context),0);
+ assert(/energy\.value = stats\.stars/.test(s), p+' 的能量必须来自 training-stats 的统一口径');
+ assert(!/energy\.value = records\.reduce/.test(s), p+' 不应再自己累加本地记录');
 }
 console.log('PASS: 0–5 reward stars, independent 100-point sixth report star, home/mine star energy parity, 120-point orbit; 5 bounded stars, background pause/unmount cleanup, reports static and scores retained');

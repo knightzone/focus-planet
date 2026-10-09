@@ -41,8 +41,8 @@
 		93EA3E6C2C784A0D00D811ED /* DCloudUniCanvas.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 93EA3E692C784A0500D811ED /* DCloudUniCanvas.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		B6F1FBCC2FC6A4C700053D64 /* SDWebImage.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 937BFD552E7E8DF0005019C5 /* SDWebImage.xcframework */; };
 		B6F1FBCD2FC6A4C700053D64 /* SDWebImage.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 937BFD552E7E8DF0005019C5 /* SDWebImage.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		F0C05FACE000000000000001 /* unimoduleFocusFaceDetector.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000003 /* unimoduleFocusFaceDetector.framework */; };
-		F0C05FACE000000000000002 /* unimoduleFocusFaceDetector.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000003 /* unimoduleFocusFaceDetector.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		F0C05FACE000000000000001 /* unimoduleFocusFaceDetector.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000003 /* unimoduleFocusFaceDetector.xcframework */; };
+		F0C05FACE000000000000002 /* unimoduleFocusFaceDetector.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000003 /* unimoduleFocusFaceDetector.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		F0C05FACE000000000000011 /* KSCrash.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000013 /* KSCrash.xcframework */; };
 		F0C05FACE000000000000012 /* KSCrash.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000013 /* KSCrash.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -56,7 +56,7 @@
 			files = (
 				F0C05FACE000000000000032 /* DCloudUniExtComponent.xcframework in Embed Frameworks */,
 				F0C05FACE000000000000012 /* KSCrash.xcframework in Embed Frameworks */,
-				F0C05FACE000000000000002 /* unimoduleFocusFaceDetector.framework in Embed Frameworks */,
+				F0C05FACE000000000000002 /* unimoduleFocusFaceDetector.xcframework in Embed Frameworks */,
 				9381A5462CDE1B9D002872E0 /* DCloudUniappRuntime.xcframework in Embed Frameworks */,
 				93EA3E6C2C784A0D00D811ED /* DCloudUniCanvas.xcframework in Embed Frameworks */,
 				93EA3E472C78423900D811ED /* DCloudUTSExtAPI.xcframework in Embed Frameworks */,
@@ -104,7 +104,7 @@
 		93EA3E3D2C78422D00D811ED /* DCloudUTSExtAPI.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DCloudUTSExtAPI.xcframework; path = ../CustomFrameworks/DCloudUTSExtAPI.xcframework; sourceTree = "<group>"; };
 		93EA3E692C784A0500D811ED /* DCloudUniCanvas.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DCloudUniCanvas.xcframework; path = ../SDK/Libs/DCloudUniCanvas.xcframework; sourceTree = "<group>"; };
 		B6884F953004C94400CCF307 /* FocusPlanet.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FocusPlanet.entitlements; sourceTree = "<group>"; };
-		F0C05FACE000000000000003 /* unimoduleFocusFaceDetector.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = unimoduleFocusFaceDetector.framework; path = ../Plugins/unimoduleFocusFaceDetector.framework; sourceTree = "<group>"; };
+		F0C05FACE000000000000003 /* unimoduleFocusFaceDetector.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = unimoduleFocusFaceDetector.xcframework; path = ../Plugins/unimoduleFocusFaceDetector.xcframework; sourceTree = "<group>"; };
 		F0C05FACE000000000000013 /* KSCrash.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = KSCrash.xcframework; path = ../SDK/Libs/KSCrash.xcframework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -115,7 +115,7 @@
 			files = (
 				F0C05FACE000000000000031 /* DCloudUniExtComponent.xcframework in Frameworks */,
 				F0C05FACE000000000000011 /* KSCrash.xcframework in Frameworks */,
-				F0C05FACE000000000000001 /* unimoduleFocusFaceDetector.framework in Frameworks */,
+				F0C05FACE000000000000001 /* unimoduleFocusFaceDetector.xcframework in Frameworks */,
 				930BFEBA2CE48A12006333FB /* DCloudDebugServe.xcframework in Frameworks */,
 				9381A5452CDE1B9D002872E0 /* DCloudUniappRuntime.xcframework in Frameworks */,
 				93EA3E462C78423800D811ED /* DCloudUTSExtAPI.xcframework in Frameworks */,
@@ -184,7 +184,7 @@
 			children = (
 				F0C05FACE000000000000033 /* DCloudUniExtComponent.xcframework */,
 				F0C05FACE000000000000013 /* KSCrash.xcframework */,
-				F0C05FACE000000000000003 /* unimoduleFocusFaceDetector.framework */,
+				F0C05FACE000000000000003 /* unimoduleFocusFaceDetector.xcframework */,
 				937BFD552E7E8DF0005019C5 /* SDWebImage.xcframework */,
 				930BFEB92CE48A11006333FB /* DCloudDebugServe.xcframework */,
 				9381A5432CDE1B93002872E0 /* DCloudUniappRuntime.xcframework */,

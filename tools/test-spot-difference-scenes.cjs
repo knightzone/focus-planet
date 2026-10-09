@@ -1,3 +1,4 @@
+const MEDIA = require('./media-tools.cjs')
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict'),cp=require('node:child_process');
 const root=path.resolve(__dirname,'..'),ts=require('/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
 const assets=['spot-difference-story','spot-difference-scenes','spot-difference-cycle','spot-difference-hitbox'].map(n=>fs.readFileSync(path.join(root,'utils/'+n+'.uts'),'utf8').replace(/^import .*$/gm,'').replace(/^export /gm,'')).join('\n');
@@ -5,7 +6,7 @@ const page=fs.readFileSync(path.join(root,'pages/game/spot-difference.uvue'),'ut
 const context={Math};vm.createContext(context);vm.runInContext(ts.transpile(assets+'\nglobalThis.api={differenceCandidates,differenceImage,differenceTargetCount}',{target:ts.ScriptTarget.ES2020}),context);const a=context.api;
 for(const level of [1,5,10]){
  const regions=a.differenceCandidates(level);assert.equal(regions.length,10);assert.equal(new Set(regions.map(r=>r.id)).size,10);
- const images=[false,true].map(alt=>cp.execFileSync('/usr/local/bin/ffmpeg',['-v','error','-i',path.join(root,a.differenceImage(level,alt)),'-f','rawvideo','-pix_fmt','rgb24','pipe:1'],{maxBuffer:4000000}));
+ const images=[false,true].map(alt=>cp.execFileSync(MEDIA.ffmpeg,['-v','error','-i',path.join(root,a.differenceImage(level,alt)),'-f','rawvideo','-pix_fmt','rgb24','pipe:1'],{maxBuffer:4000000}));
  for(const b of images)assert.equal(b.length,768*432*3);
  for(const r of regions){assert(r.x>=0&&r.y>=0&&r.x+r.w<=100&&r.y+r.h<=100);let changed=0,pixels=0;
   for(let y=Math.floor(r.y*4.32);y<Math.floor((r.y+r.h)*4.32);y++)for(let x=Math.floor(r.x*7.68);x<Math.floor((r.x+r.w)*7.68);x++){const i=(y*768+x)*3;pixels++;if(Math.abs(images[0][i]-images[1][i])+Math.abs(images[0][i+1]-images[1][i+1])+Math.abs(images[0][i+2]-images[1][i+2])>45)changed++}

@@ -1,3 +1,4 @@
+const MEDIA = require('./media-tools.cjs')
 const fs=require('fs'),path=require('path'),cp=require('child_process'),assert=require('assert/strict'),vm=require('vm');
 const root=path.resolve(__dirname,'..'),base=path.join(root,'content/brand/spot-difference-story-v2');
 let manifest;
@@ -14,7 +15,7 @@ for(const s of manifest.scenes){
  assert.equal(s.regionMethod,'manual-reviewed-local-composite');assert.equal(s.compositeScale,1);
  const actual=api.DIFFERENCE_SCENES.find(x=>x.id===s.id);
  assert.equal(JSON.stringify(actual.regions.map(r=>[r.x,r.y,r.w,r.h])),JSON.stringify(s.regions.map(r=>[r.x,r.y,r.w,r.h])),s.id+' game clipping must equal compositor bounds');
- const [a,b]=[s.imageA,s.imageB].map(file=>cp.execFileSync('/usr/local/bin/ffmpeg',['-v','error','-i',path.join(root,file),'-f','rawvideo','-pix_fmt','rgb24','pipe:1'],{maxBuffer:1100000}));
+ const [a,b]=[s.imageA,s.imageB].map(file=>cp.execFileSync(MEDIA.ffmpeg,['-v','error','-i',path.join(root,file),'-f','rawvideo','-pix_fmt','rgb24','pipe:1'],{maxBuffer:1100000}));
  assert.equal(a.length,768*432*3);assert.equal(b.length,a.length);
  const mask=new Uint8Array(768*432);
  for(const r of s.regions){let changed=0,pixels=0;
