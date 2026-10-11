@@ -1,4 +1,4 @@
-import { AppleStoreProductsResult, DetectFaceFrame, FaceFrameResult, FetchAppleStoreProducts } from '../interface.uts'
+import { AppleSignedTransactionResult, AppleStoreProductsResult, DetectFaceFrame, FaceFrameResult, FetchAppleSignedTransaction, FetchAppleStoreProducts } from '../interface.uts'
 
 export function openUpdateLink(url: string, completed: (success: boolean) => void) {
   FocusFaceDetectorNative.openUpdateLink(url, completed)
@@ -31,6 +31,10 @@ export const fetchAppleStoreProducts: FetchAppleStoreProducts = function (produc
 }
 
 // StoreKit's JSON representation is not a signed JWS. Read the verification result instead.
-export function fetchAppleSignedTransaction(transactionId: string, completed: (jws: string, error: string) => void) {
-  FocusFaceDetectorNative.fetchSignedTransaction(transactionId, completed)
+export const fetchAppleSignedTransaction: FetchAppleSignedTransaction = function (transactionId: string, productId: string, completed: (result: AppleSignedTransactionResult) => void) {
+  FocusFaceDetectorNative.fetchSignedTransaction(transactionId, productId, (json: string) => {
+    const value = JSON.parse<AppleSignedTransactionResult>(json)
+    if (value != null) { completed(value!); return }
+    completed({ jws: '', errorMessage: 'Apple 签名交易解析失败' })
+  })
 }

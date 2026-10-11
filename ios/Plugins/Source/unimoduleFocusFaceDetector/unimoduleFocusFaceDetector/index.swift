@@ -245,6 +245,46 @@ public class AppleStoreProductsResult : NSObject, UTSObject, Codable {
     }
 }
 public typealias FetchAppleStoreProducts = (_ productIds: [String], _ completed: @escaping (_ result: AppleStoreProductsResult) -> Void) -> Void
+@objc(UTSSDKModulesFocusFaceDetectorAppleSignedTransactionResult)
+@objcMembers
+public class AppleSignedTransactionResult : NSObject, UTSObject, Codable {
+    public var jws: String!
+    public var errorMessage: String!
+    public subscript(_ key: String) -> Any? {
+        get {
+            return utsSubscriptGetValue(key)
+        }
+        set {
+            switch(key){
+                case "jws":
+                    self.jws = try! utsSubscriptCheckValue(newValue)
+                case "errorMessage":
+                    self.errorMessage = try! utsSubscriptCheckValue(newValue)
+                default:
+                    break
+            }
+        }
+    }
+    public override init() {
+        super.init()
+    }
+    public init(_ obj: UTSJSONObject) {
+        self.jws = obj["jws"] as! String
+        self.errorMessage = obj["errorMessage"] as! String
+    }
+    enum CodingKeys: String, CodingKey { case jws; case errorMessage }
+    required public init(from decoder: Decoder) throws {
+        var container = try decoder.container(keyedBy: CodingKeys.self)
+        self.jws = try container.decode(String.self, forKey: .jws, decoder)
+        self.errorMessage = try container.decode(String.self, forKey: .errorMessage, decoder)
+    }
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(jws, forKey: .jws, encoder)
+        try container.encode(errorMessage, forKey: .errorMessage, encoder)
+    }
+}
+public typealias FetchAppleSignedTransaction = (_ transactionId: String, _ productId: String, _ completed: @escaping (_ result: AppleSignedTransactionResult) -> Void) -> Void
 public func openUpdateLink(_ url: String, _ completed: @escaping (_ success: Bool) -> Void) {
     FocusFaceDetectorNative.openUpdateLink(url, completed)
 }
@@ -284,8 +324,20 @@ completed(AppleStoreProductsResult(UTSJSONObject([
 ])))
 })
 }
-public func fetchAppleSignedTransaction(_ transactionId: String, _ completed: @escaping (_ jws: String, _ error: String) -> Void) {
-    FocusFaceDetectorNative.fetchSignedTransaction(transactionId, completed)
+public var fetchAppleSignedTransaction: FetchAppleSignedTransaction = {
+(_ transactionId: String, _ productId: String, _ completed: @escaping (_ result: AppleSignedTransactionResult) -> Void) -> Void in
+FocusFaceDetectorNative.fetchSignedTransaction(transactionId, productId, {
+(_ json: String) -> Void in
+var value = JSON.parse(json, AppleSignedTransactionResult.self)
+if (value != nil) {
+    completed(value!)
+    return
+}
+completed(AppleSignedTransactionResult(UTSJSONObject([
+    "jws": "",
+    "errorMessage": "Apple 签名交易解析失败"
+])))
+})
 }
 public func openUpdateLinkByJs(_ url: String, _ completed: UTSCallback) {
     return openUpdateLink(url, {
@@ -302,10 +354,10 @@ public func fetchAppleStoreProductsByJs(_ productIds: [String], _ completed: UTS
     completed(result)
     })
 }
-public func fetchAppleSignedTransactionByJs(_ transactionId: String, _ completed: UTSCallback) {
-    return fetchAppleSignedTransaction(transactionId, {
-    (jws: String, error: String) -> Void in
-    completed(jws, error)
+public func fetchAppleSignedTransactionByJs(_ transactionId: String, _ productId: String, _ completed: UTSCallback) -> Void {
+    return fetchAppleSignedTransaction(transactionId, productId, {
+    (result: AppleSignedTransactionResult) -> Void in
+    completed(result)
     })
 }
 @objc(UTSSDKModulesFocusFaceDetectorIndexSwift)
@@ -320,7 +372,7 @@ public class UTSSDKModulesFocusFaceDetectorIndexSwift : NSObject {
     public static func s_fetchAppleStoreProductsByJs(_ productIds: [String], _ completed: UTSCallback) -> Void {
         return fetchAppleStoreProductsByJs(productIds, completed)
     }
-    public static func s_fetchAppleSignedTransactionByJs(_ transactionId: String, _ completed: UTSCallback) {
-        return fetchAppleSignedTransactionByJs(transactionId, completed)
+    public static func s_fetchAppleSignedTransactionByJs(_ transactionId: String, _ productId: String, _ completed: UTSCallback) -> Void {
+        return fetchAppleSignedTransactionByJs(transactionId, productId, completed)
     }
 }

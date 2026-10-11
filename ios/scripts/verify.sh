@@ -16,6 +16,11 @@ command -v xcodebuild >/dev/null || { echo "Xcode command-line tools are missing
 [[ "$(plutil -extract 'uniapp-x.uniRuntimeVersion' raw -o - "$IOS_DIR/FocusPlanet/FocusPlanet/Info.plist" 2>/dev/null || true)" == "$EXPECTED_RUNTIME_VERSION" ]] || { echo "Info.plist runtime version must be $EXPECTED_RUNTIME_VERSION." >&2; exit 1; }
 plugin_framework="$IOS_DIR/Plugins/unimoduleFocusFaceDetector.xcframework"
 [[ -f "$plugin_framework/ios-arm64/unimoduleFocusFaceDetector.framework/unimoduleFocusFaceDetector" ]] || { echo "Missing face detector device slice; run build-plugin.sh." >&2; exit 1; }
+native_source="$IOS_DIR/../uni_modules/focus-face-detector/utssdk/app-ios/FocusFaceDetectorNative.swift"
+plugin_native_source="$IOS_DIR/Plugins/Source/unimoduleFocusFaceDetector/unimoduleFocusFaceDetector/FocusFaceDetectorNative.swift"
+plugin_binary="$plugin_framework/ios-arm64/unimoduleFocusFaceDetector.framework/unimoduleFocusFaceDetector"
+cmp -s "$native_source" "$plugin_native_source" || { echo "iOS native plugin source is not synchronized; run sync-resources.sh." >&2; exit 1; }
+[[ ! "$native_source" -nt "$plugin_binary" ]] || { echo "iOS native plugin binary is stale; run build-plugin.sh." >&2; exit 1; }
 if [[ -f "$plugin_framework/ios-arm64_x86_64-simulator/unimoduleFocusFaceDetector.framework/unimoduleFocusFaceDetector" ]]; then
   simulator_slice="$plugin_framework/ios-arm64_x86_64-simulator/unimoduleFocusFaceDetector.framework/unimoduleFocusFaceDetector"
 elif [[ -f "$plugin_framework/ios-arm64-simulator/unimoduleFocusFaceDetector.framework/unimoduleFocusFaceDetector" ]]; then

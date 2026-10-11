@@ -38,7 +38,9 @@ for source_root in "${source_roots[@]}"; do
   [[ -e "$source_root" ]] || continue
   if [[ -f "$source_root" ]]; then
     [[ "$source_root" -nt "$bundle_manifest" ]] && fail_stale
-  elif find "$source_root" -type f ! -name '.DS_Store' ! -name '._*' -newer "$bundle_manifest" -print -quit | grep -q .; then
+  elif find "$source_root" -type f ! -name '.DS_Store' ! -name '._*' \
+    ! -path "$PROJECT_ROOT/uni_modules/focus-face-detector/utssdk/app-ios/FocusFaceDetectorNative.swift" \
+    -newer "$bundle_manifest" -print -quit | grep -q .; then
     fail_stale
   fi
 done

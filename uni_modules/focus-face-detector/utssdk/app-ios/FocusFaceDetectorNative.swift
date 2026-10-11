@@ -5,27 +5,54 @@ import Vision
 import UIKit
 import StoreKit
 
+private final class SignedTransactionCompletion: @unchecked Sendable {
+    private let lock = NSLock()
+    private var delivered = false
+    private let callback: (String) -> Void
+
+    init(_ callback: @escaping (String) -> Void) {
+        self.callback = callback
+    }
+
+    func finish(_ jws: String, _ errorMessage: String, stage: String) {
+        lock.lock()
+        let shouldDeliver = !delivered
+        if shouldDeliver { delivered = true }
+        lock.unlock()
+        if !shouldDeliver {
+            NSLog("[vip-restore-native] ignored late result: %@", stage)
+            return
+        }
+        let value = ["jws": jws, "errorMessage": errorMessage]
+        let data = try? JSONSerialization.data(withJSONObject: value)
+        let json = data.flatMap { String(data: $0, encoding: .utf8) } ?? "{\"jws\":\"\",\"errorMessage\":\"Apple 签名交易序列化失败\"}"
+        NSLog("[vip-restore-native] callback: %@", stage)
+        DispatchQueue.main.async { self.callback(json) }
+    }
+}
+
 public class FocusFaceDetectorNative {
     /// Read Apple's signed verification result, never reconstruct a JWS from client JSON.
     @available(iOS 15.0, *)
-    public static func fetchSignedTransaction(_ transactionId: String, _ completed: @escaping (String, String) -> Void) {
+    public static func fetchSignedTransaction(_ transactionId: String, _ productId: String, _ completed: @escaping (String) -> Void) {
+        NSLog("[vip-restore-native] bridge entered; product configured: %@", productId.isEmpty ? "no" : "yes")
+        let delivery = SignedTransactionCompletion(completed)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 25) {
+            delivery.finish("", "Apple 交易查询超过 25 秒；请检查 App Store 网络或测试账号后重试", stage: "StoreKit timeout")
+        }
         Task {
-            for await result in Transaction.all {
-                switch result {
-                case .verified(let transaction):
-                    if String(transaction.id) == transactionId {
-                        let jws = result.jwsRepresentation
-                        await MainActor.run { completed(jws, "") }
-                        return
-                    }
-                case .unverified(let transaction, _):
-                    if String(transaction.id) == transactionId {
-                        await MainActor.run { completed("", "Apple 交易签名未通过本机校验，请恢复购买后重试") }
-                        return
-                    }
-                }
+            NSLog("[vip-restore-native] StoreKit latest query started")
+            guard let result = await Transaction.latest(for: productId) else {
+                delivery.finish("", "Apple 未找到此商品的签名交易，请核对购买时的 Apple ID", stage: "no transaction")
+                return
             }
-            await MainActor.run { completed("", "未找到 Apple 签名交易，请恢复购买后重试") }
+            switch result {
+            case .verified(let transaction):
+                NSLog("[vip-restore-native] signed transaction found; same ID: %@", String(transaction.id) == transactionId ? "yes" : "no")
+                delivery.finish(result.jwsRepresentation, "", stage: "signed transaction")
+            case .unverified(_, _):
+                delivery.finish("", "Apple 交易签名未通过本机校验，请稍后重试", stage: "unverified transaction")
+            }
         }
     }
 

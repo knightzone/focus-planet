@@ -1,4 +1,4 @@
-import { AppleStoreProductsResult, DetectFaceFrame, FaceFrameResult, FetchAppleStoreProducts } from './interface.uts'
+import { AppleSignedTransactionResult, AppleStoreProductsResult, DetectFaceFrame, FaceFrameResult, FetchAppleSignedTransaction, FetchAppleStoreProducts } from './interface.uts'
 
 export const detectFaceFrame: DetectFaceFrame = function (_rgba: ArrayBuffer, _width: number, _height: number): FaceFrameResult {
   return {
@@ -18,4 +18,8 @@ export const detectFaceFrame: DetectFaceFrame = function (_rgba: ArrayBuffer, _w
 
 export const fetchAppleStoreProducts: FetchAppleStoreProducts = function (_productIds: string[], completed: (result: AppleStoreProductsResult) => void) {
   completed({ success: false, products: [], errorMessage: '请在 iPhone 上读取 App Store 商品信息' })
+}
+
+export const fetchAppleSignedTransaction: FetchAppleSignedTransaction = function (_transactionId: string, _productId: string, completed: (result: AppleSignedTransactionResult) => void) {
+  completed({ jws: '', errorMessage: '请在 iPhone 上读取 Apple 签名交易' })
 }

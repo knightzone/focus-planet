@@ -37,3 +37,10 @@ export type AppleStoreProductsResult = {
 }
 
 export type FetchAppleStoreProducts = (productIds: string[], completed: (result: AppleStoreProductsResult) => void) => void
+
+export type AppleSignedTransactionResult = {
+  jws: string,
+  errorMessage: string
+}
+
+export type FetchAppleSignedTransaction = (transactionId: string, productId: string, completed: (result: AppleSignedTransactionResult) => void) => void

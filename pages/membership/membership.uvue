@@ -14,7 +14,7 @@
         <view class="plan-side"><text class="plan-price" :class="plan.available ? '' : 'plan-price-off'">{{ plan.available ? plan.displayPrice : '暂不可购买' }}</text></view>
       </view>
       <view class="benefits"><text class="benefit">✓ 专注力小游戏畅玩</text><text class="benefit">✓ 成长报告与训练记录</text></view>
-      <button class="subscribe-button" :disabled="paying || loading || !ready || selectedId == ''" @click="purchase">{{ paying ? '正在处理…' : loading ? '正在加载…' : '开通会员' }}</button>
+      <button class="subscribe-button" :disabled="paying || purchaseUncertain || loading || !ready || selectedId == ''" @click="purchase">{{ paying ? '正在处理…' : purchaseUncertain ? '请先恢复购买' : loading ? '正在加载…' : '开通会员' }}</button>
       <text class="purchase-note">{{ renewalText() }}</text>
     </view>
     <text v-if="message != ''" class="product-message">{{ message }}</text>
@@ -30,25 +30,94 @@ import { onShow, onUnload } from '@dcloudio/uni-app'
 import { MembershipState, VipProduct, cachedMembership, refreshMembership } from '../../utils/membership.uts'
 import { verifyAppleTransaction } from '../../utils/server-api.uts'
 import { getAuthSession, requireLogin } from '../../utils/auth.uts'
-import { fetchAppleStoreProducts } from '@/uni_modules/focus-face-detector'
-import { AppleStoreProduct, AppleStoreProductsResult } from '../../uni_modules/focus-face-detector/utssdk/interface.uts'
-// #ifdef APP-IOS
-import { fetchAppleSignedTransaction } from '../../uni_modules/focus-face-detector/utssdk/app-ios/index.uts'
-// #endif
+import { fetchAppleSignedTransaction, fetchAppleStoreProducts } from '@/uni_modules/focus-face-detector'
+import { AppleSignedTransactionResult, AppleStoreProduct, AppleStoreProductsResult } from '../../uni_modules/focus-face-detector/utssdk/interface.uts'
 
 type Plan = { productId: string, name: string, type: string, displayPrice: string, note: string, hint: string, available: boolean }
 const membership = ref(cachedMembership())
 const plans = ref([] as Plan[])
 const selectedId = ref('')
 const paying = ref(false)
+const purchaseUncertain = ref(false)
 const loading = ref(false)
 const ready = ref(false)
 const message = ref('')
 let serial = 0
+let restoreAttempt = 0
+let restoreTimer = 0
+let restorePhase = ''
+let restoreTransactionCount = -1
+let restoreSignedCount = 0
+let restoreFailureMessage = ''
+let purchaseTimer = 0
+let purchasePhase = ''
 
 function userId(): string { const session = getAuthSession(); return session == null ? '' : session!.userId }
 onShow(() => { if (!paying.value) reload() })
-onUnload(() => { serial += 1 })
+onUnload(() => {
+  serial += 1
+  restoreAttempt += 1
+  if (restoreTimer != 0) clearTimeout(restoreTimer)
+  restoreTimer = 0
+  if (purchaseTimer != 0) clearTimeout(purchaseTimer)
+  purchaseTimer = 0
+})
+
+function updatePurchasePhase(phase: string) {
+  purchasePhase = phase
+  message.value = phase
+  console.log('[vip-purchase] ' + phase)
+}
+
+function clearPurchaseTimer() {
+  if (purchaseTimer != 0) clearTimeout(purchaseTimer)
+  purchaseTimer = 0
+}
+
+function beginPurchaseWatchdog() {
+  clearPurchaseTimer()
+  purchaseUncertain.value = false
+  updatePurchasePhase('正在确认会员账号…')
+  purchaseTimer = setTimeout(() => {
+    purchaseTimer = 0
+    paying.value = false
+    purchaseUncertain.value = true
+    message.value = '购买状态尚未确认（停在「' + purchasePhase + '」），请勿再次付款，稍后使用恢复购买'
+    console.log('[vip-purchase] timeout: ' + purchasePhase)
+  }, 90000)
+}
+
+function updateRestorePhase(attempt: number, phase: string) {
+  if (attempt != restoreAttempt) return
+  restorePhase = phase
+  message.value = phase
+  console.log('[vip-restore] ' + phase)
+}
+
+function finishRestoreAttempt(attempt: number): boolean {
+  if (attempt != restoreAttempt) return false
+  if (restoreTimer != 0) clearTimeout(restoreTimer)
+  restoreTimer = 0
+  restoreAttempt += 1
+  paying.value = false
+  return true
+}
+
+function beginRestoreAttempt(): number {
+  restoreAttempt += 1
+  const attempt = restoreAttempt
+  restoreTransactionCount = -1
+  restoreSignedCount = 0
+  restoreFailureMessage = ''
+  updateRestorePhase(attempt, '正在确认会员账号…')
+  restoreTimer = setTimeout(() => {
+    if (!finishRestoreAttempt(attempt)) return
+    if (restoreTransactionCount > 0) purchaseUncertain.value = true
+    message.value = '恢复购买在「' + restorePhase + '」超时，请稍后重试；无需再次购买'
+    console.log('[vip-restore] timeout: ' + restorePhase)
+  }, 90000)
+  return attempt
+}
 
 function reload() {
   if (paying.value) return
@@ -70,6 +139,7 @@ function reload() {
   refreshMembership((state: MembershipState) => {
     if (request != serial || userId() != account) return
     membership.value = state
+    if (state.active) purchaseUncertain.value = false
     if (state.appAccountToken == '' || state.products.length == 0) {
       loading.value = false
       message.value = '会员商品暂未配置，请稍后重试'
@@ -168,49 +238,136 @@ function renewalText(): string {
 }
 
 // #ifdef APP-IOS
-function verifyTransaction(transaction: AppleIAPTransactionOptions, account: string, done: (ok: boolean) => void) {
+function verifyTransaction(transaction: AppleIAPTransactionOptions, account: string, done: (ok: boolean) => void, restoreRun: number = 0) {
+  if (restoreRun > 0 && restoreRun != restoreAttempt) return
   if (userId() != account) { message.value = '登录账号已变更，请切回购买账号恢复购买'; done(false); return }
-  fetchAppleSignedTransaction(transaction.transactionIdentifier, (jws: string, error: string) => {
+  if (restoreRun == 0) updatePurchasePhase('Apple 已返回交易，正在读取签名…')
+  console.log('[vip-bridge] before signed lookup from transaction')
+  fetchAppleSignedTransaction(transaction.transactionIdentifier, transaction.productId, (result: AppleSignedTransactionResult) => {
+    console.log('[vip-bridge] signed lookup callback from transaction; hasJws=' + (result.jws != '').toString())
+    if (restoreRun > 0 && restoreRun != restoreAttempt) return
     if (userId() != account) { message.value = '登录账号已变更'; done(false); return }
-    if (jws == '') { message.value = error; done(false); return }
-    verifyAppleTransaction(jws, (_data: UTSJSONObject) => {
+    if (result.jws == '') { message.value = result.errorMessage; if (restoreRun > 0) restoreFailureMessage = result.errorMessage; done(false); return }
+    if (restoreRun > 0) restoreSignedCount += 1
+    if (restoreRun > 0) updateRestorePhase(restoreRun, '已找到 Apple 签名，正在服务端验单…')
+    else updatePurchasePhase('已找到 Apple 签名，正在服务端验单…')
+    verifyAppleTransaction(result.jws, (_data: UTSJSONObject) => {
+      if (restoreRun > 0 && restoreRun != restoreAttempt) return
       if (userId() != account) { message.value = '登录账号已变更'; done(false); return }
       // Verify returns only entitlement fields. Refresh status for the account token and products.
+      if (restoreRun > 0) updateRestorePhase(restoreRun, '服务端验单完成，正在结束交易…')
+      else updatePurchasePhase('服务端验单完成，正在结束交易…')
       uni.getVirtualPaymentManager().finishTransaction({
         transaction: transaction,
-        success: (_result) => done(true),
-        fail: (_error) => { message.value = '验单成功，交易结束待重试，请恢复购买'; done(false) }
+        success: (_result) => { if (restoreRun > 0 && restoreRun != restoreAttempt) return; done(true) },
+        fail: (_error) => { if (restoreRun > 0 && restoreRun != restoreAttempt) return; message.value = '验单成功，交易结束待重试，请恢复购买'; done(false) }
       })
-    }, (text: string, _code: string) => { message.value = text + '，请稍后恢复购买'; done(false) })
+    }, (text: string, code: string) => { if (restoreRun > 0 && restoreRun != restoreAttempt) return; console.log('[vip-restore] server verify failed code=' + code); message.value = text + '，请稍后恢复购买'; if (restoreRun > 0) restoreFailureMessage = message.value; done(false) })
+  })
+  console.log('[vip-bridge] after signed lookup from transaction')
+}
+
+function completeVerification(account: string, hadFailure: boolean, restoreRun: number = 0) {
+  if (restoreRun > 0 && restoreRun != restoreAttempt) return
+  if (userId() != account) {
+    if (restoreRun > 0) finishRestoreAttempt(restoreRun)
+    else { paying.value = false; clearPurchaseTimer(); purchaseUncertain.value = true }
+    message.value = '登录账号已变更，请切回购买账号恢复购买'
+    return
+  }
+  const priorError = hadFailure ? (restoreRun > 0 && restoreFailureMessage != '' ? restoreFailureMessage : message.value) : ''
+  if (restoreRun > 0) updateRestorePhase(restoreRun, '正在刷新会员权益…')
+  else updatePurchasePhase('正在刷新会员权益…')
+  refreshMembership((state: MembershipState) => {
+    if (restoreRun > 0) { if (!finishRestoreAttempt(restoreRun)) return }
+    else { paying.value = false; clearPurchaseTimer(); purchaseUncertain.value = !state.active }
+    membership.value = state
+    if (state.active) purchaseUncertain.value = false
+    if (restoreRun > 0) console.log('[vip-restore] status active=' + state.active.toString() + ' signed=' + restoreSignedCount.toString())
+    if (state.active) message.value = '会员权益已生效'
+    else if (hadFailure && priorError != '') message.value = priorError
+    else if (restoreRun > 0 && restoreTransactionCount == 0 && restoreSignedCount == 0) message.value = 'Apple 未返回可恢复的购买，请核对购买时使用的 Apple ID'
+    else if (restoreRun > 0 && restoreSignedCount > 0) message.value = 'Apple 交易已核验，但当前没有有效 VIP 权益'
+    else message.value = '交易已核验，当前没有有效 VIP 权益'
+  }, (text: string, _code: string) => {
+    if (restoreRun > 0) { if (!finishRestoreAttempt(restoreRun)) return }
+    else { paying.value = false; clearPurchaseTimer(); purchaseUncertain.value = true }
+    message.value = '会员状态刷新失败：' + text
   })
 }
 
-function completeVerification(account: string, hadFailure: boolean) {
-  if (userId() != account) { paying.value = false; return }
-  refreshMembership((state: MembershipState) => {
-    paying.value = false
-    membership.value = state
-    if (!hadFailure) message.value = state.active ? '会员权益已生效' : '交易已核验，当前没有有效 VIP 权益'
-  }, (text: string, _code: string) => { paying.value = false; message.value = '会员状态刷新失败：' + text })
-}
-
-function restoreNext(transactions: AppleIAPTransactionOptions[], index: number, account: string, hadFailure: boolean) {
-  if (userId() != account) { paying.value = false; message.value = '登录账号已变更'; return }
-  if (index >= transactions.length) { completeVerification(account, hadFailure); return }
+function restoreNext(transactions: AppleIAPTransactionOptions[], index: number, account: string, hadFailure: boolean, restoreRun: number) {
+  if (restoreRun != restoreAttempt) return
+  if (userId() != account) { finishRestoreAttempt(restoreRun); message.value = '登录账号已变更'; return }
+  if (index >= transactions.length) { completeVerification(account, hadFailure, restoreRun); return }
   const transaction = transactions[index]
   // Ignore unrelated products and never claim or finish another app account's transactions.
-  if (!membership.value.products.some((p: VipProduct): boolean => p.productId == transaction.productId)) { restoreNext(transactions, index + 1, account, hadFailure); return }
+  if (!membership.value.products.some((p: VipProduct): boolean => p.productId == transaction.productId)) { restoreNext(transactions, index + 1, account, hadFailure, restoreRun); return }
   if (transaction.appAccountToken == null || transaction.appAccountToken!.toLowerCase() != membership.value.appAccountToken.toLowerCase()) {
     message.value = '部分购买不属于当前账号，请登录原购买账号恢复'
-    restoreNext(transactions, index + 1, account, true)
+    restoreFailureMessage = message.value
+    restoreNext(transactions, index + 1, account, true, restoreRun)
     return
   }
-  verifyTransaction(transaction, account, (ok: boolean) => restoreNext(transactions, index + 1, account, hadFailure || !ok))
+  updateRestorePhase(restoreRun, '正在读取 Apple 交易签名…')
+  verifyTransaction(transaction, account, (ok: boolean) => restoreNext(transactions, index + 1, account, hadFailure || !ok, restoreRun), restoreRun)
+}
+
+function restoreFromStoreKit(products: VipProduct[], index: number, account: string, hadFailure: boolean, restoreRun: number) {
+  if (restoreRun != restoreAttempt) return
+  if (userId() != account) { finishRestoreAttempt(restoreRun); message.value = '登录账号已变更'; return }
+  if (index >= products.length) { completeVerification(account, hadFailure, restoreRun); return }
+  const product = products[index]
+  updateRestorePhase(restoreRun, '正在向 Apple 核对已购商品…')
+  console.log('[vip-bridge] before signed lookup from product')
+  fetchAppleSignedTransaction('', product.productId, (result: AppleSignedTransactionResult) => {
+    console.log('[vip-bridge] signed lookup callback from product; hasJws=' + (result.jws != '').toString())
+    if (restoreRun != restoreAttempt) return
+    if (result.jws == '') {
+      console.log('[vip-restore] StoreKit signed lookup: ' + result.errorMessage)
+      const lookupFailed = result.errorMessage.indexOf('未找到') < 0
+      if (lookupFailed) restoreFailureMessage = result.errorMessage
+      restoreFromStoreKit(products, index + 1, account, hadFailure || lookupFailed, restoreRun)
+      return
+    }
+    restoreSignedCount += 1
+    updateRestorePhase(restoreRun, '已找到 Apple 签名，正在服务端验单…')
+    verifyAppleTransaction(result.jws, (_data: UTSJSONObject) => {
+      if (restoreRun != restoreAttempt) return
+      console.log('[vip-restore] server verify accepted signed transaction')
+      restoreFromStoreKit(products, index + 1, account, hadFailure, restoreRun)
+    }, (text: string, code: string) => {
+      if (restoreRun != restoreAttempt) return
+      console.log('[vip-restore] server verify failed code=' + code)
+      message.value = text
+      restoreFailureMessage = text
+      restoreFromStoreKit(products, index + 1, account, true, restoreRun)
+    })
+  })
+  console.log('[vip-bridge] after signed lookup from product')
+}
+
+function restoreUnfinished(account: string, restoreRun: number) {
+  if (restoreRun != restoreAttempt) return
+  updateRestorePhase(restoreRun, '正在检查待完成的 Apple 交易…')
+  uni.getVirtualPaymentManager().getUnfinishedTransactions({
+    success: (result) => {
+      if (restoreRun != restoreAttempt) return
+      console.log('[vip-restore] unfinished transactions=' + result.transactions.length.toString())
+      if (result.transactions.length > 0) restoreNext(result.transactions, 0, account, false, restoreRun)
+      else restoreFromStoreKit(membership.value.products, 0, account, false, restoreRun)
+    },
+    fail: (error) => {
+      if (restoreRun != restoreAttempt) return
+      console.log('[vip-restore] unfinished lookup failed code=' + error.errCode.toString())
+      restoreFromStoreKit(membership.value.products, 0, account, false, restoreRun)
+    }
+  })
 }
 // #endif
 
 function purchase() {
-  if (paying.value || loading.value || !requireLogin()) return
+  if (paying.value || purchaseUncertain.value || loading.value || !requireLogin()) return
   if (!ready.value || selectedId.value == '') { reload(); return }
   // #ifndef APP-IOS
   message.value = '当前仅支持 iPhone 购买'
@@ -220,21 +377,23 @@ function purchase() {
   const account = userId()
   const product = selectedId.value
   paying.value = true
-  message.value = ''
+  beginPurchaseWatchdog()
   refreshMembership((state: MembershipState) => {
     membership.value = state
     if (userId() != account || state.appAccountToken == '' || !state.products.some((p: VipProduct): boolean => p.productId == product)) {
-      paying.value = false; ready.value = false; message.value = '账号或商品配置已变化，请刷新后重试'; return
+      paying.value = false; clearPurchaseTimer(); ready.value = false; message.value = '账号或商品配置已变化，请刷新后重试'; return
     }
+    updatePurchasePhase('正在等待 App Store 返回购买结果…')
     uni.requestVirtualPayment({
       apple: { productId: product, appAccountToken: state.appAccountToken, quantity: 1 },
       success: (result) => {
-        if (result.apple == null) { paying.value = false; message.value = '未获取到交易，请恢复购买'; return }
+        console.log('[vip-purchase] Apple purchase callback received')
+        if (result.apple == null) { paying.value = false; clearPurchaseTimer(); purchaseUncertain.value = true; message.value = '未获取到交易，请恢复购买，勿再次付款'; return }
         verifyTransaction(result.apple!, account, (ok: boolean) => completeVerification(account, !ok))
       },
-      fail: (error) => { paying.value = false; if (error.errCode != 700601) message.value = error.errMsg }
+      fail: (error) => { console.log('[vip-purchase] Apple purchase failed code=' + error.errCode.toString()); paying.value = false; clearPurchaseTimer(); if (error.errCode == 700601) { purchaseUncertain.value = false; message.value = '已取消购买' } else { purchaseUncertain.value = true; message.value = '购买状态未确认：' + error.errMsg + '。请先恢复购买，勿再次付款' } }
     })
-  }, (text: string, _code: string) => { paying.value = false; message.value = text })
+  }, (text: string, code: string) => { console.log('[vip-purchase] account check failed code=' + code); paying.value = false; clearPurchaseTimer(); message.value = text })
   // #endif
 }
 
@@ -248,13 +407,22 @@ function restore() {
   const account = userId()
   paying.value = true
   message.value = ''
+  const attempt = beginRestoreAttempt()
   refreshMembership((state: MembershipState) => {
+    if (attempt != restoreAttempt) return
     membership.value = state
+    updateRestorePhase(attempt, '正在向 App Store 查找已购项目…')
     uni.getVirtualPaymentManager().restoreTransactions({
-      success: (result) => restoreNext(result.transactions, 0, account, false),
-      fail: (error) => { paying.value = false; message.value = error.errMsg }
+      success: (result) => {
+        if (attempt != restoreAttempt) return
+        restoreTransactionCount = result.transactions.length
+        console.log('[vip-restore] Apple returned ' + restoreTransactionCount.toString() + ' transactions')
+        if (restoreTransactionCount == 0) restoreUnfinished(account, attempt)
+        else restoreNext(result.transactions, 0, account, false, attempt)
+      },
+      fail: (error) => { if (!finishRestoreAttempt(attempt)) return; message.value = error.errMsg }
     })
-  }, (text: string, _code: string) => { paying.value = false; message.value = text })
+  }, (text: string, _code: string) => { if (!finishRestoreAttempt(attempt)) return; message.value = text })
   // #endif
 }
 </script>
