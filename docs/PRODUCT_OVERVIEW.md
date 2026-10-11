@@ -1,161 +1,93 @@
 # 专注星伴：产品总览
 
-> 文档版本：V1.0 · 2026-09-04  
-> 当前阶段：跨平台 MVP，20 个训练可玩，陪伴与端侧观察进入真机验证
+> 当前产品快照：2026-09-29。以运行工程中的 `utils/catalog.uts`、`utils/course-plan.uts`、`pages.json` 和实际页面为准；旧版构想以历史文档保留，不代表现行功能。
 
 ![专注星伴 App Icon](../content/brand/app-icon/focus-planet-app-icon-512-v1.png)
 
-## 1. 产品定义
+## 产品定位与边界
 
-专注星伴是一款面向 3–16 岁儿童与学生的专注力训练与健康学习陪伴应用。产品通过短时游戏化训练、番茄节奏、休息提醒、距离与姿态辅助提醒，以及家长可理解的成长报告，帮助孩子逐步形成更稳定、舒服、可持续的学习习惯。
+专注星伴面向 3–16 岁儿童、学生及其家长，提供短时游戏化专注练习、普通番茄计时陪伴，以及可供家长理解的训练记录和成长报告。目标是帮助家庭建立规律、轻松的练习习惯，不是课堂教学、线上授课或医疗产品。
 
-产品不进行智力、疾病或医学诊断，也不把摄像头信号直接解释为“认真”或“不认真”。训练成绩和观察数据用于发现个人趋势、提供温和反馈，而不是评价孩子。
+产品不诊断注意力障碍，不以单次分数评价智力、性格或学习态度，不承诺治疗效果。面向儿童的正式上线版本仍须完成隐私、内容、商店分类和适用备案的合规核对；App Store 选“教育”并不自动决定国内业务资质。
 
-## 2. 目标用户与核心场景
+## 当前体验
 
-### 儿童与学生
-
-- 3–6 岁：短时、低文字、强视觉和语音引导。
-- 7–9 岁：通过明确目标和即时反馈建立训练习惯。
-- 10–12 岁：提升持续、选择和任务切换能力。
-- 13–16 岁：用于作业、阅读和阶段复习的自主专注管理。
-
-### 家长
-
-- 了解训练是否持续、哪些能力维度正在改善。
-- 获得陪伴时长、休息执行、距离和姿态提醒等摘要。
-- 不需要远程观看孩子，也不需要浏览本地录像。
-
-### 高频场景
-
-- 每日完成约 5 项服务端下发的短训练。
-- 写作业、阅读、网课时开启 10–25 分钟星陪伴。
-- 一轮结束后休息、望远、喝水并查看简短反馈。
-- 家长按日、近 7 天、近 30 天查看变化趋势。
-
-## 3. 核心价值
-
-1. **练能力**：用短游戏覆盖五类注意能力，而非只提供倒计时。
-2. **陪过程**：把专注、坐姿自检和休息节奏放在同一个闭环中。
-3. **看成长**：强调与孩子过去阶段相比的变化，不做公开排名。
-4. **守隐私**：端侧处理临时相机帧，不录像、不上传原始图片、不做人脸身份识别。
-5. **跨设备连续**：每日计划、完成进度和最佳成绩可由服务端同步。
-
-## 4. 一级产品结构
-
-### 星训练
-
-- 今日训练计划与中断续做。
-- 五维训练目录。
-- 单局教程、游戏过程、暂停/退出、结果反馈。
-- 当前已有 20 个可玩游戏。
-
-### 星陪伴
-
-- 屏幕学习、桌面作业、阅读时间三种模式。
-- 1 分钟真机快测及 10、15、20、25 分钟常规时长。
-- 暂停、提前完成、自动休息、跳过休息、喝水和坐姿自检提醒。
-- Android/iOS 可选端侧观察：在屏、距离、画面位置和头部偏转。
-- 上半身坐姿检测规划：耳、肩、髋关键点与个人自然坐姿基线。
-
-### 星小屋
-
-- 成长报告、训练历史、最近陪伴记录。
-- 儿童档案与设置。
-- 后续承载装饰成长、家庭建议和隐私控制。
-
-## 5. 五类训练体系（play-v2）
-
-| 维度 | 训练目标 | 已有代表游戏 |
+| 一级入口 | 当前功能 | 边界 |
 | --- | --- | --- |
-| 观察发现（6） | 找目标、辨细节、排除干扰 | 森林寻宝、颜色指令、图案侦探、找茬乐园、数字连点、听声捉图形 |
-| 记忆辨识（5） | 记住信息，辨认声音与图像 | 萤火虫追踪、找出变化、记忆与搜索、听音节奏、声音从哪来 |
-| 反应控制（6） | 抓准时机，控制动作与节奏 | 星星捕手、小车巡逻、小鸟穿云、红绿指令、呼吸小星球、守望金色星球 |
-| 逻辑空间（5） | 找规律、做规划、理解形状与整体 | 倒水小实验、规律小侦探、拼图、影子配对、分类车站 |
-| 切换兼顾（6） | 切换规则，兼顾不同信息 | 魔法规则、奇偶轨道、一心二用小司机、上天入海、点球小将、声音过滤器 |
+| 星训练 | 登录、儿童档案、会员入口、每日五题课程、五维训练图鉴、本周训练与能量 | 正式课程从首页五题进入；五维列表下一级只展示游戏封面和介绍，不从图鉴直接开练 |
+| 星陪伴 | 屏幕学习、桌面作业、阅读三种番茄计时模式；暂停、提前完成、休息与本机记录 | 目前页面只开放普通计时；相机观察和坐姿提醒未在当前界面开放 |
+| 星小屋 | 档案、训练历史、成长报告、陪伴记录及设置入口 | 涉及档案编辑、登出等操作走家长锁；查看报告不受家长锁限制 |
 
-仅按主要玩法归类，不表示游戏只训练一种能力。目录、每日计划、结算与本地报告采用相同归属。接口对齐及过滤器公平切换规则见 [分类落地说明](TRAINING_CATEGORIES_V2.md)。
+手机号验证码和 Apple 登录已接入客户端；本地假登录开关关闭。iOS 会员页读取服务端商品及 StoreKit 价格、优惠资格，支持月/年自动续订和恢复购买；Android 等其他端暂未接入购买。未开通会员时首页不展示今日课程，展示开通入口。购买、续期和恢复仍需按真实商店账号与服务端配置做端到端验收，不能把页面可见等同于支付上线完成。详见 [iOS 会员接入](IOS_MEMBERSHIP.md)。
 
-评分应保存正确率、遗漏、误触、反应时间及波动等原始指标，再基于年龄段和个人基线生成成长反馈。MVP 分数只用于流程验证。
+## 五维训练与内容
 
-## 6. 端侧观察与坐姿辅助
+当前目录共 **30 个可玩训练，五类各 6 个**；每个游戏只有一个主归属，协议 ID 仍沿用既有字段，不按英文 ID 字面推断中文含义。[分类映射](TRAINING_CATEGORIES_V2.md) 以 `utils/catalog.uts` 为准。
 
-当前前置相机能力默认关闭，由家长主动开启。页面最多每 3 秒分析一帧，原始帧分析后立即释放。
+以下封面直接引用运行目录 `static/images/runtime/level-thumbnails/`，与游戏列表实际显示一致。
 
-### 当前可用
+### 观察发现（`selective`）
 
-- 面部是否进入画面。
-- 距离是否过近或过远。
-- 是否偏离画面中央。
-- 头部持续转动、侧倾或俯仰。
-- 连续丢失后判断是否离开观察范围。
+| 封面 | 游戏 | 封面 | 游戏 |
+| --- | --- | --- | --- |
+| <img src="../static/images/runtime/level-thumbnails/forest-search.webp" width="160" alt="森林寻宝封面"> | 森林寻宝 | <img src="../static/images/runtime/level-thumbnails/color-command.webp" width="160" alt="颜色指令封面"> | 颜色指令 |
+| <img src="../static/images/runtime/level-thumbnails/symbol-detective.webp" width="160" alt="图案侦探封面"> | 图案侦探 | <img src="../static/images/runtime/level-thumbnails/spot-difference.webp" width="160" alt="找茬乐园封面"> | 找茬乐园 |
+| <img src="../static/images/runtime/level-thumbnails/number-tap.webp" width="160" alt="数字连点封面"> | 数字连点 | <img src="../static/images/runtime/level-thumbnails/listen-find.webp" width="160" alt="听声捉图形封面"> | 听声捉图形 |
 
-### 下一阶段
+### 记忆辨识（`focused`）
 
-Android/iOS 统一引入人体关键点模型，基于耳朵、肩膀和髋部判断头部侧倾、双肩高低、身体倾斜和明显前倾。系统先采集自然坐姿基线；异常需连续存在数秒才提醒。关键点不完整时返回“无法判断”，不得误报为错误坐姿。
+| 封面 | 游戏 | 封面 | 游戏 |
+| --- | --- | --- | --- |
+| <img src="../static/images/runtime/level-thumbnails/light-tracking.webp" width="160" alt="萤火虫追踪封面"> | 萤火虫追踪 | <img src="../static/images/runtime/level-thumbnails/spot-change.webp" width="160" alt="找出变化封面"> | 找出变化 |
+| <img src="../static/images/runtime/level-thumbnails/memory-search.webp" width="160" alt="记忆与搜索封面"> | 记忆与搜索 | <img src="../static/images/runtime/level-thumbnails/memory-link.webp" width="160" alt="记忆连线封面"> | 记忆连线 |
+| <img src="../static/images/runtime/level-thumbnails/audio-sequence.webp" width="160" alt="听音节奏封面"> | 听音节奏 | <img src="../static/images/runtime/level-thumbnails/sound-location.webp" width="160" alt="声音从哪来封面"> | 声音从哪来 |
 
-家长侧只查看汇总数据，如稳定在屏比例、过近秒数、姿态提醒次数和休息完成情况，不提供远程视频入口。
+### 反应控制（`sustained`）
 
-## 7. 数据与服务端能力
+| 封面 | 游戏 | 封面 | 游戏 |
+| --- | --- | --- | --- |
+| <img src="../static/images/runtime/level-thumbnails/star-catcher.webp" width="160" alt="星星捕手封面"> | 星星捕手 | <img src="../static/images/runtime/level-thumbnails/car-patrol.webp" width="160" alt="小车巡逻封面"> | 小车巡逻 |
+| <img src="../static/images/runtime/level-thumbnails/bird-cloud.webp" width="160" alt="小鸟穿云封面"> | 小鸟穿云 | <img src="../static/images/runtime/level-thumbnails/red-green.webp" width="160" alt="红绿指令封面"> | 红绿指令 |
+| <img src="../static/images/runtime/level-thumbnails/breathing-planet.webp" width="160" alt="呼吸小星球封面"> | 呼吸小星球 | <img src="../static/images/runtime/level-thumbnails/sky-watcher.webp" width="160" alt="星空守望员封面"> | 星空守望员 |
 
-正式版的核心服务端能力包括：
+### 逻辑空间（`alternating`）
 
-- 登录后的每日训练计划下发与多端同步。
-- 未完成计划跨天保留，完成后可主动切换到新一天。
-- 单题结果提交、重复提交和仅保留最佳成绩。
-- 单日或多日报告，以及同一训练上一次成绩对比。
-- 近 7 天、近 30 天、阶段变化和五维能力报告。
-- 资源包清单、后台异步补全、失败重试和低资源量降级循环。
+| 封面 | 游戏 | 封面 | 游戏 |
+| --- | --- | --- | --- |
+| <img src="../static/images/runtime/level-thumbnails/water-sort.webp" width="160" alt="倒水小实验封面"> | 倒水小实验 | <img src="../static/images/runtime/level-thumbnails/pattern-find.webp" width="160" alt="规律小侦探封面"> | 规律小侦探 |
+| <img src="../static/images/runtime/level-thumbnails/puzzle.webp" width="160" alt="拼图工坊封面"> | 拼图工坊 | <img src="../static/images/runtime/level-thumbnails/shape-match.webp" width="160" alt="影子配对封面"> | 影子配对 |
+| <img src="../static/images/runtime/level-thumbnails/sorting-station.webp" width="160" alt="分类车站封面"> | 分类车站 | <img src="../static/images/runtime/level-thumbnails/order-guess.webp" width="160" alt="顺序猜猜封面"> | 顺序猜猜 |
 
-详细接口见 [SERVER_API_DESIGN.md](SERVER_API_DESIGN.md)。
+### 切换兼顾（`divided`）
 
-## 8. 品牌与视觉语言
+| 封面 | 游戏 | 封面 | 游戏 |
+| --- | --- | --- | --- |
+| <img src="../static/images/runtime/level-thumbnails/magic-rule.webp" width="160" alt="魔法规则封面"> | 魔法规则 | <img src="../static/images/runtime/level-thumbnails/number-track.webp" width="160" alt="奇偶轨道封面"> | 奇偶轨道 |
+| <img src="../static/images/runtime/level-thumbnails/little-driver.webp" width="160" alt="一心二用小司机封面"> | 一心二用小司机 | <img src="../static/images/runtime/level-thumbnails/dual-track.webp" width="160" alt="上天入海封面"> | 上天入海 |
+| <img src="../static/images/runtime/level-thumbnails/penalty-kick.webp" width="160" alt="点球小将封面"> | 点球小将 | <img src="../static/images/runtime/level-thumbnails/sound-filter.webp" width="160" alt="声音过滤器封面"> | 声音过滤器 |
 
-![蓝兔角色](../content/brand/characters/blue-bunny-v1.png)
-![黄猫角色](../content/brand/characters/yellow-kitten-v1.png)
-![星伴星球元素](../content/brand/elements/focus-star-planet-v1.png)
+游戏采用卡通封面、背景与对象素材，尽量用试玩和语音传达规则，减少页面长说明。多数游戏已有开场规则语音；试玩细节和难度梯度以各游戏说明与实际代码为准。找茬乐园使用本地故事场景及可独立点击的差异候选，拼图工坊复用场景 A 图；运行素材与生成原稿分开保存。
 
-- **跃跃（蓝兔）**：训练、探索、行动和安全守护；角色全名“星跃”仅在完整角色介绍中使用。
-- **暖暖（黄猫）**：陪伴、鼓励、休息和成长反馈；角色全名“星暖”仅在完整角色介绍中使用。
-- **星伴双星**：跃跃与暖暖的组合名称；普通界面和对话优先使用“跃跃和暖暖”，品牌活动、角色合影和专题内容可使用“星伴双星”。
-- **发光星星**：把专注呈现为可以一点点积累的能力。
-- **星球轨道**：代表持续训练、规律节奏和长期成长。
-- **主色**：星际蓝、阳光黄、薄荷绿和奶油白。
-- **表达方式**：温和、清楚、非评判；避免红色警报、监控感和医学化措辞。
+## 每日课程、成绩与报告
 
-## 9. 当前完成度
+- **五题一课**：客户端按 `fixed-cycle-v1` 和从 1 开始的 `lessonNo` 固定生成五类各一题。相同课号在不同设备产生相同游戏与顺序；服务器不下发五题清单。每个游戏的难度根据服务器最近成绩在生成时计算并锁定，本课重练不变。
+- **跨天续做**：上一课未完成就继续；补完后可主动开启今天的新课。非今天的待同步成绩必须先成功上传，才允许开新课。计划、实际题位和课程号在进入题目时写入本地，避免结算时丢失上下文。[课程规则](CLIENT_LESSON_PLAN.md)
+- **计分与同步**：综合分为 0–200，100 分表示达到本档目标；部分完成型游戏上限 100。首次完成或分数严格高于同课同游戏本地最佳时入持久化队列，服务端按用户、课号、游戏只保留最佳记录。无有效课程上下文的异常结果不算完成，并提示重练。[计分规则](SCORING_V2.md) · [离线同步](OFFLINE_SYNC.md)
+- **星级反馈**：结束页不显示数值分数，显示 0–5 颗主题星及跃跃/暖暖的语音与表情；120 分及以上触发角色周围星光动画。报告和历史显示真实分数及 0–6 星，第六颗为 100 分过关星，不以动画作为过关条件。[星级规则](STAR_REWARDS.md)
+- **历史与成长**：历史按服务端最大课号进入，可切换第 1 课至最新课；每课显示表现分、五维、题目分数和上一次同游戏比较。成长报告提供全部、近 30 课、近 14 课三档，默认近 30 课，并展示五维与各游戏表现。报告由服务端计算；当前服务端只统计完成五题的课程，因此未完成课可能有历史成绩但尚无成长报告。
 
-- 3 个一级 Tab 与品牌角色入口已完成。
-- 20/20 个规划训练已可玩，32 个页面进入 Android 编译链路。
-- 每日训练基础闭环、结果和本地历史可用。
-- 星陪伴计时、暂停、休息、自检提醒和本地记录可用。
-- Android/iOS 面部端侧插件已建立，正在进行真机兼容与阈值校准。
-- 服务端 V1 接口讨论稿已完成。
-- App Icon V1 与基础角色素材包已整理。
+## 品牌与交互
 
-## 10. 上线前重点
+![跃跃](../content/brand/characters/blue-bunny-v1.png)
+![暖暖](../content/brand/characters/yellow-kitten-v1.png)
+![主题星球](../content/brand/elements/focus-star-planet-v1.png)
 
-1. 统一 20 个游戏的教程、暂停、退出与异常恢复。
-2. 完成 Android/iOS/HarmonyOS NEXT 真机矩阵和耗电测试。
-3. 校准评分、无效局识别和不同年龄段参数。
-4. 完成家长授权、儿童隐私说明、数据删除/导出与第三方 SDK 清单。
-5. 接入服务端每日计划、最佳成绩、报告和资源包补全。
-6. 用真实家庭测试验证提醒频率、误报率、持续使用率和报告可理解性。
+- 跃跃（蓝兔）偏探索和行动，暖暖（黄猫）偏陪伴和鼓励；“星伴双星”用于合影或专题，普通界面优先用小名。
+- 金色笑脸星是不带圆环的训练星；星球、夜空、云、桌面等背景服务于游戏主题，核心操作区保持清晰。
+- 反馈温和、具体，不用监控感、医学化或羞辱性表达。结束页用角色语音鼓励，不展示下一档难度。
 
-## 11. 建议核心指标
+## 技术与上线状态
 
-- 首次建档完成率。
-- 今日计划开始率与完成率。
-- 次日、7 日和 30 日留存。
-- 星陪伴完整轮次比例与休息完成率。
-- 端侧观察有效帧比例、误报反馈率和关闭率。
-- 家长报告查看率及建议理解度。
-- 同一训练在连续阶段中的稳定性变化。
+工程为 uni-app x 蒸汽模式，目标 iOS、Android 和 HarmonyOS NEXT。当前开发工具链与 iOS 原生宿主使用 HBuilderX / SDK 5.26；修改页面、UTS 或运行资源后需按 [iOS 本地同步流程](../ios/README.md) 重新导出并校验。API 统一走 POST JSON，客户端当前使用 `https://zhuanzhuapp.com/api/v1`；上线前仍需按正式服务端环境完成端到端验收。[工程说明](../README.md) · [架构](ARCHITECTURE.md)
 
-## 12. 产品边界
-
-- 不宣称治疗 ADHD 或其他疾病。
-- 不用单次分数评价智力、性格或学习态度。
-- 不保存或远程查看儿童视频。
-- 不使用人脸身份识别、陌生人社交、公开排名或个性化广告。
-- 涉及摄像头和儿童数据的正式上线版本必须完成适用地区的法律与儿童隐私合规评审。
+截至本快照，30 个训练及课程/会员/报告客户端界面已接入，**不等于三端、支付和同步都已完成发布验收**。上线前重点是：真实账号的跨设备课程与离线补传、Apple Sandbox/TestFlight 订阅闭环、Android/iOS 低龄可玩性和音频体验、儿童个人信息与家长授权、应用备案和商店审核。相机端侧观察保留为技术试验，不属于当前开放的星陪伴功能；若重新启用，须单独做隐私与真机校准。[端侧观察历史方案](ON_DEVICE_OBSERVATION.md)

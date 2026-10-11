@@ -1,5 +1,7 @@
 # 客户端确定性课程与成绩接口 v1
 
+> 当前实现快照：2026-09-29。课程号从 1 开始；首页课程项写入独立题目凭证，结算缺少有效上下文时不算完成。成绩只在首次或严格高于同课同游戏最佳分时入队。详见 [离线同步](OFFLINE_SYNC.md)。
+
 ## 1. 已确认的产品规则
 
 - 5 个训练为 1 课，每课固定包含观察、记忆、反应、逻辑、兼顾各 1 个训练。
@@ -18,7 +20,7 @@
 poolIndex = (lessonNo - 1 + dimensionIndex * 2) % 6
 ```
 
-因此同一 `lessonNo` 在 Android、iOS 和不同设备上都得到相同 5 题；连续 6 课可轮完每类全部 6 个游戏。协议必须同时带 `lessonAlgorithmVersion: fixed-cycle-v1`，以后若更改循环，新增版本，不能静默改变旧课。
+因此同一 `lessonNo` 在 Android、iOS 和不同设备上都得到相同 5 题；连续 6 课可轮完每类全部 6 个游戏。当前 `fixed-cycle-v1` 存于客户端课程对象，**成绩同步请求未携带 `lessonAlgorithmVersion`**。以后若改循环，须先制定跨版本、多端一致性方案，不能静默改变旧课。
 
 ## 3. 难度规则
 
@@ -82,3 +84,4 @@ poolIndex = (lessonNo - 1 + dimensionIndex * 2) % 6
 - `utils/server-api.uts`：最近100条查询与单次成绩同步。
 - `pages/index/index.uvue`：恢复旧课、自动新课、补完旧课后显式开启今日课程。
 - `pages/result/result.uvue`：上传轻量成绩字段。
+- `pages/history/history-v2.uvue`：先查询服务端最大课号，再按课请求日报；`pages/report/report-v2.uvue`：打开时按需请求成长报告。
