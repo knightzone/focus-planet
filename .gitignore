@@ -18,6 +18,8 @@ ios/ExtAPI/DCloudUTSExtAPI.xcodeproj
 ios/.derived/
 ios/Plugins/unimoduleFocusFaceDetector.xcframework/
 ios/Plugins/unimoduleFocusFaceDetector.framework/
+# 插件重建前留的本地对照副本（构建产物，不是源码）
+ios/Plugins/*.pre-*.xcframework/
 ios/FocusPlanet/FocusPlanet/uni-app-x/apps/*
 !ios/FocusPlanet/FocusPlanet/uni-app-x/apps/.gitkeep
 build/ios/
