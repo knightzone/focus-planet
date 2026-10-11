@@ -39,7 +39,7 @@
 
 ## 本地服务联调
 
-- API 地址集中配置在 `utils/api-client.uts`，当前临时测试环境为 `http://47.103.134.123:8555/api/v1`。
+- API 地址集中配置在 `utils/api-client.uts`，当前统一使用 `https://zhuanzhuapp.com/api/v1`。
 - 业务接口统一使用 POST + `application/json`，无参数时发送 `{}`；档案、计划及陪伴 ID 和报告筛选条件均放入 JSON 请求体，不再拼接路径或查询参数。
 - `utils/api-client.uts` 统一处理设备标识、Bearer Token、401 自动刷新、服务端响应与错误；`utils/server-api.uts` 按登录、儿童档案、训练计划、成绩、报告和陪伴数据提供业务接口。
 - 本地开发短信会把验证码返回为 `debugCode`，登录页会自动填入，方便联调。

@@ -42,7 +42,7 @@ cd backend/asset-service && npm start  # 素材审核服务，127.0.0.1:4310，�
 - 页面 `pages/**/*.uvue`，逻辑 `utils/**/*.uts`，共享组件 `components/*.uvue`。
 - Android 编译限制：页面内**只用单类选择器**，禁止层级/后代选择器；不要用百分比 `min-height`；路由参数避免 `字符串 || 数字` 这类混合类型兜底。
 - 本地存储统一 `uni.setStorageSync`，键名 `focus_planet_*`。
-- 服务端调用只经 `utils/api-client.uts`（`API_BASE_URL`，当前为局域网联调地址）+ `utils/server-api.uts`；一律 POST + `application/json`，无参数时发 `{}`，不拼路径或查询参数。
+- 服务端调用只经 `utils/api-client.uts`（`API_BASE_URL`，当前为 `https://zhuanzhuapp.com/api/v1`）+ `utils/server-api.uts`；一律 POST + `application/json`，无参数时发 `{}`，不拼路径或查询参数。
 - 原生 UTS 插件：`uni_modules/focus-face-detector`（端侧人脸/姿态）、`uni_modules/focus-gradient`。**改动原生代码后必须重新制作/运行自定义基座，热更新无效。**
 - 新增游戏：在 `utils/catalog.uts` 加元数据 → 在 `pages/game/` 加页面或复用通用引擎 → 结束统一写入 `TrainingRecord`；报告只按 `dimensionId` 聚合，不感知具体游戏。
 - 每个游戏只有一个主维度（可带次维度），成长分只计入主维度，避免同一局重复计算。
