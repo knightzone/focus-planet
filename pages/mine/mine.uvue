@@ -11,88 +11,70 @@
       </view>
 
       <view class="summary-card" @click="openReport">
-        <view class="summary-copy">
-          <text class="summary-kicker">本周成长</text>
-          <text class="summary-title">{{ weeklySessions }} 次训练 · 连续 {{ streak }} 天</text>
+        <view class="summary-head">
+          <view class="summary-copy">
+            <text class="summary-kicker">本周成长</text>
+            <text class="summary-title">{{ weeklySessions }} 次训练 · 连续 {{ streak }} 天</text>
+          </view>
+          <view class="summary-cta"><text class="summary-cta-text">去查看 ›</text></view>
         </view>
-        <text class="summary-arrow">›</text>
+        <view class="summary-divider"></view>
+        <view class="summary-stats">
+          <view class="stat"><text class="summary-number">{{ recordsCount }}</text><text class="summary-stat-label">累计训练</text></view>
+          <view class="divider-light"></view>
+          <view class="stat"><text class="summary-number">{{ energy }}</text><text class="summary-stat-label">星星能量</text></view>
+          <view class="divider-light"></view>
+          <view class="stat"><text class="summary-number">{{ streak }}</text><text class="summary-stat-label">连续天数</text></view>
+        </view>
       </view>
 
-      <view class="stats-card">
-        <view class="stat">
-          <text class="stat-number">{{ recordsCount }}</text>
-          <text class="stat-label">累计训练</text>
+      <text class="section-title">最近陪伴</text>
+      <view class="companion-card">
+        <view class="companion-copy">
+          <text class="companion-title">{{ lastCompanionTitle }}</text>
+          <text class="companion-meta">{{ lastCompanionMeta }}</text>
         </view>
-        <view class="divider"></view>
-        <view class="stat">
-          <text class="stat-number">{{ energy }}</text>
-          <text class="stat-label">星星能量</text>
+        <view class="companion-stats">
+          <view class="companion-stat"><text class="companion-number">{{ companionCount }}</text><text class="companion-label">完成轮次</text></view>
+          <view class="divider"></view>
+          <view class="companion-stat"><text class="companion-number">{{ companionMinutes }}</text><text class="companion-label">累计分钟</text></view>
         </view>
-        <view class="divider"></view>
-        <view class="stat">
-          <text class="stat-number">{{ streak }}</text>
-          <text class="stat-label">连续天数</text>
+      </view>
+
+      <text class="section-title">更多功能</text>
+      <view class="menu-card">
+        <view class="menu-row" @click="openHistory">
+          <view class="menu-mark history-mark"><image class="menu-mark-image" src="/static/images/runtime/game-objects/bunny-blue-card-v1.webp" mode="aspectFit"></image></view>
+          <view class="menu-copy"><text class="menu-title">训练历史</text></view>
+          <text class="arrow">›</text>
+        </view>
+        <view class="menu-row" @click="openSettings">
+          <view class="menu-mark settings-mark"><image class="menu-mark-image" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.webp" mode="aspectFit"></image></view>
+          <view class="menu-copy"><text class="menu-title">宝宝档案与家长设置</text></view>
+          <text class="arrow">›</text>
+        </view>
+        <view class="menu-row" @click="openAccount">
+          <view class="menu-mark account-mark"><image class="menu-mark-image" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image></view>
+          <view class="menu-copy"><text class="menu-title">账号与联系</text></view>
+          <text class="arrow">›</text>
+        </view>
+        <view class="menu-row menu-row-last" @click="checkAppUpdate(true)">
+          <view class="menu-mark update-mark"><text class="menu-mark-text">↻</text></view>
+          <view class="menu-copy"><text class="menu-title">检查更新</text></view>
+          <text class="arrow">{{ installedVersionName() }} ›</text>
         </view>
       </view>
 
       <text class="section-title">账户</text>
       <view class="account-card" @click="openMembership">
         <view class="account-copy">
-          <text class="account-title">{{ loggedIn ? accountName : '访客模式' }}</text>
+          <text class="account-title">{{ accountName }}</text>
           <text class="account-meta">星伴会员 · 查看方案或恢复购买</text>
         </view>
         <text class="arrow">›</text>
       </view>
-
       <view class="logout-row" @click="logout"><text class="logout-text">退出登录</text></view>
 
-      <text class="section-title">最近陪伴</text>
-      <view class="companion-card">
-        <view class="companion-head">
-          <view class="companion-copy">
-            <text class="companion-title">{{ lastCompanionTitle }}</text>
-            <text class="companion-meta">{{ lastCompanionMeta }}</text>
-          </view>
-        </view>
-        <view class="companion-stats">
-          <view class="companion-stat"><text class="companion-number">{{ companionCount }}</text><text class="companion-label">完成轮次</text></view>
-          <view class="companion-divider"></view>
-          <view class="companion-stat"><text class="companion-number">{{ companionMinutes }}</text><text class="companion-label">累计分钟</text></view>
-        </view>
-      </view>
-
-      <text class="section-title">成长与记录</text>
-      <view class="menu-card">
-        <view class="menu-row" @click="openReport">
-          <view class="menu-mark report-mark"><image class="menu-mark-image" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image></view>
-          <view class="menu-copy"><text class="menu-title">成长报告</text></view>
-          <text class="arrow">›</text>
-        </view>
-        <view class="menu-row menu-row-last" @click="openHistory">
-          <view class="menu-mark history-mark"><image class="menu-mark-image" src="/static/images/runtime/game-objects/bunny-blue-card-v1.webp" mode="aspectFit"></image></view>
-          <view class="menu-copy"><text class="menu-title">训练历史</text></view>
-          <text class="arrow">›</text>
-        </view>
-      </view>
-
-      <text class="section-title">档案与管理</text>
-      <view class="menu-card">
-        <view class="menu-row" @click="openSettings">
-          <view class="menu-mark settings-mark"><image class="menu-mark-image" src="/static/images/runtime/game-objects/kitten-yellow-card-v1.webp" mode="aspectFit"></image></view>
-          <view class="menu-copy"><text class="menu-title">宝宝档案与家长设置</text></view>
-          <text class="arrow">›</text>
-        </view>
-        <view class="menu-row menu-row-last" @click="openAccount">
-          <view class="menu-mark account-mark"><image class="menu-mark-image" src="/static/images/runtime/brand/focus-star-planet-v1.webp" mode="aspectFit"></image></view>
-          <view class="menu-copy"><text class="menu-title">账号与联系</text></view>
-          <text class="arrow">›</text>
-        </view>
-      </view>
-
-      <view class="menu-row" @click="checkAppUpdate(true)">
-        <text class="menu-title">检查更新</text>
-        <text class="arrow">{{ installedVersionName() }} ›</text>
-      </view>
       <view class="bottom-space"></view>
     </view>
     <view v-else class="login-gate">
@@ -219,54 +201,47 @@ function logout() {
 .title { margin-top: 5px; color: #1f2a44; font-size: 26px; font-weight: 700; }
 .subtitle { margin-top: 5px; color: #818ba0; font-size: 12px; }
 .profile-mascot { width: 76px; height: 82px; border-radius: 38px; }
-.summary-card { margin-top: 24px; min-height: 126px; padding: 22px; border-radius: 24px; background-color: #9b7ede; flex-direction: row; align-items: center; }
+.summary-card { margin-top: 24px; padding: 22px; border-radius: 24px; background-color: #9b7ede; }
+.summary-head { flex-direction: row; align-items: center; }
 .summary-copy { flex: 1; }
 .summary-kicker { color: #eee9ff; font-size: 12px; font-weight: 700; }
 .summary-title { margin-top: 8px; color: #ffffff; font-size: 19px; font-weight: 700; }
-.summary-desc { margin-top: 7px; color: #f1edff; font-size: 11px; }
-.summary-arrow { color: #ffffff; font-size: 31px; }
-.stats-card { margin-top: 14px; padding: 19px 8px; border-radius: 20px; background-color: #fff8e8; flex-direction: row; align-items: center; }
+.summary-cta { width: 92px; height: 38px; border-radius: 19px; background-color: #ffffff; align-items: center; justify-content: center; }
+.summary-cta-text { color: #9b7ede; font-size: 13px; font-weight: 700; }
+.summary-divider { margin-top: 19px; height: 1px; background-color: #a78fd8; }
+.summary-stats { margin-top: 16px; flex-direction: row; align-items: center; }
+.summary-number { color: #ffffff; font-size: 20px; font-weight: 700; }
+.summary-stat-label { margin-top: 4px; color: #d9cff5; font-size: 10px; }
+.divider-light { width: 1px; height: 26px; background-color: #a78fd8; }
 .account-card { padding: 17px 18px; border-radius: 20px; background-color: #edf3ff; flex-direction: row; align-items: center; }
 .account-copy { flex: 1; }
 .account-title { color: #344059; font-size: 15px; font-weight: 700; }
 .account-meta { margin-top: 5px; color: #8a93a5; font-size: 10px; }
 .logout-row { margin-top: 9px; min-height: 45px; border-radius: 18px; background-color: #f4f6fa; align-items: center; justify-content: center; }
 .logout-text { color: #7d8799; font-size: 12px; }
-.account-button { margin: 0; width: 72px; height: 40px; line-height: 40px; padding: 0; border-radius: 20px; background-color: #5b8def; color: #ffffff; font-size: 12px; font-weight: 700; }
-.logout-button { margin: 0; width: 72px; height: 40px; line-height: 40px; padding: 0; border-radius: 20px; background-color: #f2f4f8; color: #6e788d; font-size: 12px; }
 .stat { flex: 1; align-items: center; }
-.stat-number { color: #2d3952; font-size: 22px; font-weight: 700; }
-.stat-label { margin-top: 5px; color: #818ba0; font-size: 10px; }
-.divider { width: 1px; height: 32px; background-color: #e9edf4; }
+.divider { width: 1px; height: 30px; background-color: #e9edf4; }
 .section-title { margin-top: 27px; margin-bottom: 12px; color: #25314a; font-size: 18px; font-weight: 700; }
 .companion-card { padding: 18px; border-radius: 20px; background-color: #eaf8f3; }
-.companion-head { flex-direction: row; align-items: center; }
 .companion-copy { flex: 1; }
 .companion-title { color: #344059; font-size: 15px; font-weight: 700; }
 .companion-meta { margin-top: 6px; color: #8a93a5; font-size: 10px; }
-.companion-badge { padding: 7px 9px; border-radius: 12px; background-color: #e9f8f3; }
-.companion-badge-text { color: #48947c; font-size: 9px; font-weight: 700; }
 .companion-stats { margin-top: 17px; padding-top: 15px; border-top: 1px solid #edf0f5; flex-direction: row; align-items: center; }
 .companion-stat { flex: 1; align-items: center; }
 .companion-number { color: #55a98d; font-size: 20px; font-weight: 700; }
 .companion-label { margin-top: 4px; color: #8993a5; font-size: 9px; }
-.companion-divider { width: 1px; height: 28px; background-color: #e9edf4; }
 .menu-card { padding: 0 17px; border-radius: 20px; background-color: #ffffff; }
 .menu-row { min-height: 78px; border-bottom: 1px solid #edf0f5; flex-direction: row; align-items: center; }
 .menu-row-last { border-bottom-width: 0; }
 .menu-mark { width: 42px; height: 42px; border-radius: 14px; align-items: center; justify-content: center; }
 .menu-mark-image { width: 40px; height: 40px; border-radius: 13px; }
-.report-mark { background-color: #eaf0ff; }
+.menu-mark-text { color: #53647f; font-size: 20px; font-weight: 700; }
 .history-mark { background-color: #e9f8f3; }
 .settings-mark { background-color: #fff4dc; }
 .account-mark { background-color: #e8f7f1; }
-.menu-mark-text { color: #53647f; font-size: 13px; font-weight: 700; }
+.update-mark { background-color: #eaf0ff; }
 .menu-copy { margin-left: 13px; flex: 1; }
 .menu-title { color: #344059; font-size: 14px; font-weight: 700; }
-.menu-desc { margin-top: 5px; color: #8a93a5; font-size: 10px; }
 .arrow { color: #a0a8b7; font-size: 24px; }
-.guardian-card { margin-top: 18px; padding: 18px; border-radius: 18px; background-color: #eef3fb; }
-.guardian-title { color: #596987; font-size: 13px; font-weight: 700; }
-.guardian-copy { margin-top: 6px; color: #748099; font-size: 11px; line-height: 17px; }
 .bottom-space { height: 24px; }
 </style>

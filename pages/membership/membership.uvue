@@ -14,11 +14,11 @@
         <view class="plan-side"><text class="plan-price" :class="plan.available ? '' : 'plan-price-off'">{{ plan.available ? plan.displayPrice : '暂不可购买' }}</text></view>
       </view>
       <view class="benefits"><text class="benefit">✓ 专注力小游戏畅玩</text><text class="benefit">✓ 成长报告与训练记录</text></view>
-      <button class="subscribe-button" :disabled="paying || purchaseUncertain || loading || !ready || selectedId == ''" @click="purchase">{{ paying ? '正在处理…' : purchaseUncertain ? '请先恢复购买' : loading ? '正在加载…' : '开通会员' }}</button>
+      <button class="subscribe-button" :disabled="paying || loading || !ready || selectedId == ''" @click="purchase">{{ paying ? '正在处理…' : purchaseUncertain ? '检查购买结果' : loading ? '正在加载…' : '开通会员' }}</button>
+      <text v-if="purchaseUncertain" class="purchase-note">上次购买结果未确认，点上方按钮检查已购项目，不会重复扣费。</text>
       <text class="purchase-note">{{ renewalText() }}</text>
     </view>
     <text v-if="message != ''" class="product-message">{{ message }}</text>
-    <view class="restore-link" @click="reload"><text class="restore-text">刷新会员与商品</text></view>
     <view class="restore-link" @click="restore"><text class="restore-text">恢复购买</text></view>
     <view class="bottom-space"></view>
   </scroll-view>
@@ -51,6 +51,8 @@ let restoreSignedCount = 0
 let restoreFailureMessage = ''
 let purchaseTimer = 0
 let purchasePhase = ''
+// 进入页面时的静默核对复用同一套恢复流程，但不写阶段提示、也不改「购买未确认」状态。
+let restoreSilent = false
 
 function userId(): string { const session = getAuthSession(); return session == null ? '' : session!.userId }
 onShow(() => { if (!paying.value) reload() })
@@ -87,10 +89,13 @@ function beginPurchaseWatchdog() {
   }, 90000)
 }
 
+// 静默核对（进入页面时）不打扰界面；用户主动恢复/购买时 restoreSilent 为 false，提示照常。
+function setRestoreMessage(text: string) { if (!restoreSilent) message.value = text }
+
 function updateRestorePhase(attempt: number, phase: string) {
   if (attempt != restoreAttempt) return
   restorePhase = phase
-  message.value = phase
+  setRestoreMessage(phase)
   console.log('[vip-restore] ' + phase)
 }
 
@@ -112,8 +117,8 @@ function beginRestoreAttempt(): number {
   updateRestorePhase(attempt, '正在确认会员账号…')
   restoreTimer = setTimeout(() => {
     if (!finishRestoreAttempt(attempt)) return
-    if (restoreTransactionCount > 0) purchaseUncertain.value = true
-    message.value = '恢复购买在「' + restorePhase + '」超时，请稍后重试；无需再次购买'
+    if (!restoreSilent && restoreTransactionCount > 0) purchaseUncertain.value = true
+    setRestoreMessage('恢复购买在「' + restorePhase + '」超时，请稍后重试；无需再次购买')
     console.log('[vip-restore] timeout: ' + restorePhase)
   }, 90000)
   return attempt
@@ -121,6 +126,9 @@ function beginRestoreAttempt(): number {
 
 function reload() {
   if (paying.value) return
+  // 恢复普通提示，并取消上一轮进页面时的静默核对，避免旧回调覆盖新状态。
+  restoreSilent = false
+  restoreAttempt += 1
   ready.value = false
   plans.value = []
   membership.value = cachedMembership()
@@ -198,6 +206,10 @@ function reload() {
       })
       plans.value = built
       ready.value = buyable > 0
+      // #ifdef APP-IOS
+      // 进入页面静默核对已购：命中就直接补开权益，用户不必再手动找「恢复购买」。
+      probePurchases(account)
+      // #endif
       if (buyable == 0) { selectedId.value = ''; message.value = 'App Store 暂无可购买的已配置商品'; return }
       const selectedPlan = built.find((p: Plan): boolean => p.productId == selectedId.value && p.available)
       if (selectedPlan == null) {
@@ -230,7 +242,7 @@ function selectPlan(id: string) {
   if (plan == null) return
   selectedId.value = id
 }
-function goBack() { if (!paying.value) uni.navigateBack() }
+function goBack() { uni.navigateBack({ delta: 1, fail: () => uni.reLaunch({ url: '/pages/index/index' }) }) }
 function renewalText(): string {
   const plan = plans.value.find((p: Plan): boolean => p.productId == selectedId.value)
   if (plan == null) return '价格及优惠以 App Store 确认页面为准'
@@ -240,29 +252,29 @@ function renewalText(): string {
 // #ifdef APP-IOS
 function verifyTransaction(transaction: AppleIAPTransactionOptions, account: string, done: (ok: boolean) => void, restoreRun: number = 0) {
   if (restoreRun > 0 && restoreRun != restoreAttempt) return
-  if (userId() != account) { message.value = '登录账号已变更，请切回购买账号恢复购买'; done(false); return }
+  if (userId() != account) { setRestoreMessage('登录账号已变更，请切回购买账号恢复购买'); done(false); return }
   if (restoreRun == 0) updatePurchasePhase('Apple 已返回交易，正在读取签名…')
   console.log('[vip-bridge] before signed lookup from transaction')
   fetchAppleSignedTransaction(transaction.transactionIdentifier, transaction.productId, (result: AppleSignedTransactionResult) => {
     console.log('[vip-bridge] signed lookup callback from transaction; hasJws=' + (result.jws != '').toString())
     if (restoreRun > 0 && restoreRun != restoreAttempt) return
-    if (userId() != account) { message.value = '登录账号已变更'; done(false); return }
-    if (result.jws == '') { message.value = result.errorMessage; if (restoreRun > 0) restoreFailureMessage = result.errorMessage; done(false); return }
+    if (userId() != account) { setRestoreMessage('登录账号已变更'); done(false); return }
+    if (result.jws == '') { setRestoreMessage(result.errorMessage); if (restoreRun > 0) restoreFailureMessage = result.errorMessage; done(false); return }
     if (restoreRun > 0) restoreSignedCount += 1
     if (restoreRun > 0) updateRestorePhase(restoreRun, '已找到 Apple 签名，正在服务端验单…')
     else updatePurchasePhase('已找到 Apple 签名，正在服务端验单…')
     verifyAppleTransaction(result.jws, (_data: UTSJSONObject) => {
       if (restoreRun > 0 && restoreRun != restoreAttempt) return
-      if (userId() != account) { message.value = '登录账号已变更'; done(false); return }
+      if (userId() != account) { setRestoreMessage('登录账号已变更'); done(false); return }
       // Verify returns only entitlement fields. Refresh status for the account token and products.
       if (restoreRun > 0) updateRestorePhase(restoreRun, '服务端验单完成，正在结束交易…')
       else updatePurchasePhase('服务端验单完成，正在结束交易…')
       uni.getVirtualPaymentManager().finishTransaction({
         transaction: transaction,
         success: (_result) => { if (restoreRun > 0 && restoreRun != restoreAttempt) return; done(true) },
-        fail: (_error) => { if (restoreRun > 0 && restoreRun != restoreAttempt) return; message.value = '验单成功，交易结束待重试，请恢复购买'; done(false) }
+        fail: (_error) => { if (restoreRun > 0 && restoreRun != restoreAttempt) return; setRestoreMessage('验单成功，交易结束待重试，请恢复购买'); done(false) }
       })
-    }, (text: string, code: string) => { if (restoreRun > 0 && restoreRun != restoreAttempt) return; console.log('[vip-restore] server verify failed code=' + code); message.value = text + '，请稍后恢复购买'; if (restoreRun > 0) restoreFailureMessage = message.value; done(false) })
+    }, (text: string, code: string) => { if (restoreRun > 0 && restoreRun != restoreAttempt) return; console.log('[vip-restore] server verify failed code=' + code); const restoreError = text + '，请稍后恢复购买'; setRestoreMessage(restoreError); if (restoreRun > 0) restoreFailureMessage = restoreError; done(false) })
   })
   console.log('[vip-bridge] after signed lookup from transaction')
 }
@@ -272,7 +284,7 @@ function completeVerification(account: string, hadFailure: boolean, restoreRun: 
   if (userId() != account) {
     if (restoreRun > 0) finishRestoreAttempt(restoreRun)
     else { paying.value = false; clearPurchaseTimer(); purchaseUncertain.value = true }
-    message.value = '登录账号已变更，请切回购买账号恢复购买'
+    setRestoreMessage('登录账号已变更，请切回购买账号恢复购买')
     return
   }
   const priorError = hadFailure ? (restoreRun > 0 && restoreFailureMessage != '' ? restoreFailureMessage : message.value) : ''
@@ -285,27 +297,28 @@ function completeVerification(account: string, hadFailure: boolean, restoreRun: 
     if (state.active) purchaseUncertain.value = false
     if (restoreRun > 0) console.log('[vip-restore] status active=' + state.active.toString() + ' signed=' + restoreSignedCount.toString())
     if (state.active) message.value = '会员权益已生效'
-    else if (hadFailure && priorError != '') message.value = priorError
-    else if (restoreRun > 0 && restoreTransactionCount == 0 && restoreSignedCount == 0) message.value = 'Apple 未返回可恢复的购买，请核对购买时使用的 Apple ID'
-    else if (restoreRun > 0 && restoreSignedCount > 0) message.value = 'Apple 交易已核验，但当前没有有效 VIP 权益'
-    else message.value = '交易已核验，当前没有有效 VIP 权益'
+    else if (hadFailure && priorError != '') setRestoreMessage(priorError)
+    else if (restoreRun > 0 && restoreTransactionCount == 0 && restoreSignedCount == 0) setRestoreMessage('Apple 未返回可恢复的购买，请核对购买时使用的 Apple ID')
+    else if (restoreRun > 0 && restoreSignedCount > 0) setRestoreMessage('Apple 交易已核验，但当前没有有效 VIP 权益')
+    else setRestoreMessage('交易已核验，当前没有有效 VIP 权益')
   }, (text: string, _code: string) => {
     if (restoreRun > 0) { if (!finishRestoreAttempt(restoreRun)) return }
     else { paying.value = false; clearPurchaseTimer(); purchaseUncertain.value = true }
-    message.value = '会员状态刷新失败：' + text
+    setRestoreMessage('会员状态刷新失败：' + text)
   })
 }
 
 function restoreNext(transactions: AppleIAPTransactionOptions[], index: number, account: string, hadFailure: boolean, restoreRun: number) {
   if (restoreRun != restoreAttempt) return
-  if (userId() != account) { finishRestoreAttempt(restoreRun); message.value = '登录账号已变更'; return }
+  if (userId() != account) { finishRestoreAttempt(restoreRun); setRestoreMessage('登录账号已变更'); return }
   if (index >= transactions.length) { completeVerification(account, hadFailure, restoreRun); return }
   const transaction = transactions[index]
   // Ignore unrelated products and never claim or finish another app account's transactions.
   if (!membership.value.products.some((p: VipProduct): boolean => p.productId == transaction.productId)) { restoreNext(transactions, index + 1, account, hadFailure, restoreRun); return }
   if (transaction.appAccountToken == null || transaction.appAccountToken!.toLowerCase() != membership.value.appAccountToken.toLowerCase()) {
-    message.value = '部分购买不属于当前账号，请登录原购买账号恢复'
-    restoreFailureMessage = message.value
+    const notMine = '部分购买不属于当前账号，请登录原购买账号恢复'
+    setRestoreMessage(notMine)
+    restoreFailureMessage = notMine
     restoreNext(transactions, index + 1, account, true, restoreRun)
     return
   }
@@ -315,7 +328,7 @@ function restoreNext(transactions: AppleIAPTransactionOptions[], index: number, 
 
 function restoreFromStoreKit(products: VipProduct[], index: number, account: string, hadFailure: boolean, restoreRun: number) {
   if (restoreRun != restoreAttempt) return
-  if (userId() != account) { finishRestoreAttempt(restoreRun); message.value = '登录账号已变更'; return }
+  if (userId() != account) { finishRestoreAttempt(restoreRun); setRestoreMessage('登录账号已变更'); return }
   if (index >= products.length) { completeVerification(account, hadFailure, restoreRun); return }
   const product = products[index]
   updateRestorePhase(restoreRun, '正在向 Apple 核对已购商品…')
@@ -339,7 +352,7 @@ function restoreFromStoreKit(products: VipProduct[], index: number, account: str
     }, (text: string, code: string) => {
       if (restoreRun != restoreAttempt) return
       console.log('[vip-restore] server verify failed code=' + code)
-      message.value = text
+      setRestoreMessage(text)
       restoreFailureMessage = text
       restoreFromStoreKit(products, index + 1, account, true, restoreRun)
     })
@@ -364,10 +377,31 @@ function restoreUnfinished(account: string, restoreRun: number) {
     }
   })
 }
+
+// 进入页面后的静默核对：只读本机未完成交易与 StoreKit 最新交易，不弹 Apple 登录、不写阶段提示。
+// 命中签名就交给服务端验单并刷新权益；没命中保持未开通，什么都不说。5 分钟内不重复查询。
+let probeAt = 0
+const PROBE_INTERVAL_MS = 5 * 60 * 1000
+
+function probePurchases(account: string) {
+  if (membership.value.active || paying.value || loading.value) return
+  if (membership.value.products.length == 0 || membership.value.appAccountToken == '') return
+  const now = Date.now()
+  if (now - probeAt < PROBE_INTERVAL_MS) return
+  probeAt = now
+  // 复用恢复流程：不弹 Apple 登录、不改 paying，只静默查未完成交易/已购商品。
+  restoreSilent = true
+  restoreUnfinished(account, beginRestoreAttempt())
+}
 // #endif
 
 function purchase() {
-  if (paying.value || purchaseUncertain.value || loading.value || !requireLogin()) return
+  if (paying.value || loading.value || !requireLogin()) return
+  // 「购买未确认」时按钮改为检查/恢复已购项目，绝不再次扣费。
+  if (purchaseUncertain.value) { restore(); return }
+  // 取消进页面时的静默核对并恢复普通提示，避免两套回调互相覆盖。
+  restoreSilent = false
+  restoreAttempt += 1
   if (!ready.value || selectedId.value == '') { reload(); return }
   // #ifndef APP-IOS
   message.value = '当前仅支持 iPhone 购买'
@@ -380,7 +414,12 @@ function purchase() {
   beginPurchaseWatchdog()
   refreshMembership((state: MembershipState) => {
     membership.value = state
-    if (userId() != account || state.appAccountToken == '' || !state.products.some((p: VipProduct): boolean => p.productId == product)) {
+    if (userId() != account) {
+      paying.value = false; clearPurchaseTimer(); ready.value = false; message.value = '账号或商品配置已变化，请刷新后重试'; return
+    }
+    // 点支付前先按账号与商品核对已购：已开通就直接补权益，不再发起扣费。
+    if (state.active) { paying.value = false; clearPurchaseTimer(); purchaseUncertain.value = false; message.value = '会员权益已生效'; return }
+    if (state.appAccountToken == '' || !state.products.some((p: VipProduct): boolean => p.productId == product)) {
       paying.value = false; clearPurchaseTimer(); ready.value = false; message.value = '账号或商品配置已变化，请刷新后重试'; return
     }
     updatePurchasePhase('正在等待 App Store 返回购买结果…')
@@ -399,6 +438,7 @@ function purchase() {
 
 function restore() {
   if (paying.value || loading.value || !requireLogin()) return
+  restoreSilent = false
   // #ifndef APP-IOS
   message.value = '当前仅支持 iPhone 恢复购买'
   return

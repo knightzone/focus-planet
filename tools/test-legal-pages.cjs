@@ -88,19 +88,21 @@ assert.ok(/法律与合规/.test(settingsPage), '设置页需要法律与合规�
 assert.ok(/订阅管理/.test(settingsPage), '协议点名的「订阅管理」入口必须存在')
 assert.ok(/function openMembership\(\) \{ uni\.navigateTo\(\{ url: '\/pages\/membership\/membership' \}\) \}/.test(settingsPage), '「订阅管理」必须跳到会员页')
 
-// ---------- 登录页：主动勾选，未勾选不得登录 ----------
+// ---------- 登录页：默认不勾选；未勾选也可点击登录，弹窗同意后等效勾选 ----------
 const loginPage = read('pages/login/login.uvue')
 for (const id of ['terms', 'privacy', 'children']) {
   assert.ok(loginPage.includes(`openDoc('${id}')`), `登录页缺少 ${id} 条款链接`)
 }
 assert.ok(/const consented = ref\(false\)/.test(loginPage), '同意条款必须默认不勾选')
 assert.ok(/function toggleConsent/.test(loginPage) && /consented \? '✓' : ''/.test(loginPage), '登录页需要可主动勾选的同意框')
-assert.ok(/canSubmit && consented && !loggingIn/.test(loginPage), '未勾选同意时手机号登录必须保持禁用')
-assert.ok(/appleLogging \|\| !consented/.test(loginPage), '未勾选同意时 Apple 登录必须保持禁用')
-assert.ok(/function requireConsent/.test(loginPage), '登录动作需要二次校验同意状态')
+assert.ok(/canSubmit && !loggingIn/.test(loginPage), '手机号登录按钮不再因未勾选而禁用')
+assert.ok(/:disabled="appleLogging"/.test(loginPage), 'Apple 登录按钮不再因未勾选而禁用')
+assert.ok(/function ensureConsent/.test(loginPage), '登录动作需要统一的同意确认入口')
+assert.ok(/同意并登录/.test(loginPage) && /consented\.value = true; proceed\(\)/.test(loginPage), '弹窗点同意后等效勾选并继续登录')
+assert.ok(/登录超时/.test(loginPage) && /armLoginWatchdog\(\)/.test(loginPage), '登录需要超时看门狗，回调丢失时不得永久卡在登录中')
 for (const fn of ['phoneLogin', 'appleLogin']) {
   const body = loginPage.slice(loginPage.indexOf(`function ${fn}()`))
-  assert.ok(body.slice(0, 240).includes('requireConsent()'), `${fn} 必须先校验同意状态`)
+  assert.ok(body.slice(0, 400).includes('ensureConsent('), `${fn} 必须先经过同意确认`)
 }
 assert.ok(!/登录即同意用户协议与隐私政策/.test(loginPage), '不可点击的「登录即同意…」纯文本必须移除')
 
@@ -120,4 +122,4 @@ const serverApi = read('utils/server-api.uts')
 assert.ok(/export function requestAccountDeletion/.test(serverApi), 'server-api 需要导出 requestAccountDeletion')
 assert.ok(/apiRequest\('\/me\/delete', 'POST', \{\}, true, success, failure\)/.test(serverApi), '注销必须走 POST /me/delete 且发空对象')
 
-console.log('PASS: 四个法律入口与线上路径一致、legal 页用 web-view 承载、登录必须主动勾选、订阅管理与注销路径可达')
+console.log('PASS: 四个法律入口与线上路径一致、legal 页用 web-view 承载、登录默认不勾选且弹窗同意等效勾选、订阅管理与注销路径可达')

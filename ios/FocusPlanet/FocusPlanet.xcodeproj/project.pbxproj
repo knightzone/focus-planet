@@ -22,9 +22,6 @@
 		937659762C2D602300D52792 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 937659752C2D602300D52792 /* Assets.xcassets */; };
 		9376597C2C2D602300D52792 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 9376597B2C2D602300D52792 /* main.m */; };
 		937659862C2D608600D52792 /* UniAppBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 937659852C2D608600D52792 /* UniAppBridge.swift */; };
-		F0C05FACE000000000000021 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000023 /* SceneDelegate.swift */; };
-		F0C05FACE000000000000031 /* DCloudUniExtComponent.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000033 /* DCloudUniExtComponent.xcframework */; };
-		F0C05FACE000000000000032 /* DCloudUniExtComponent.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000033 /* DCloudUniExtComponent.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		937659882C2D60A900D52792 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 937659872C2D60A900D52792 /* PrivacyInfo.xcprivacy */; };
 		937659972C2D623D00D52792 /* DCloudUTSFoundation.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9376598A2C2D623400D52792 /* DCloudUTSFoundation.xcframework */; };
 		937659982C2D623D00D52792 /* DCloudUTSFoundation.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 9376598A2C2D623400D52792 /* DCloudUTSFoundation.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -45,6 +42,9 @@
 		F0C05FACE000000000000002 /* unimoduleFocusFaceDetector.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000003 /* unimoduleFocusFaceDetector.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		F0C05FACE000000000000011 /* KSCrash.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000013 /* KSCrash.xcframework */; };
 		F0C05FACE000000000000012 /* KSCrash.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000013 /* KSCrash.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		F0C05FACE000000000000021 /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000023 /* SceneDelegate.swift */; };
+		F0C05FACE000000000000031 /* DCloudUniExtComponent.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000033 /* DCloudUniExtComponent.xcframework */; };
+		F0C05FACE000000000000032 /* DCloudUniExtComponent.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = F0C05FACE000000000000033 /* DCloudUniExtComponent.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -89,8 +89,6 @@
 		9376597B2C2D602300D52792 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		937659842C2D608600D52792 /* FocusPlanet-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "FocusPlanet-Bridging-Header.h"; sourceTree = "<group>"; };
 		937659852C2D608600D52792 /* UniAppBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UniAppBridge.swift; sourceTree = "<group>"; };
-		F0C05FACE000000000000023 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
-		F0C05FACE000000000000033 /* DCloudUniExtComponent.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DCloudUniExtComponent.xcframework; path = ../SDK/Libs/DCloudUniExtComponent.xcframework; sourceTree = "<group>"; };
 		937659872C2D60A900D52792 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		9376598A2C2D623400D52792 /* DCloudUTSFoundation.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DCloudUTSFoundation.xcframework; path = ../SDK/Libs/DCloudUTSFoundation.xcframework; sourceTree = "<group>"; };
 		937659F32C2D7A7900D52792 /* libc++.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = "libc++.tbd"; path = "usr/lib/libc++.tbd"; sourceTree = SDKROOT; };
@@ -106,6 +104,8 @@
 		B6884F953004C94400CCF307 /* FocusPlanet.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = FocusPlanet.entitlements; sourceTree = "<group>"; };
 		F0C05FACE000000000000003 /* unimoduleFocusFaceDetector.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = unimoduleFocusFaceDetector.xcframework; path = ../Plugins/unimoduleFocusFaceDetector.xcframework; sourceTree = "<group>"; };
 		F0C05FACE000000000000013 /* KSCrash.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = KSCrash.xcframework; path = ../SDK/Libs/KSCrash.xcframework; sourceTree = "<group>"; };
+		F0C05FACE000000000000023 /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		F0C05FACE000000000000033 /* DCloudUniExtComponent.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = DCloudUniExtComponent.xcframework; path = ../SDK/Libs/DCloudUniExtComponent.xcframework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -455,7 +455,7 @@
 				CODE_SIGN_ENTITLEMENTS = FocusPlanet/FocusPlanetDebug.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 100;
+				CURRENT_PROJECT_VERSION = 090;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 4N5RUYQ48R;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -465,21 +465,22 @@
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FocusPlanet/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "专注星伴";
 				INFOPLIST_KEY_NSAppleMusicUsageDescription = "项目真机运行期间访问用户的 Apple Music 库或媒体资料库";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "项目真机运行期间使用蓝牙功能";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "项目真机运行期间共享蓝牙数据";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "项目真机运行期间需要完全访问用户的日历数据（读取、修改、删除和添加）";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "项目真机运行期间访问用户的日历数据";
 				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "项目真机运行期间向日历中添加事件";
-				INFOPLIST_KEY_NSCameraUsageDescription = "项目真机运行期间使用摄像头拍摄照片或视频";
+				INFOPLIST_KEY_NSCameraUsageDescription = "用于在专注陪伴时进行本地面部与坐姿检测，视频画面不会上传。";
 				INFOPLIST_KEY_NSContactsUsageDescription = "项目真机运行期间访问用户的通讯录";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "项目真机运行期间使用 Face ID 进行身份验证";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "用于安全完成 Apple 账号登录。";
 				INFOPLIST_KEY_NSGKFriendListUsageDescription = "项目真机运行期间访问用户在 Game Center 中的好友列表";
 				INFOPLIST_KEY_NSHealthClinicalHealthRecordsShareUsageDescription = "项目真机运行期间访问临床健康记录";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "项目真机运行期间从健康 App 中读取数据";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "项目真机运行期间向健康 App 中写入数据";
 				INFOPLIST_KEY_NSHomeKitUsageDescription = "项目真机运行期间访问用户的 HomeKit 配置";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "项目真机运行期间使用本地网络";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "用于连接同一局域网内的专注星伴测试服务。";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "项目真机运行期间访问位置信息";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "项目真机运行在后台期间访问位置信息";
 				INFOPLIST_KEY_NSLocationTemporaryUsageDescriptionDictionary = "项目真机运行期间请求临时的高精度（精确）位置";
@@ -496,6 +497,7 @@
 				INFOPLIST_KEY_NSUserTrackingUsageDescription = "项目真机运行期间跟踪用户活动";
 				INFOPLIST_KEY_NSVideoSubscriberAccountUsageDescription = "项目真机运行期间访问用户的电视提供商账户";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
@@ -507,17 +509,17 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/FocusPlanet",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.zhuanzhuapp.mate;
 				PRODUCT_NAME = FocusPlanet;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "专注星伴dev";
+				STRIP_BITCODE_FROM_COPIED_FILES = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "FocusPlanet/FocusPlanet-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
-				STRIP_BITCODE_FROM_COPIED_FILES = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Debug;
@@ -531,7 +533,7 @@
 				CODE_SIGN_ENTITLEMENTS = FocusPlanet.entitlements;
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution";
 				CODE_SIGN_STYLE = Manual;
-				CURRENT_PROJECT_VERSION = 100;
+				CURRENT_PROJECT_VERSION = 090;
 				DEVELOPMENT_TEAM = "";
 				"DEVELOPMENT_TEAM[sdk=iphoneos*]" = 4N5RUYQ48R;
 				EXCLUDED_SOURCE_FILE_NAMES = DCloudDebugServe.xcframework;
@@ -542,21 +544,22 @@
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = FocusPlanet/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "专注星伴";
 				INFOPLIST_KEY_NSAppleMusicUsageDescription = "项目真机运行期间访问用户的 Apple Music 库或媒体资料库";
 				INFOPLIST_KEY_NSBluetoothAlwaysUsageDescription = "项目真机运行期间使用蓝牙功能";
 				INFOPLIST_KEY_NSBluetoothPeripheralUsageDescription = "项目真机运行期间共享蓝牙数据";
 				INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription = "项目真机运行期间需要完全访问用户的日历数据（读取、修改、删除和添加）";
 				INFOPLIST_KEY_NSCalendarsUsageDescription = "项目真机运行期间访问用户的日历数据";
 				INFOPLIST_KEY_NSCalendarsWriteOnlyAccessUsageDescription = "项目真机运行期间向日历中添加事件";
-				INFOPLIST_KEY_NSCameraUsageDescription = "项目真机运行期间使用摄像头拍摄照片或视频";
+				INFOPLIST_KEY_NSCameraUsageDescription = "用于在专注陪伴时进行本地面部与坐姿检测，视频画面不会上传。";
 				INFOPLIST_KEY_NSContactsUsageDescription = "项目真机运行期间访问用户的通讯录";
-				INFOPLIST_KEY_NSFaceIDUsageDescription = "项目真机运行期间使用 Face ID 进行身份验证";
+				INFOPLIST_KEY_NSFaceIDUsageDescription = "用于安全完成 Apple 账号登录。";
 				INFOPLIST_KEY_NSGKFriendListUsageDescription = "项目真机运行期间访问用户在 Game Center 中的好友列表";
 				INFOPLIST_KEY_NSHealthClinicalHealthRecordsShareUsageDescription = "项目真机运行期间访问临床健康记录";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "项目真机运行期间从健康 App 中读取数据";
 				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "项目真机运行期间向健康 App 中写入数据";
 				INFOPLIST_KEY_NSHomeKitUsageDescription = "项目真机运行期间访问用户的 HomeKit 配置";
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "项目真机运行期间使用本地网络";
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "用于连接同一局域网内的专注星伴测试服务。";
 				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "项目真机运行期间访问位置信息";
 				INFOPLIST_KEY_NSLocationAlwaysUsageDescription = "项目真机运行在后台期间访问位置信息";
 				INFOPLIST_KEY_NSLocationTemporaryUsageDescriptionDictionary = "项目真机运行期间请求临时的高精度（精确）位置";
@@ -573,6 +576,7 @@
 				INFOPLIST_KEY_NSUserTrackingUsageDescription = "项目真机运行期间跟踪用户活动";
 				INFOPLIST_KEY_NSVideoSubscriberAccountUsageDescription = "项目真机运行期间访问用户的电视提供商账户";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
@@ -584,16 +588,16 @@
 					"$(inherited)",
 					"$(PROJECT_DIR)/FocusPlanet",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 1.0.0;
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.zhuanzhuapp.mate;
 				PRODUCT_NAME = FocusPlanet;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "专注星伴dis";
+				STRIP_BITCODE_FROM_COPIED_FILES = NO;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "FocusPlanet/FocusPlanet-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
-				STRIP_BITCODE_FROM_COPIED_FILES = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;

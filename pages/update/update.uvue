@@ -17,7 +17,7 @@
 <script setup lang="uts">
 import { ref } from 'vue'
 import { onShow, onUnload, onBackPress } from '@dcloudio/uni-app'
-import { currentUpdate, updateRequired, updateMode, installedVersionCode, checkAppUpdate, dismissUpdate } from '../../utils/app-update.uts'
+import { currentUpdate, updateRequired, updateMode, checkAppUpdate, dismissUpdate } from '../../utils/app-update.uts'
 // #ifdef APP-IOS || APP-ANDROID
 import { openUpdateLink } from '../../uni_modules/focus-face-detector'
 // #endif
@@ -29,14 +29,17 @@ const openFailed = ref(false)
 function refreshUpdate() {
   forced.value = updateRequired()
   const policy = currentUpdate()
-  if (policy == null || updateMode(policy, installedVersionCode(), Date.now()) == 'none') { uni.reLaunch({ url: '/pages/index/index' }); return }
-  version.value = policy['latestVersionName'] as string
-  const raw = policy['releaseNotes']
+  const update = policy == null ? null : policy['update'] as UTSJSONObject
+  if (update == null || updateMode(policy) == 'none') { uni.reLaunch({ url: '/pages/index/index' }); return }
+  version.value = update['latestVersion'] as string
   notes.value = []
-  if (raw != null) {
-    const items = JSON.parse<any[]>(JSON.stringify(raw))
-    if (items != null) for (let i = 0; i < Math.min(3, items.length); i++) {
-      if (typeof items[i] == 'string') notes.value.push((items[i] as string).substring(0, 40))
+  // releaseNotes 是服务端下发的整段文案，按行拆分展示，最多三条、每条最多 40 字。
+  const raw = update['releaseNotes'] as string
+  if (raw != '') {
+    const items = raw.split('\n')
+    for (let i = 0; i < Math.min(3, items.length); i++) {
+      const item = items[i].trim()
+      if (item != '') notes.value.push(item.substring(0, 40))
     }
   }
 }
@@ -45,13 +48,13 @@ function retry() { checkAppUpdate(true) }
 function leave() { if (updateRequired()) return; dismissUpdate(); uni.reLaunch({ url: '/pages/index/index' }) }
 function copyLink() {
   const policy = currentUpdate()
-  if (policy != null) uni.setClipboardData({ data: policy['updateUrl'] as string })
+  if (policy != null) uni.setClipboardData({ data: (policy['update'] as UTSJSONObject)['updateUrl'] as string })
 }
 function openStore() {
   const policy = currentUpdate()
   if (policy == null) return
   // #ifdef APP-IOS || APP-ANDROID
-  openUpdateLink(policy['updateUrl'] as string, (success: boolean) => { openFailed.value = !success })
+  openUpdateLink((policy['update'] as UTSJSONObject)['updateUrl'] as string, (success: boolean) => { openFailed.value = !success })
   // #endif
   // #ifndef APP-IOS || APP-ANDROID
   openFailed.value = true

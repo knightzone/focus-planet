@@ -115,4 +115,16 @@ assert.match(read('pages/index/index.uvue'), /onShow\(\(\) => refresh\(\)\)/)
 assert.match(read('pages/membership/membership.uvue'), /onShow\(\(\) => \{ if \(!paying\.value\) reload\(\) \}\)/)
 assert.match(read('uni_modules/focus-face-detector/utssdk/app-ios/FocusFaceDetectorNative.swift'), /result\.jwsRepresentation/)
 assert.ok(page.indexOf('verifyAppleTransaction(jws') < page.indexOf('.finishTransaction('))
+// 返回键不再被进行中的购买/恢复锁住，并带兜底跳转。
+assert.match(page, /function goBack\(\) \{ uni\.navigateBack\(\{ delta: 1, fail:/)
+assert.doesNotMatch(page, /if \(!paying\.value\) uni\.navigateBack\(\)/)
+// 恢复购买融入进页面与支付：进页面静默核对，支付前与「未确认」时走恢复，不再有独立按钮。
+assert.match(page, /function probePurchases\(account: string\)/)
+assert.match(page, /probePurchases\(account\)/)
+assert.match(page, /if \(purchaseUncertain\.value\) \{ restore\(\); return \}/)
+assert.match(page, /restoreSilent/)
+assert.match(page, /if \(state\.active\) \{ paying\.value = false; clearPurchaseTimer\(\); purchaseUncertain\.value = false; message\.value = '会员权益已生效'; return \}/)
+// 保留显式「恢复购买」入口；去掉手动刷新入口（进页面/回前台已自动刷新）。
+assert.match(page, /class="restore-link" @click="restore"><text class="restore-text">恢复购买<\/text>/)
+assert.doesNotMatch(page, /刷新会员与商品/)
 console.log('PASS: VIP parsing, cache isolation, expiry tolerance, foreground refresh throttle, account switch, endpoints and signed verification flow')

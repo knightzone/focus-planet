@@ -22,11 +22,11 @@
           <button class="code-button" :class="codeCooldownActive || sendingCode ? 'code-button-disabled' : ''" @click="sendCode">{{ codeButtonText }}</button>
         </view>
 
-        <button class="primary-button" :class="canSubmit && consented && !loggingIn ? '' : 'primary-disabled'" @click="phoneLogin">{{ loggingIn ? '登录中…' : '登录并继续' }}</button>
+        <button class="primary-button" :class="canSubmit && !loggingIn ? '' : 'primary-disabled'" @click="phoneLogin">{{ loggingIn ? '登录中…' : '登录并继续' }}</button>
 
         <!-- #ifdef APP-IOS -->
         <view class="or-row"><view class="or-line"></view><text class="or-text">或</text><view class="or-line"></view></view>
-        <ActionSurface class="apple-button" :class="consented && !appleLogging ? '' : 'apple-disabled'" :disabled="appleLogging || !consented" @click="appleLogin"><text class="apple-mark"></text><text class="apple-label">{{ appleLogging ? '登录中…' : '使用 Apple 登录' }}</text></ActionSurface>
+        <ActionSurface class="apple-button" :class="!appleLogging ? '' : 'apple-disabled'" :disabled="appleLogging" @click="appleLogin"><text class="apple-mark"></text><text class="apple-label">{{ appleLogging ? '登录中…' : '使用 Apple 登录' }}</text></ActionSurface>
         <!-- #endif -->
       </view>
 
@@ -64,6 +64,10 @@ let countdownEndsAt = 0
 let countdownPhone = ''
 const CODE_COOLDOWN_END_KEY = 'focus_planet_login_code_cooldown_end'
 const CODE_COOLDOWN_PHONE_KEY = 'focus_planet_login_code_cooldown_phone'
+// 登录看门狗：个别系统环境下 uni.request/uni.login 的回调可能丢失，
+// 超时仍无结果时强制复位按钮并提示，避免「登录中…」永久卡住。
+const LOGIN_WATCHDOG_MS = 20000
+let loginWatchdog = 0
 const canSubmit = computed((): boolean => phone.value.trim().length == 11 && code.value.trim().length == 6)
 const codeCooldownActive = computed((): boolean => phone.value.trim() == countdownPhone && secondsLeft.value > 0)
 const codeButtonText = computed((): string => {
@@ -72,13 +76,32 @@ const codeButtonText = computed((): string => {
   return '获取验证码'
 })
 
-// 协议要求：注册/登录前单独展示儿童规则并主动勾选，不默认勾选，未勾选不得继续。
+// 协议要求：不默认勾选；未勾选时点击登录先弹窗请求同意，点「同意并登录」等效勾选并继续。
 function toggleConsent() { consented.value = !consented.value }
 function openDoc(docId: string) { openLegalDoc(docId) }
-function requireConsent(): boolean {
-  if (consented.value) return true
-  uni.showToast({ title: '请先阅读并勾选同意条款', icon: 'none' })
-  return false
+function ensureConsent(proceed: () => void) {
+  if (consented.value) { proceed(); return }
+  uni.showModal({
+    title: '同意条款后继续',
+    content: '登录前请阅读并同意《用户协议》《隐私政策》和《儿童个人信息保护规则》。',
+    confirmText: '同意并登录',
+    cancelText: '再想想',
+    success: (result) => {
+      if (result.confirm) { consented.value = true; proceed() }
+    }
+  })
+}
+
+function clearLoginWatchdog() { if (loginWatchdog != 0) clearTimeout(loginWatchdog); loginWatchdog = 0 }
+function armLoginWatchdog() {
+  clearLoginWatchdog()
+  loginWatchdog = setTimeout(() => {
+    loginWatchdog = 0
+    if (!loggingIn.value && !appleLogging.value) return
+    loggingIn.value = false
+    appleLogging.value = false
+    uni.showToast({ title: '登录超时，请检查网络后重试', icon: 'none', duration: 2500 })
+  }, LOGIN_WATCHDOG_MS)
 }
 
 onShow(() => {
@@ -90,7 +113,7 @@ onShow(() => {
     refreshCountdown()
   }
 })
-onUnload(() => { if (countdownTimer != 0) clearTimeout(countdownTimer) })
+onUnload(() => { if (countdownTimer != 0) clearTimeout(countdownTimer); clearLoginWatchdog() })
 
 function goBack() {
   uni.navigateBack({
@@ -100,6 +123,7 @@ function goBack() {
 }
 
 function showResult(result: AuthAttemptResult, needsProfile: boolean = false, suggestPhoneBinding: boolean = false) {
+  clearLoginWatchdog()
   loggingIn.value = false
   appleLogging.value = false
   uni.showToast({ title: result.message, icon: result.success ? 'success' : 'none' })
@@ -148,18 +172,24 @@ function sendCode() {
 
 function phoneLogin() {
   if (loggingIn.value) return
-  if (!requireConsent()) return
   const phoneValue = phone.value.trim()
   const codeValue = code.value.trim()
   if (phoneValue.length != 11 || codeValue.length != 6) { uni.showToast({ title: '请填写手机号和 6 位验证码', icon: 'none' }); return }
+  ensureConsent(() => { startPhoneLogin(phoneValue, codeValue) })
+}
+function startPhoneLogin(phoneValue: string, codeValue: string) {
   loggingIn.value = true
+  armLoginWatchdog()
   loginWithPhone(phoneValue, codeValue, (result: AuthAttemptResult, needsProfile: boolean) => showResult(result, needsProfile))
 }
 
 function appleLogin() {
   if (appleLogging.value || loggingIn.value) return
-  if (!requireConsent()) return
+  ensureConsent(() => { startAppleLogin() })
+}
+function startAppleLogin() {
   appleLogging.value = true
+  armLoginWatchdog()
   loginWithApple((result: AuthAttemptResult, needsProfile: boolean, suggestPhoneBinding: boolean) => showResult(result, needsProfile, suggestPhoneBinding))
 }
 </script>

@@ -1,6 +1,8 @@
 # App 提示更新与强制更新设计
 
-日期：2026-09-11。状态：客户端已接入版本检查和更新拦截；服务端需实现下述接口并配置真实商店链接，才能对用户触发更新。
+日期：2026-09-11。状态：客户端已接入版本检查和更新拦截。
+
+> **2026-10-09 更新**：服务端已实现启动配置接口 `POST /api/v1/config`（`focus-companion-backend` 提交 `8e1b002`，配置见 `app/services/app_config.py` 与 `app/data/app_config.json`），客户端 `utils/app-update.uts` 已对齐该契约：匿名请求 `{ "platform", "appVersion" }`，响应 `data.update` 直接给出结论——`forceUpdate`（含低于 `minimumVersion` 或服务端开关）、`optionalUpdate`（低于 `latestVersion` 且未强制），附 `latestVersion/minimumVersion/updateUrl/releaseNotes`（整段文案，客户端按行拆分展示）。版本比较由服务端完成，客户端不再使用 versionCode。`updateUrl` 为空或非法时客户端降级为本地暂存链接（iOS 暂存 `id6808091213`，安卓暂存腾讯应用宝包名链接），服务端 `app_config.json` 配准后自动优先生效。本文第 3、4 节保留原始设计供溯源，实现以服务端代码为准。
 
 ### 当前实现与联调入口
 
@@ -43,9 +45,9 @@
 
 启动期或切换页面时的异步响应必须集中处理；多个页面不能各自弹窗。强制状态需守住训练入口和路由切换，不能只做一个 `showCancel: false` 弹框。Android 返回键和 iOS 侧滑都不能进入业务页；关闭 App 后重新启动仍进行检查。
 
-## 3. 服务端接口
+## 3. 服务端接口（原始设计，未采用；实际为 `POST /api/v1/config`，见文首更新）
 
-新增 `POST /api/v1/app/version/check`，保持现有 POST JSON 和 `requestId/data/error` 包装约定。公开、只读、无鉴权，可做匿名限流，不创建账号、不发短信。
+原始方案：新增 `POST /api/v1/app/version/check`，保持现有 POST JSON 和 `requestId/data/error` 包装约定。公开、只读、无鉴权，可做匿名限流，不创建账号、不发短信。
 
 请求：
 
@@ -118,7 +120,7 @@
 - 服务端先筛选系统兼容且已经对该渠道公开可下载的目标版本，再返回策略。没有可安装目标时不能强制升级。
 - 参数校验失败沿用当前服务 `error.code/message/details.fields`；限流返回 429。未部署接口的 404 按检查失败处理，不阻断现有 App。
 
-## 4. 唯一版本判断规则
+## 4. 唯一版本判断规则（原始设计；实际判定在服务端 `AppConfigService.evaluate`）
 
 不用字符串大小比较版本名称，也不另加容易矛盾的 `forceUpdate` 布尔字段。
 
@@ -169,7 +171,7 @@
 
 ## 7. 客户端接入位置与版本来源
 
-现状：`manifest.json` 为 `0.1.0` / `100`，项目已配置 Android/iOS 5.26 Vapor，已有 iOS Xcode 资源同步脚本。
+现状：`manifest.json` 为 `1.0.0` / `100`（首个发布版本），项目已配置 Android/iOS 5.26 Vapor，已有 iOS Xcode 资源同步脚本。
 
 建议实现：
 

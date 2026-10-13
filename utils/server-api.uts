@@ -101,6 +101,11 @@ export function clearServerState() {
   uni.removeStorageSync(SERVER_PLAN_KEY)
 }
 
+function appVersionLabel(): string {
+  const raw = uni.getAppBaseInfo().appVersion
+  return raw == null ? '' : raw
+}
+
 export function resolveTrainingPlan(success: ApiSuccess, failure: ApiFailure) {
   const cacheKey = accountPlanKey()
   apiRequest('/training/plans/resolve', 'POST', {
@@ -108,7 +113,7 @@ export function resolveTrainingPlan(success: ApiSuccess, failure: ApiFailure) {
     device: {
       deviceId: getDeviceId(),
       platform: getPlatformName(),
-      appVersion: '0.1.0',
+      appVersion: appVersionLabel(),
       resourceManifestVersion: 1,
       installedPackages: [{ packageId: 'bootstrap', version: 1 }]
     }

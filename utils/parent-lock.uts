@@ -2,8 +2,11 @@ let parentUnlockedUntil = 0
 
 const PARENT_SESSION_MILLISECONDS = 5 * 60 * 1000
 
+// 家长验证门暂时下线：产品侧对验证形式不满意，先不作限制，所有家长区操作直接放行。
+// 恢复限制时把下面的 return 改回 `parentUnlockedUntil > Date.now()` 即可，
+// pages/parent-lock 页面、unlock/lock 会话逻辑都保留未动。
 export function isParentAreaUnlocked(): boolean {
-  return parentUnlockedUntil > Date.now()
+  return true
 }
 
 export function unlockParentArea() {

@@ -4,7 +4,8 @@ import { API_BASE_URL, getPlatformName } from './api-client.uts'
 // Set by release channel, never inferred from the device manufacturer.
 export function updateChannel(): string { return getPlatformName() == 'ios' ? 'appstore' : 'android_official' }
 export const UPDATE_PAGE = 'pages/update/update'
-const CACHE_KEY = 'focus_update_policy_v1'
+// v2：服务端契约改为 POST /config（startup config），缓存结构随之升级，旧 v1 缓存自动弃用。
+const CACHE_KEY = 'focus_update_policy_v2'
 let policy: UTSJSONObject | null = null
 let checking = false
 let initialized = false
@@ -15,10 +16,6 @@ let lastCheck = 0
 let lastAttempt = 0
 let watchTimer = 0
 
-export function installedVersionCode(): number {
-  const raw = uni.getAppBaseInfo().appVersionCode
-  return raw == null ? 0 : Number(raw)
-}
 export function installedVersionName(): string {
   const raw = uni.getAppBaseInfo().appVersion
   return raw == null ? '' : raw
@@ -30,24 +27,59 @@ export function validUpdateLink(url: string, platform: string): boolean {
   const host = url.substring(8).split('/')[0].toLowerCase()
   return hosts.indexOf(host) >= 0
 }
-export function updateMode(value: UTSJSONObject | null, current: number, now: number): string {
-  if (value == null || current <= 0 || !Number.isInteger(current)) return 'none'
-  const latest = value['latestVersionCode']
-  const minimum = value['minSupportedVersionCode']
-  const expiry = value['expiresAt']
-  if (typeof latest != 'number' || typeof minimum != 'number' || typeof expiry != 'string') return 'none'
-  if (!Number.isInteger(latest) || !Number.isInteger(minimum) || minimum < 1 || latest < minimum) return 'none'
-  const deadline = Date.parse(expiry)
-  if (!Number.isFinite(deadline) || deadline <= now || current >= latest) return 'none'
-  return current < minimum ? 'force' : 'optional'
+function modeOf(update: UTSJSONObject): string {
+  if (update['forceUpdate'] == true) return 'force'
+  if (update['optionalUpdate'] == true) return 'optional'
+  return 'none'
+}
+// 服务端在 data.update 里直接给出结论（forceUpdate/optionalUpdate 已含最低版本比较），客户端不再自行比较版本号。
+export function updateMode(value: UTSJSONObject | null): string {
+  if (value == null) return 'none'
+  const update = value['update']
+  if (update == null || typeof update != 'object') return 'none'
+  return modeOf(update as UTSJSONObject)
+}
+// 暂存降级链接：服务端 versionPolicy 未配置或配置了非法 updateUrl 时兜底使用，
+// 保证强更/提示更新逻辑始终可用；服务端 app_config.json 配上真实链接（尤其安卓渠道）后自动优先生效。
+const FALLBACK_UPDATE_URL: UTSJSONObject = {
+  'ios': 'https://apps.apple.com/cn/app/id6808091213',
+  'android': 'https://sj.qq.com/appdetail/com.zhuanzhuapp.mate'
+}
+
+function resolveUpdateUrl(update: UTSJSONObject, platform: string): string {
+  const link = update['updateUrl']
+  if (typeof link == 'string' && validUpdateLink(link, platform)) return link as string
+  const fallback = FALLBACK_UPDATE_URL[platform]
+  return fallback == null ? '' : fallback as string
+}
+// 响应校验：update 块结构完整、回显的 currentVersion 与本机一致；需要提示时用降级链接兜底更新地址。
+function validPolicy(value: UTSJSONObject, platform: string, currentVersion: string): boolean {
+  const update = value['update']
+  if (update == null || typeof update != 'object') return false
+  const block = update as UTSJSONObject
+  const latest = block['latestVersion']
+  const link = block['updateUrl']
+  const notes = block['releaseNotes']
+  if (typeof block['forceUpdate'] != 'boolean' || typeof block['optionalUpdate'] != 'boolean') return false
+  if (typeof latest != 'string' || typeof link != 'string' || typeof notes != 'string') return false
+  if (block['currentVersion'] != currentVersion) return false
+  if (modeOf(block) != 'none') {
+    const resolved = resolveUpdateUrl(block, platform)
+    if (resolved == '') return false
+    block['updateUrl'] = resolved
+  }
+  return true
 }
 export function currentUpdate(): UTSJSONObject | null { return policy }
+function skipKey(value: UTSJSONObject): string {
+  const update = value['update'] as UTSJSONObject
+  return 'focus_update_skip_' + getPlatformName() + '_' + updateChannel() + '_' + (update['latestVersion'] as string)
+}
 export function dismissUpdate() {
   if (policy == null) return
-  const key = 'focus_update_skip_' + getPlatformName() + '_' + updateChannel() + '_' + (policy!['latestVersionCode'] as number).toString()
-  uni.setStorageSync(key, Date.now())
+  uni.setStorageSync(skipKey(policy!), Date.now())
 }
-export function updateRequired(): boolean { return !LOCAL_TEST_MODE && updateMode(policy, installedVersionCode(), Date.now()) == 'force' }
+export function updateRequired(): boolean { return !LOCAL_TEST_MODE && updateMode(policy) == 'force' }
 export function setCompanionUpdateBusy(value: boolean) { companionBusy = value }
 function currentRoute(): string {
   const pages = getCurrentPages()
@@ -69,14 +101,15 @@ function presentUpdate(manual: boolean = false) {
   if (!safeToPresent() || presenting) return
   if (updateRequired()) { enforceUpdate(); return }
   if (currentRoute() == UPDATE_PAGE) { uni.$emit('focus-update-changed'); return }
-  if (updateMode(policy, installedVersionCode(), Date.now()) != 'optional') return
+  if (updateMode(policy) != 'optional') return
   const value = policy!
-  const key = 'focus_update_skip_' + getPlatformName() + '_' + updateChannel() + '_' + (value['latestVersionCode'] as number).toString()
+  const key = skipKey(value)
   const skipped = uni.getStorageSync(key)
   if (!manual && skipped != null && skipped != '' && Date.now() - (skipped as number) < 24 * 60 * 60 * 1000) return
   presenting = true
+  const update = value['update'] as UTSJSONObject
   uni.showModal({
-    title: '星伴有新版本啦', content: '发现 ' + (value['latestVersionName'] as string) + '，请家长帮忙更新一下。',
+    title: '星伴有新版本啦', content: '发现 ' + (update['latestVersion'] as string) + '，请家长帮忙更新一下。',
     confirmText: '查看更新', cancelText: '稍后再说',
     success: (result) => {
       if (result.confirm) uni.navigateTo({ url: '/' + UPDATE_PAGE })
@@ -90,15 +123,16 @@ export function checkAppUpdate(manual: boolean = false) {
   if (platform != 'ios' && platform != 'android') return
   if (checking) return
   if (!manual && (Date.now() - lastCheck < 6 * 60 * 60 * 1000 || Date.now() - lastAttempt < 60000)) { presentUpdate(); return }
-  const version = installedVersionCode()
-  if (!Number.isInteger(version) || version <= 0) return
+  const version = installedVersionName()
+  if (version == '') return
   checking = true
   let accepted = false
   lastAttempt = Date.now()
   uni.$emit('focus-update-checking', true)
-  uni.request({ url: API_BASE_URL + '/app/version/check', method: 'POST', timeout: 5000,
+  // 启动配置接口：匿名、5 秒超时、不带 Token；版本结论由服务端按 platform/appVersion 计算。
+  uni.request({ url: API_BASE_URL + '/config', method: 'POST', timeout: 5000,
     header: { 'Content-Type': 'application/json' },
-    data: { appId: '__UNI__B5780B0', platform: platform, channel: updateChannel(), versionName: installedVersionName(), versionCode: version, osVersion: uni.getDeviceInfo().osVersion },
+    data: { platform: platform, appVersion: version },
     success: (result) => {
       if (result.statusCode != 200) return
       const envelope = JSON.parse<UTSJSONObject>(JSON.stringify(result.data))
@@ -107,22 +141,14 @@ export function checkAppUpdate(manual: boolean = false) {
       if (raw == null) { policy = null; uni.removeStorageSync(CACHE_KEY) }
       else {
         const next = JSON.parse<UTSJSONObject>(JSON.stringify(raw))
-        if (next == null) return
-        const latest = next['latestVersionCode']
-        const minimum = next['minSupportedVersionCode']
-        const link = next['updateUrl']
-        const expiry = next['expiresAt']
-        if (next['platform'] != platform || next['channel'] != updateChannel() || typeof latest != 'number' || typeof minimum != 'number' || typeof link != 'string' || typeof expiry != 'string' || typeof next['latestVersionName'] != 'string') return
-        if (!Number.isInteger(latest) || !Number.isInteger(minimum) || minimum < 1 || latest < minimum || !validUpdateLink(link, platform)) return
-        const end = Date.parse(expiry)
-        if (!Number.isFinite(end) || end <= Date.now() || end > Date.now() + 24 * 60 * 60 * 1000) return
+        if (next == null || !validPolicy(next, platform, version)) return
         policy = next
         uni.setStorageSync(CACHE_KEY, next)
       }
       accepted = true
       lastCheck = Date.now()
       uni.$emit('focus-update-changed')
-      if (manual && updateMode(policy, version, Date.now()) == 'none' && currentRoute() != UPDATE_PAGE) uni.showToast({ title: '已经是最新版本', icon: 'none' })
+      if (manual && updateMode(policy) == 'none' && currentRoute() != UPDATE_PAGE) uni.showToast({ title: '已经是最新版本', icon: 'none' })
       presentUpdate(manual)
     }, fail: () => {},
     complete: () => {
@@ -139,7 +165,8 @@ export function initializeAppUpdate() {
   const raw = uni.getStorageSync(CACHE_KEY)
   if (raw != null && raw != '') {
     const saved = JSON.parse<UTSJSONObject>(JSON.stringify(raw))
-    if (saved != null && saved['platform'] == getPlatformName() && saved['channel'] == updateChannel() && typeof saved['updateUrl'] == 'string' && validUpdateLink(saved['updateUrl'] as string, getPlatformName())) policy = saved
+    // 缓存策略仅在结构完整且对应本机当前版本时恢复；App 升级后回显版本不一致，自动作废。
+    if (saved != null && validPolicy(saved, getPlatformName(), installedVersionName())) policy = saved
   }
   uni.$on('focus-app-update-required', () => checkAppUpdate(true))
   const routes = ['navigateTo', 'redirectTo', 'reLaunch', 'switchTab']
