@@ -6,6 +6,8 @@
 	<true/>
 	<key>CFBundleDisplayName</key>
 	<string>专注星伴</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCameraUsageDescription</key>
 	<string>用于在专注陪伴时进行本地面部与坐姿检测，视频画面不会上传。</string>
 	<key>NSFaceIDUsageDescription</key>

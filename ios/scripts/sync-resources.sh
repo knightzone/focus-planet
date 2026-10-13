@@ -39,6 +39,8 @@ plutil -replace NSCameraUsageDescription -string "用于在专注陪伴时进行
 plutil -replace NSFaceIDUsageDescription -string "用于安全完成 Apple 账号登录。" "$host_plist"
 plutil -replace NSLocalNetworkUsageDescription -string "用于连接同一局域网内的专注星伴测试服务。" "$host_plist"
 plutil -replace UISupportedInterfaceOrientations -json '["UIInterfaceOrientationPortrait"]' "$host_plist"
+# 标准加密（仅 https），上传时自动回答出口合规问题。
+plutil -replace ITSAppUsesNonExemptEncryption -bool NO "$host_plist"
 
 if [[ -f "$generated_plugin" ]]; then
   if [[ ! -f "$plugin_source/index.swift" ]] || ! cmp -s "$generated_plugin" "$plugin_source/index.swift"; then
