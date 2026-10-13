@@ -31,6 +31,15 @@ mkdir -p "$target_dir"
 rsync -a --delete --delete-excluded --exclude='.DS_Store' --exclude='._*' "$source_dir/" "$target_dir/"
 find "$target_dir" \( -name '.DS_Store' -o -name '._*' \) -delete
 
+# HBuilderX 导出生成的宿主 Info.plist 会重置为模板、丢掉手工维护的键（权限文案、
+# 竖屏锁定、显示名），上架必需；这里在每次同步后幂等补回。
+host_plist="$IOS_DIR/FocusPlanet/FocusPlanet/Info.plist"
+plutil -replace CFBundleDisplayName -string "专注星伴" "$host_plist"
+plutil -replace NSCameraUsageDescription -string "用于在专注陪伴时进行本地面部与坐姿检测，视频画面不会上传。" "$host_plist"
+plutil -replace NSFaceIDUsageDescription -string "用于安全完成 Apple 账号登录。" "$host_plist"
+plutil -replace NSLocalNetworkUsageDescription -string "用于连接同一局域网内的专注星伴测试服务。" "$host_plist"
+plutil -replace UISupportedInterfaceOrientations -json '["UIInterfaceOrientationPortrait"]' "$host_plist"
+
 if [[ -f "$generated_plugin" ]]; then
   if [[ ! -f "$plugin_source/index.swift" ]] || ! cmp -s "$generated_plugin" "$plugin_source/index.swift"; then
     cp "$generated_plugin" "$plugin_source/index.swift"
