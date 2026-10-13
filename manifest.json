@@ -8,6 +8,9 @@
 		"vapor": true,
 		"styleIsolationVersion": "2"
 	},
+	"uniStatistics": {
+		"enable": false
+	},
 	"vueVersion": "3",
 	"app": {
 		"distribute": {
