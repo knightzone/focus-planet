@@ -22,7 +22,15 @@ if [[ "$cli_version" != "$EXPECTED_RUNTIME_VERSION"* ]]; then
 fi
 
 echo "[1/4] Exporting iOS Vapor resources with HBuilderX $cli_version..."
-"$HBUILDERX_CLI" publish --platform app-ios --project "$PROJECT_ROOT" --type appResource
+export_log="$(mktemp /tmp/focus-planet-export.XXXXXX.log)"
+# CLI 在编译失败时仍返回 0，必须以输出里的成功标记为准，避免拿旧产物同步。
+"$HBUILDERX_CLI" publish --platform app-ios --project "$PROJECT_ROOT" --type appResource 2>&1 | tee "$export_log"
+if ! grep -q "导出 ios 成功" "$export_log"; then
+  rm -f "$export_log"
+  echo "HBuilderX export failed; see the log above." >&2
+  exit 1
+fi
+rm -f "$export_log"
 
 echo "[2/4] Syncing resources into the Xcode host..."
 "$SCRIPT_DIR/sync-resources.sh"
