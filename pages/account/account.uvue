@@ -28,7 +28,7 @@
         <button v-if="!onboarding" class="cancel-button" @click="cancelPhoneForm">取消</button>
       </view>
 
-      <view v-if="onboarding" class="skip-button" @click="skipBinding"><text class="skip-label">稍后再说</text></view>
+      <!-- 暂时隐藏「稍后再说」：Apple 注册流程当前要求必须绑定手机号（服务端无法跳过），引导文案统一收口后再恢复。skipBinding 逻辑保留未删。
 
       <view v-if="!onboarding" class="section-card">
         <view class="bind-row" @click="openPhoneBinding">
