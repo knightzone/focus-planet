@@ -4,6 +4,20 @@ import ImageIO
 import Vision
 import UIKit
 import StoreKit
+import UserNotifications
+
+// 本地通知（不发远程推送、不接任何第三方推送 SDK）。App 在前台时也把提醒横幅弹出来。
+// 用 UNUserNotificationCenter 的本地通知，不需要推送证书或 APNs 能力。
+private final class RenewalReminderPresenter: NSObject, UNUserNotificationCenterDelegate {
+    static let shared = RenewalReminderPresenter()
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound, .list])
+    }
+}
 
 private final class SignedTransactionCompletion: @unchecked Sendable {
     private let lock = NSLock()
@@ -141,6 +155,35 @@ public class FocusFaceDetectorNative {
             UIApplication.shared.open(url, options: [:], completionHandler: completed)
         }
     }
+
+    /// 安排一条本地续费提醒：先在通知日（到期前 5 天）提醒一次；若已经进入提醒窗口则稍后立即提醒。
+    public static func scheduleRenewalReminder(_ identifier: String, _ title: String, _ body: String, _ atEpochMs: NSNumber, _ completed: @escaping (Bool) -> Void) {
+        let center = UNUserNotificationCenter.current()
+        center.delegate = RenewalReminderPresenter.shared
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else {
+                DispatchQueue.main.async { completed(false) }
+                return
+            }
+            center.removePendingNotificationRequests(withIdentifiers: [identifier])
+            let content = UNMutableNotificationContent()
+            content.title = title
+            content.body = body
+            content.sound = .default
+            let fireAt = Date(timeIntervalSince1970: atEpochMs.doubleValue / 1000)
+            // 已过提醒日时至少等一小段再弹，避免当场打断；未到时按真实提醒日排。
+            let interval = max(5, fireAt.timeIntervalSinceNow)
+            let request = UNNotificationRequest(identifier: identifier, content: content, trigger: UNTimeIntervalNotificationTrigger(timeInterval: interval, repeats: false))
+            center.add(request) { error in
+                DispatchQueue.main.async { completed(error == nil) }
+            }
+        }
+    }
+
+    /// 取消已排的续费提醒（会员失效或尚未开通时调用）。
+    public static func cancelRenewalReminder(_ identifier: String) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: [identifier])
+    }
     public static func detectRgba(_ rgba: Data, _ width: Int, _ height: Int) -> String {
         guard width >= 2, height >= 2, rgba.count >= width * height * 4 else {
             return makeResult(supported: false, detected: false, errorMessage: "相机帧尺寸无效")
@@ -239,7 +282,11 @@ public class FocusFaceDetectorNative {
             "errorMessage": errorMessage
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: value), let json = String(data: data, encoding: .utf8) else {
-            return "{\"supported\":false,\"detected\":false,\"faceCount\":0,\"faceScale\":0,\"centerX\":0.5,\"centerY\":0.5,\"yaw\":0,\"roll\":0,\"pitch\":0,\"confidence\":0,\"errorMessage\":\"iOS result encoding failed\"}"
+            return [
+                "{\"supported\":false,\"detected\":false,\"faceCount\":0,\"faceScale\":0,\"centerX\":0.5,",
+                "\"centerY\":0.5,\"yaw\":0,\"roll\":0,\"pitch\":0,\"confidence\":0,",
+                "\"errorMessage\":\"iOS result encoding failed\"}"
+            ].joined()
         }
         return json
     }

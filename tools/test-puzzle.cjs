@@ -12,12 +12,14 @@ const readJson = file => {
   catch (error) { throw new Error(`无法解析 ${file}: ${error.message}`) }
 }
 const strip = text => text.replace(/^import .*$/gm, '').replace(/^export /gm, '')
+// 本地测试开关钉在发布值：开关打开时存储键会变成 _local_test 后缀，用例会跟着漂移。
+const stripRelease = text => strip(text).replace(/LOCAL_TEST_MODE = (true|false)/, 'LOCAL_TEST_MODE = false')
 const bundle = [
   read('utils/local-test.uts'),
   read('utils/spot-difference-types.uts'),
   read('utils/puzzle.uts'),
   read('utils/puzzle-cycle.uts')
-].map(strip).join('\n')
+].map(stripRelease).join('\n')
 const names = 'PUZZLE_IMAGE_W,PUZZLE_IMAGE_H,PUZZLE_EMPTY,puzzleConfig,puzzleShuffle,puzzleEmptySlots,puzzlePlaceFromTray,puzzleMoveBetweenSlots,puzzleReturnToTray,puzzlePlacedCount,puzzleSolved,chooseUnseenPuzzleSource,markPuzzleShown'
 // 内存版本地存储，替代 uni 的同步存储接口。
 const store = {}

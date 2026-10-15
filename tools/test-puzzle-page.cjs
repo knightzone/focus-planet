@@ -59,6 +59,7 @@ const sessionMock = () => ({
   paused: makeRef(false),
   navigating: makeRef(false),
   setStartedCheck() {},
+  stopIntro() {},
   playFeedback(kind) { feedbacks.push(kind) },
   pause() {}, resume() {}, restart() {}, exit() {}, back() {}
 })

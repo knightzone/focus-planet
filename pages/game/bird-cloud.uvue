@@ -23,7 +23,7 @@
           <text class="instruction-title">{{ state == 'demo-done' ? '试过啦，出发吧' : '点一下，飞起来' }}</text>
           <text v-if="loadFailed" class="hint">小鸟还没准备好，请返回重试</text>
           <button class="primary training-preview-primary" :disabled="!birdReady || loadFailed" @click.stop="begin">{{ birdReady ? '开始训练' : '准备中…' }}</button>
-          <text v-if="birdReady && !loadFailed" class="replay training-preview-secondary" @click.stop="startDemo">{{ state == 'demo-done' ? '再试一次' : '先试玩' }}</text>
+          <button v-if="birdReady && !loadFailed" class="replay training-preview-secondary" @click.stop="startDemo">{{ state == 'demo-done' ? '再试一次' : '先试玩' }}</button>
         </view>
       </view>
       <button class="flap-button" :disabled="state != 'running' && state != 'demo'" @click="flap">↑ 向上飞</button>
@@ -139,6 +139,7 @@ function resetRun() {
 }
 function startDemo() { if (trainingPaused.value) return;
   if (!birdReady.value || loadFailed.value || (state.value != 'ready' && state.value != 'demo-done')) return
+  training.stopIntro()
   resetRun(); config.value = getBirdConfig(1); state.value = 'demo'; startTimer()
 }
 function begin() { if (trainingPaused.value) return;
@@ -185,7 +186,7 @@ training.setStartedCheck((): boolean => state.value == 'running' || state.value 
 .gap-outline { position: absolute; left: 4px; width: 74px; border-width: 1px; border-style: dashed; border-color: rgba(85,165,185,0.35); border-radius: 24px; }
 .feedback { position: absolute; top: 16px; left: 8%; width: 84%; text-align: center; font-size: 14px; font-weight: 700; z-index: 6; }
 .good { color: #2c856d; }.again { color: #9e7751; }
-.instruction { position: absolute; left: 6%; right: 6%; top: 28%; padding: 24px 14px 8px; border-radius: 26px; background-color: rgba(255,255,255,0.94); align-items: center; z-index: 10; }
+.instruction { position: absolute; left: 6%; right: 6%; top: 28%; padding: 24px 14px 18px; border-radius: 26px; background-color: rgba(255,255,255,0.94); align-items: center; z-index: 10; }
 .instruction-title { color: #305572; font-size: 21px; font-weight: 700; }
 .hint { margin-top: 12px; color: #a66a50; font-size: 13px; }
 .primary { margin-top: 20px; width: 172px; height: 50px; line-height: 50px; border-radius: 25px; background-color: #65bfa7; color: #ffffff; font-size: 17px; font-weight: 700; }
@@ -199,5 +200,5 @@ training.setStartedCheck((): boolean => state.value == 'running' || state.value 
 /* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
 .training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
 .training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
-.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
+.training-preview-secondary { margin-top: 12px; width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

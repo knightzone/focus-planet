@@ -57,7 +57,7 @@ const getGameDifficulty=()=>${level};
 const storage={};
 const uni={getWindowInfo:()=>({windowWidth:${width},windowHeight:${height},statusBarHeight:${topInset},pixelRatio:3}),getStorageSync:k=>storage[k]===undefined?'':storage[k],setStorageSync:(k,v)=>{storage[k]=v},removeStorageSync:k=>{delete storage[k]},redirectTo(o){document.title='result:'+o.url}};
 ${ts.transpile(common, { target: ts.ScriptTarget.ES2020 })}
-function useTrainingSession(){const clock=new TrainingClock();onUnmounted(()=>clock.dispose());return{clock,paused:ref(false),navigating:ref(false),setStartedCheck(){},playFeedback(){},pause(){},resume(){},restart(){},exit(){},back(){}}}
+function useTrainingSession(){const clock=new TrainingClock();onUnmounted(()=>clock.dispose());return{clock,paused:ref(false),navigating:ref(false),setStartedCheck(){},playFeedback(){},stopIntro(){},pause(){},resume(){},restart(){},exit(){},back(){}}}
 const app=Vue.createApp({setup(){
 ${ts.transpile(script, { target: ts.ScriptTarget.ES2020 })}
 ${start ? 'setTimeout(()=>begin(),60);' : ''}

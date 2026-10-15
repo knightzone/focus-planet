@@ -59,10 +59,10 @@
         <text class="arrow tap-content">›</text>
       </view>
     </view>
-    <view class="test-card">
+    <view v-if="testToolsVisible" class="test-card">
       <view class="test-heading">
-        <view><text class="test-title">测试难度</text></view>
-        <text class="test-badge">仅测试阶段</text>
+        <view><text class="test-title">{{ testToolsTitle }}</text></view>
+        <text class="test-badge">{{ testToolsBadge }}</text>
       </view>
       <view class="difficulty-row">
         <button class="tap-target difficulty-button" @click="changeTestDifficulty(-1)">−</button>
@@ -79,6 +79,12 @@
 
 <script setup lang="uts">
 import { LOCAL_TEST_MODE } from '../../utils/local-test.uts'
+// 模板里不要写 v-if="LOCAL_TEST_MODE"：编译器对模板中的开关常量一律按 false 处理，
+// 实测测试模式下卡片也不会显示（这张「测试难度」卡片之前一直因此看不见）。
+// 改成脚本层常量：开关打开时显示，关闭时整段（含文案字面量）被折叠，发布包不留痕迹。
+const testToolsVisible = LOCAL_TEST_MODE
+const testToolsTitle = LOCAL_TEST_MODE ? '测试难度' : ''
+const testToolsBadge = LOCAL_TEST_MODE ? '仅测试阶段' : ''
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getAgeBand } from '../../utils/catalog.uts'

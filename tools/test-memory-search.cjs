@@ -60,7 +60,7 @@ function harness(level) {
   const voiceCode = fs.readFileSync(path.join(root, 'utils/memory-search-voice.uts'), 'utf8')
     .replace(/^import[\s\S]*?from\s*'[^']*';?/gm, '')
     .replace(/^export /gm, '')
-  const api = 'globalThis.api = { begin, choose, pickTrial, setupTrial, training, started, phase, rounds, roundIndex, boardTiles, targetTiles, targetIds, foundIds, remaining, errorsTotal, foundTotal, completedRounds, remainingErrors, findScores, liveScore, level, boardSize, maxErrors, feedback, trialBoardTiles, trialTargetTiles, trialNewTargets, trialFoundIds, trialDone, trialRoundIndex, trialHint, trialRounds, newTargets, previewTitle, previewTip, previewDuration, memoryImageSize, layoutBoard, tileSize, tileImageSize, memorySearchLevelConfig, memorySearchTrialConfig, memorySearchPool, memorySearchTotalFinds, memorySearchFindBase, memorySearchFindScore, memorySearchGameScore, memorySearchDifficultyIndex, generateMemorySearchRounds, generateMemorySearchTrial, generateMemorySearchBoard, MEMORY_SEARCH_VOICE_IDS, MEMORY_SEARCH_VOICE_FILES, MEMORY_SEARCH_VOICE_MS, MEMORY_SEARCH_VOICE_TEXTS }'
+  const api = 'globalThis.api = { begin, choose, pickTrial, setupTrial, training, started, phase, rounds, roundIndex, boardTiles, targetTiles, targetIds, foundIds, remaining, errorsTotal, foundTotal, completedRounds, remainingErrors, findScores, liveScore, level, boardSize, maxErrors, feedback, trialBoardTiles, trialTargetTiles, trialNewTargets, trialFoundIds, trialDone, trialActive, trialRoundIndex, trialHint, trialRounds, newTargets, previewTitle, previewTip, previewDuration, memoryImageSize, layoutBoard, tileSize, tileImageSize, memorySearchLevelConfig, memorySearchTrialConfig, memorySearchPool, memorySearchTotalFinds, memorySearchFindBase, memorySearchFindScore, memorySearchGameScore, memorySearchDifficultyIndex, generateMemorySearchRounds, generateMemorySearchTrial, generateMemorySearchBoard, MEMORY_SEARCH_VOICE_IDS, MEMORY_SEARCH_VOICE_FILES, MEMORY_SEARCH_VOICE_MS, MEMORY_SEARCH_VOICE_TEXTS }'
   vm.runInContext(ts.transpile(voiceCode + '\n' + levelCode + '\n' + pageCode + '\n' + api, { target: ts.ScriptTarget.ES2020 }), ctx)
   load()
   // 与既有页面回归一致：虚拟时钟按到期顺序执行训练时钟的任务。
@@ -382,6 +382,11 @@ function boardKey(tiles) { return tiles.map((tile) => tile.id).sort().join('|') 
 {
   const h = harness(6)
   const t = h.t
+  // 不再进页面就自动起试玩：先确认空试玩，再点「先试一下」
+  assert.equal(t.trialActive.value, false, '未点试玩时不展开试玩')
+  assert.equal(t.trialBoardTiles.value.length, 0, '未点试玩时不发牌')
+  t.setupTrial()
+  assert.equal(t.trialActive.value, true, '点试玩后展开')
   assert.equal(t.trialBoardTiles.value.length, 4, '试玩棋盘 4 张图片')
   assert.equal(t.trialTargetTiles.value.length, 1)
   for (const tile of t.trialBoardTiles.value) {

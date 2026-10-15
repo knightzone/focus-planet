@@ -50,7 +50,10 @@ const showcasePage = read('pages/dimensions/game-showcase.uvue')
 assert.equal((home.match(/@click="openDimension\(item\.id\)"/g) || []).length, 2, 'five dimension cards open their list')
 assert.ok(dimensionsPage.includes("visibleDimensions.value = [exists]"), 'dimension list is scoped to the tapped dimension')
 assert.ok(dimensionsPage.includes("/pages/dimensions/game-showcase?gameId="), 'list opens the showcase')
-assert.ok(!dimensionsPage.includes('getGameRoute('), 'browse list must not start a game')
+// 发布包不得从浏览列表直接开始游戏（训练只能从课程流进）。本地测试模式的直进分支允许存在，
+// 但必须正好是被编译期开关包住的那一行；LOCAL_TEST_MODE=false 时该分支不生效，
+// 且 archive.sh 会拦住带测试开关的出包。
+assert.ok(!dimensionsPage.includes('getGameRoute(') || dimensionsPage.includes('if (LOCAL_TEST_MODE) { uni.navigateTo({ url: getGameRoute(id) }); return }'), 'browse list may only start a game behind LOCAL_TEST_MODE')
 assert.ok(!showcasePage.includes('getGameRoute(') && !showcasePage.includes('beginLessonItem('), 'showcase is display-only')
 assert.ok(read('pages.json').includes('pages/dimensions/game-showcase'), 'showcase route is registered')
 console.log('PASS: 30 游戏归属 6/6/6/6/6、31天计划、统一归属写入、全部结算链接；不迁移旧记录、不要求报告版本字段')

@@ -37,11 +37,11 @@ const onLoad=f=>f({}),onUnload=f=>onUnmounted(f);
 const getGameDifficulty=()=>${level};
 const uni={getWindowInfo:()=>({windowWidth:${width},windowHeight:${height},statusBarHeight:${height < 700 ? 20 : 47},pixelRatio:3}),getStorageSync:()=>null,setStorageSync(){},redirectTo(o){document.title='result:'+o.url}};
 ${ts.transpile(common, { target: ts.ScriptTarget.ES2020 })}
-function useTrainingSession(){const clock=new TrainingClock();onUnmounted(()=>clock.dispose());return{clock,paused:ref(false),navigating:ref(false),setStartedCheck(){},playFeedback(){},pause(){},resume(){},restart(){},exit(){},back(){}}}
+function useTrainingSession(){const clock=new TrainingClock();onUnmounted(()=>clock.dispose());return{clock,paused:ref(false),navigating:ref(false),setStartedCheck(){},playFeedback(){},stopIntro(){},pause(){},resume(){},restart(){},exit(){},back(){}}}
 const app=Vue.createApp({setup(){
 ${ts.transpile(script, { target: ts.ScriptTarget.ES2020 })}
 ${start ? 'setTimeout(()=>begin(),60);' : ''}
-${auto ? `setTimeout(()=>{const before=JSON.stringify(tubes.value);let picked=0;for(let from=0;from<tubes.value.length&&picked<1;from++){for(let to=0;to<tubes.value.length&&picked<1;to++){if(from==to)continue;if(waterSortPour(tubes.value,from,to).ok){tapTube(from);tapTube(to);picked=1}}}showBootError('auto: found='+picked+' moves='+moveCount.value+' selected='+selected.value+' feedback='+feedback.value+' changed='+(JSON.stringify(tubes.value)!=before)+String.fromCharCode(10)+'tubes='+JSON.stringify(tubes.value))},600);` : ''}
+${auto ? `setTimeout(()=>{const before=JSON.stringify(tubes.value);let picked=0;for(let from=0;from<tubes.value.length&&picked<1;from++){for(let to=0;to<tubes.value.length&&picked<1;to++){if(from==to)continue;if(waterSortPour(tubes.value,from,to,true).ok){tapTube(from);tapTube(to);picked=1}}}showBootError('auto: found='+picked+' moves='+moveCount.value+' selected='+selected.value+' feedback='+feedback.value+' changed='+(JSON.stringify(tubes.value)!=before)+String.fromCharCode(10)+'tubes='+JSON.stringify(tubes.value))},600);` : ''}
 return {${names.join(',')}}
 }});
 app.config.errorHandler=(error,instance,info)=>showBootError('render: '+info+String.fromCharCode(10)+(error&&error.stack?error.stack:error));

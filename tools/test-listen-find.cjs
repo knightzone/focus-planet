@@ -393,11 +393,14 @@ const api = ctx.api
     return { label: label, paths: paths }
   }
 
-  // 听声捉图形的试玩在 onLoad 里就起来了（页面不用 onReady）
+  // 听声捉图形不再进页面就自动试玩：必须孩子先点「先试一下」，避免没打算试玩时说明语音和指令叠在一起
   load()
   assert.equal(pageApi.level.value, 9, '页面读取难度档位')
   assert.equal(pageApi.totalRounds.value, 6, '一局 6 轮')
-  assert(pageApi.started.value === false, '进来先试玩')
+  assert(pageApi.started.value === false, '进来停在准备页')
+  assert.equal(pageApi.shapeViews.value.length, 0, '没点试玩前不出题')
+  assert.equal(played.length, 0, '没点试玩前不播语音')
+  pageApi.startDemo()
   assert.equal(pageApi.shapeViews.value.length, 4, '试玩渲染 4 个图形（每区 1 个）')
   assert.equal(played.length, 1, `试玩就播指令语音：${played[0]}`)
   assert(pageApi.voiceReady.value, '有录音时语音就绪')

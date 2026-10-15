@@ -5,22 +5,26 @@
     <scroll-view class="scroll" direction="vertical" show-scrollbar="false"><view class="content">
       <view class="header"><text class="heading">{{ phase == 'memory' ? '记住它的数字' : phase == 'answer' ? '连起好朋友' : phase == 'review' || phase == 'trial-done' ? feedback : '图形和数字，配成一对' }}</text><text class="badge">{{ started ? remaining + ' 秒' : '试玩' }}</text></view>
       <view class="card">
-        <text class="cue">{{ phase == 'memory' ? countdown + ' 秒后藏起连线' : phase == 'shuffle' ? '图片换个位置' : phase == 'answer' ? '点图形，再点数字 · 也可以拖着连' : phase == 'review' ? '看看正确的朋友' : '先记住，再连线' }}</text>
+        <text v-if="phase != 'memory'" class="cue">{{ phase == 'shuffle' ? '图片换个位置' : phase == 'answer' ? '点图形，再点数字 · 也可以拖着连' : phase == 'review' ? '看看正确的朋友' : '先记住，再连线' }}</text>
+        <view v-else class="memory-block">
+          <text class="memory-label">记住它，连线要藏起来啦</text>
+          <view class="memory-track"><view class="memory-fill" :style="{ width: memoryLeftPercent + '%' }"></view></view>
+        </view>
         <view id="memory-link-board" class="board" :style="{ width: boardWidth + 'px', height: items.length * rowHeight + 'px' }">
           <view v-for="(line, index) in lines" :key="'line-' + index" class="link tap-content" :style="line"></view>
-          <view v-for="(item, index) in items" :key="item.path" class="shape" :class="selected == shapeRow(index) ? 'selected' : ''" :style="{ top: shapeTop(index) + 'px', height: (rowHeight - 8) + 'px' }" @click="selectShape(shapeRow(index))" @touchstart="dragStart(shapeRow(index))" @touchend="dragEnd" @touchcancel="cancelDrag">
+          <view v-for="(item, index) in items" :key="item.path" class="shape" :class="shapeClass(shapeRow(index))" :style="{ top: shapeTop(index) + 'px', height: (rowHeight - 8) + 'px' }" @click="tapRow(shapeRow(index))" @touchstart="dragStart(shapeRow(index))" @touchend="dragEnd" @touchcancel="cancelDrag">
             <image class="art tap-content" :src="item.path" mode="aspectFit"></image>
           </view>
-          <view v-for="(number, row) in displayNumbers" :key="'number-' + row" class="number" :style="{ top: row * rowHeight + 'px', height: (rowHeight - 8) + 'px' }" @click="connect(number)"><text class="digit tap-content">{{ number }}</text></view>
+          <view v-for="(number, row) in displayNumbers" :key="'number-' + row" class="number" :class="numberClass(number)" :style="{ top: row * rowHeight + 'px', height: (rowHeight - 8) + 'px' }" @click="tapNumber(number)"><text class="digit tap-content">{{ number }}</text></view>
         </view>
-        <text v-if="phase == 'answer'" class="detail">{{ connected }} / {{ items.length }}　·　{{ countdown }} 秒</text>
-        <button v-if="phase == 'answer'" class="check-button" :disabled="connected < items.length" @click="submit">连好了</button>
+        <text v-if="phase == 'answer'" class="detail">连对 {{ solved }} / {{ items.length }}　·　错误 {{ roundErrors }} 次　·　{{ countdown }} 秒</text>
+        <text v-if="phase == 'answer'" class="hint">连对变绿、不能改；连错变红，点一下图片或数字就能取消重连</text>
         <view v-if="!started" class="actions">
           <button class="training-preview-primary" @click="begin">开始训练</button>
           <button v-if="phase == 'ready' || phase == 'trial-done'" class="training-preview-secondary" @click="beginTrial">{{ phase == 'trial-done' ? '再试一次' : '先试一轮' }}</button>
         </view>
       </view>
-      <text v-if="started" class="footer">完成 {{ completed }} 轮 · 连续未通过 {{ failures }} / {{ config.failureLimit }}</text>
+      <text v-if="started" class="footer">完成 {{ completed }} 轮 · 错误 {{ totalErrors }} 次 · 连续未通过 {{ failures }} / {{ config.failureLimit }}</text>
       <text v-else class="footer">{{ config.count }} 个图形 · {{ config.durationMs / 1000 }} 秒</text>
     </view></scroll-view>
   </view>
@@ -35,16 +39,53 @@ import { useTrainingTween } from '../../utils/training-tween.uts'
 import { getGameDifficulty } from '../../utils/difficulty.uts'
 import { averageRoundScore, scoreQuery } from '../../utils/game-scoring.uts'
 import { MEMORY_LINK_BACKGROUND } from '../../utils/game-assets.uts'
-import { MemoryLinkItem, memoryLinkConfig, memoryLinkRound, memoryLinkOrder, memoryLinkAssign, memoryLinkMatches, memoryLinkScore } from '../../utils/memory-link.uts'
+import { MemoryLinkItem, memoryLinkConfig, memoryLinkRound, memoryLinkOrder, memoryLinkAssign, memoryLinkScore } from '../../utils/memory-link.uts'
 const training = useTrainingSession(), trainingClock = training.clock
 const shuffleMotion = useTrainingTween(trainingClock, 0)
 const trainingPaused = training.paused, trainingBusy = training.navigating
 const level = ref(1), started = ref(false), phase = ref('ready'), selected = ref(-1)
 const items = ref([] as MemoryLinkItem[]), order = ref([] as number[]), answers = ref([] as number[])
 const completed = ref(0), failures = ref(0), remaining = ref(60), countdown = ref(0), feedback = ref('')
+// 记忆阶段的倒数用进度条（数字不够直观）：按本轮记忆总时长算剩余百分比。
+const memoryLeftPercent = ref(100)
+// 实时判定的计分依据：一轮内连错次数（绿锁红可撤，错一次扣 10 分）。
+const roundErrors = ref(0), totalErrors = ref(0)
 const boardWidth = ref(280), rowHeight = ref(56)
 const config = computed(() => memoryLinkConfig(level.value))
-const connected = computed((): number => answers.value.filter((n: number): boolean => n > 0).length)
+// 每行的实时判定：未连 0 / 连错 1 / 连对 2。绿（连对）锁定，红（连错）可以取消重连。
+function rowVerdict(row: number): number {
+  if (row < 0 || row >= answers.value.length) return 0
+  const number = answers.value[row]
+  if (number <= 0) return 0
+  return number == items.value[order.value[row]].number ? 2 : 1
+}
+const solved = computed((): number => {
+  let total = 0
+  for (let row = 0; row < answers.value.length; row++) if (rowVerdict(row) == 2) total += 1
+  return total
+})
+// 已经连对的数字也跟着锁定，不能被其它行抢走（绿色不可撤销）。
+function numberLockedRow(number: number): number {
+  for (let row = 0; row < answers.value.length; row++) if (answers.value[row] == number && rowVerdict(row) == 2) return row
+  return -1
+}
+function numberIsLocked(number: number): boolean { return numberLockedRow(number) >= 0 }
+function wrongRowForNumber(number: number): number {
+  for (let row = 0; row < answers.value.length; row++) if (answers.value[row] == number && rowVerdict(row) == 1) return row
+  return -1
+}
+function shapeClass(row: number): string {
+  if (rowVerdict(row) == 2) return 'shape-right'
+  if (rowVerdict(row) == 1) return 'shape-wrong'
+  return selected.value == row ? 'selected' : ''
+}
+function numberClass(number: number): string { return numberIsLocked(number) ? 'number-right' : '' }
+function clearRow(row: number) {
+  const next = answers.value.slice()
+  next[row] = 0
+  answers.value = next
+  selected.value = -1
+}
 const displayNumbers = computed((): number[] => items.value.map((item: MemoryLinkItem): number => item.number))
 function shapeRow(index: number): number { return phase.value == 'ready' || phase.value == 'memory' ? index : order.value.indexOf(index) }
 function shapeTop(index: number): number {
@@ -61,12 +102,14 @@ const lines = computed((): string[] => {
     if (number <= 0) continue
     const y = row * rowHeight.value + (rowHeight.value - 8) / 2
     const dy = (displayNumbers.value.indexOf(number) - row) * rowHeight.value, dx = boardWidth.value - 112
-    result.push('left:56px;top:' + y + 'px;width:' + Math.sqrt(dx * dx + dy * dy) + 'px;transform:rotate(' + Math.atan2(dy, dx) * 180 / Math.PI + 'deg);')
+    // 作答阶段实时上色：连对绿色、连错红色；记忆/回顾阶段用中性色。
+    const color = phase.value == 'answer' ? (rowVerdict(row) == 2 ? '#49b57f' : '#e06b6b') : '#b0a6d9'
+    result.push('left:56px;top:' + y + 'px;width:' + Math.sqrt(dx * dx + dy * dy) + 'px;transform:rotate(' + Math.atan2(dy, dx) * 180 / Math.PI + 'deg);background-color:' + color + ';')
   }
   return result
 })
-let timer = 0, phaseEnd = 0, sessionEnd = 0, gameStart = 0, answerStart = 0, dragRow = -1
-let totalCorrect = 0, totalPairs = 0, reactionTotal = 0, suppressClickUntil = 0
+let timer = 0, phaseEnd = 0, sessionEnd = 0, gameStart = 0, answerStart = 0, dragRow = -1, memoryPhaseMs = 0
+let totalPairs = 0, reactionTotal = 0, suppressClickUntil = 0
 const roundScores: number[] = []
 function cancelDrag() { dragRow = -1; selected.value = -1 }
 function resize() { boardWidth.value = Math.max(220, Math.min(360, uni.getWindowInfo().windowWidth - 76)); rowHeight.value = 56 }
@@ -76,29 +119,37 @@ function finish(early: boolean) {
   // 耗尽连续失败容错时不能靠前面高分升级。
   const scores = early ? roundScores.map((s: number): number => Math.min(99, s)) : roundScores.slice()
   const score = averageRoundScore(scores)
-  uni.redirectTo({ url: '/pages/result/result?gameId=memory-link&dimensionId=focused&score=' + score + '&accuracy=' + (totalPairs == 0 ? 0 : Math.round(totalCorrect * 100 / totalPairs)) + '&reaction=' + (completed.value == 0 ? 0 : Math.round(reactionTotal / completed.value)) + '&duration=' + Math.max(1, Math.round((trainingClock.now() - gameStart) / 1000)) + scoreQuery(scores) })
+  uni.redirectTo({ url: '/pages/result/result?gameId=memory-link&dimensionId=focused&score=' + score + '&accuracy=' + (totalPairs + totalErrors.value == 0 ? 0 : Math.round(totalPairs * 100 / (totalPairs + totalErrors.value))) + '&reaction=' + (completed.value == 0 ? 0 : Math.round(reactionTotal / completed.value)) + '&duration=' + Math.max(1, Math.round((trainingClock.now() - gameStart) / 1000)) + scoreQuery(scores) })
 }
 function prepareRound(count: number) {
   shuffleMotion.move(0, 0)
   items.value = memoryLinkRound(count, Math.random)
   order.value = memoryLinkOrder(count, Math.random); answers.value = items.value.map((_item: MemoryLinkItem): number => 0)
+  roundErrors.value = 0
   cancelDrag(); phase.value = 'memory'
   const ms = started.value ? config.value.memoryMs : memoryLinkConfig(1).memoryMs
   phaseEnd = trainingClock.now() + ms; countdown.value = Math.ceil(ms / 1000)
+  memoryPhaseMs = ms; memoryLeftPercent.value = 100
 }
-function judge() {
-  if (trainingPaused.value || phase.value != 'answer') return
+// 一轮结束：连对后自动进入，或作答超时（0 分并计一次连续未通过）。
+function completeRound(timedOut: boolean) {
   const elapsed = trainingClock.now() - answerStart
-  const correct = memoryLinkMatches(items.value, order.value, answers.value)
-  const success = correct == items.value.length
-  training.playFeedback(success ? 'correct' : 'wrong'); cancelDrag()
-  feedback.value = success ? '都记住啦！' : '再记一次，慢慢来'
+  training.playFeedback(timedOut ? 'missed' : 'correct'); cancelDrag()
+  feedback.value = timedOut
+    ? '时间到啦，看看正确的连法'
+    : roundErrors.value == 0 ? '全对！都记住啦' : '都连好啦，错了 ' + roundErrors.value.toString() + ' 次'
   if (started.value) {
-    completed.value += 1; totalCorrect += correct; totalPairs += items.value.length; reactionTotal += elapsed
-    roundScores.push(memoryLinkScore(correct, items.value.length, elapsed))
-    failures.value = success ? 0 : failures.value + 1
+    completed.value += 1; totalPairs += items.value.length; totalErrors.value += roundErrors.value
+    reactionTotal += elapsed
+    roundScores.push(timedOut ? 0 : memoryLinkScore(roundErrors.value))
+    failures.value = timedOut ? failures.value + 1 : 0
   }
   phase.value = 'review'; phaseEnd = trainingClock.now() + 1800
+}
+// 作答超时：连对后会自动完成，不再需要手动提交。
+function judge() {
+  if (trainingPaused.value || phase.value != 'answer') return
+  completeRound(true)
 }
 function tick() {
   if (trainingPaused.value || phase.value == 'finished') return
@@ -108,6 +159,7 @@ function tick() {
     if (now >= sessionEnd) { finish(failures.value >= config.value.failureLimit); return }
   }
   countdown.value = Math.max(0, Math.ceil((phaseEnd - now) / 1000))
+  if (phase.value == 'memory') memoryLeftPercent.value = memoryPhaseMs <= 0 ? 0 : Math.max(0, Math.min(100, (phaseEnd - now) * 100 / memoryPhaseMs))
   if (now < phaseEnd) return
   if (phase.value == 'memory') { cancelDrag(); phase.value = 'shuffle'; shuffleMotion.move(1, 700); phaseEnd = now + 800 }
   else if (phase.value == 'shuffle') { phase.value = 'answer'; answerStart = now; phaseEnd = now + (started.value ? config.value.answerMs : memoryLinkConfig(1).answerMs); countdown.value = Math.ceil((phaseEnd - now) / 1000) }
@@ -121,24 +173,47 @@ function tick() {
 function startTicker() { trainingClock.clearInterval(timer); timer = trainingClock.setInterval(() => tick(), 100) }
 function beginTrial() {
   if (trainingPaused.value || started.value) return
+  training.stopIntro()
   prepareRound(3); startTicker()
 }
 function begin() {
   if (trainingPaused.value || started.value) return
   started.value = true; completed.value = 0; failures.value = 0; roundScores.length = 0
-  totalCorrect = 0; totalPairs = 0; reactionTotal = 0
+  totalPairs = 0; reactionTotal = 0; totalErrors.value = 0
   gameStart = trainingClock.now(); sessionEnd = gameStart + config.value.durationMs; remaining.value = config.value.durationMs / 1000
   prepareRound(config.value.count); startTicker()
 }
-function selectShape(row: number) {
+// 点图形：未连 → 选中；连错（红）→ 取消重连；连对（绿）→ 锁定不改。
+function tapRow(row: number) {
   if (trainingPaused.value || phase.value != 'answer' || trainingClock.now() < suppressClickUntil) return
+  if (rowVerdict(row) == 2) { feedback.value = '这根已经连对啦，不能改'; return }
+  if (rowVerdict(row) == 1) { clearRow(row); feedback.value = '取消啦，再连一次'; return }
   selected.value = row
+}
+// 点数字：已连对的数字锁定；选中了图形就直接连；否则点红色的数字也能取消。
+function tapNumber(number: number) {
+  if (trainingPaused.value || phase.value != 'answer' || trainingClock.now() < suppressClickUntil) return
+  if (numberIsLocked(number)) { feedback.value = '这个数字已经连对啦'; return }
+  if (selected.value >= 0) { connect(number); return }
+  const wrongRow = wrongRowForNumber(number)
+  if (wrongRow >= 0) { clearRow(wrongRow); feedback.value = '取消啦，再连一次' }
 }
 function connect(number: number) {
   if (trainingPaused.value || phase.value != 'answer' || selected.value < 0) return
-  answers.value = memoryLinkAssign(answers.value, selected.value, number); selected.value = -1
+  const row = selected.value
+  if (rowVerdict(row) == 2 || numberIsLocked(number)) { selected.value = -1; return }
+  answers.value = memoryLinkAssign(answers.value, row, number); selected.value = -1
+  if (rowVerdict(row) == 2) {
+    training.playFeedback('correct')
+    feedback.value = '连对啦！'
+    if (solved.value >= items.value.length) completeRound(false)
+    return
+  }
+  // 连错：留红线，允许取消重连，但这一次记入错误次数。
+  roundErrors.value += 1
+  training.playFeedback('wrong')
+  feedback.value = '这根不对，点一下图片或数字就能取消'
 }
-function submit() { if (trainingPaused.value || phase.value != 'answer' || connected.value < items.value.length) return; judge() }
 function dragStart(row: number) { if (trainingPaused.value || phase.value != 'answer') return; dragRow = row; selected.value = row }
 function dragEnd(event: UniTouchEvent) {
   if (trainingPaused.value || phase.value != 'answer' || dragRow < 0 || event.changedTouches.length == 0) { dragRow = -1; return }
@@ -161,8 +236,12 @@ training.setStartedCheck((): boolean => started.value)
 <style>
 .page { flex: 1; position: relative; background-color: #eef1fc; }.background { position: absolute; width: 100%; height: 100%; }.scroll { flex: 1; position: relative; }.content { padding: 18px 18px 26px; }
 .header { flex-direction: row; justify-content: space-between; align-items: center; }.heading { flex: 1; font-size: 20px; font-weight: 700; color: #495a82; }.badge { padding: 8px 12px; border-radius: 18px; background-color: rgba(255,255,255,0.8); color: #7283a9; font-size: 12px; }
-.card { margin-top: 18px; padding: 18px 12px; border-radius: 30px; background-color: rgba(255,255,255,0.65); align-items: center; }.cue { font-size: 12px; color: #7b88a5; margin-bottom: 18px; }.board { position: relative; }.shape { position: absolute; left: 0; width: 56px; border-radius: 15px; background-color: #ffffff; align-items: center; justify-content: center; border-width: 2px; border-color: #ffffff; }.selected { border-color: #9b8ed7; background-color: #f0eaff; }.art { width: 44px; height: 44px; }.number { position: absolute; right: 0; width: 56px; background-color: #ffffff; border-radius: 15px; align-items: center; justify-content: center; }.digit { font-size: 24px; color: #6574ae; font-weight: 700; }.link { position: absolute; height: 3px; background-color: #b0a6d9; transform-origin: left center; }.detail { margin-top: 8px; color: #8a97b2; font-size: 12px; }.footer { margin-top: 16px; text-align: center; color: #8190a8; font-size: 12px; }.actions { width: 100%; align-items: center; }
-.check-button { margin-top: 14px; width: 180px; height: 44px; line-height: 44px; padding: 0; border-radius: 22px; background-color: #8d9bdb; color: #ffffff; border-width: 0; font-size: 16px; }
+.card { margin-top: 18px; padding: 18px 12px; border-radius: 30px; background-color: rgba(255,255,255,0.65); align-items: center; }.cue { font-size: 12px; color: #7b88a5; margin-bottom: 18px; }.memory-block { margin-bottom: 18px; align-items: center; }.memory-label { font-size: 12px; color: #7b88a5; }.memory-track { margin-top: 8px; width: 70%; height: 8px; border-radius: 4px; background-color: #e5eaf5; overflow: hidden; }.memory-fill { height: 8px; background-color: #8d9bdb; }.board { position: relative; }.shape { position: absolute; left: 0; width: 56px; border-radius: 15px; background-color: #ffffff; align-items: center; justify-content: center; border-width: 2px; border-color: #ffffff; }.selected { border-color: #9b8ed7; background-color: #f0eaff; }.art { width: 44px; height: 44px; }.number { position: absolute; right: 0; width: 56px; background-color: #ffffff; border-radius: 15px; align-items: center; justify-content: center; }.digit { font-size: 24px; color: #6574ae; font-weight: 700; }.link { position: absolute; height: 3px; background-color: #b0a6d9; transform-origin: left center; }.detail { margin-top: 8px; color: #8a97b2; font-size: 12px; }.footer { margin-top: 16px; text-align: center; color: #8190a8; font-size: 12px; }.actions { width: 100%; align-items: center; }
+.check-button { display: none; }
+.shape-right { border-color: #49b57f; background-color: #eaf7f0; }
+.shape-wrong { border-color: #e06b6b; background-color: #fdeeee; }
+.number-right { background-color: #eaf7f0; }
+.hint { margin-top: 6px; padding: 0 12px; color: #93a0b6; font-size: 11px; text-align: center; }
 .training-preview-primary { margin-top: 16px; width: 200px; height: 50px; line-height: 50px; padding: 0; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; }
 .training-preview-secondary { margin-top: 12px; width: 200px; height: 42px; line-height: 42px; padding: 0; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; }
 </style>

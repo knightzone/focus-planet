@@ -3,7 +3,7 @@
 	"appid": "__UNI__B5780B0",
 	"description": "面向3-16岁儿童与学生的专注力训练应用",
 	"versionName": "1.0.0",
-	"versionCode": "100",
+	"versionCode": "1000",
 	"uni-app-x": {
 		"vapor": true,
 		"styleIsolationVersion": "2"

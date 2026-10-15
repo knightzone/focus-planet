@@ -51,7 +51,7 @@ const onLoad=f=>f({}),onUnload=f=>onUnmounted(f);
 const getGameDifficulty=()=>${level};
 const uni={getWindowInfo:()=>({windowWidth:${width},windowHeight:${height},statusBarHeight:${topInset},pixelRatio:3}),getStorageSync:()=>'',setStorageSync(){},removeStorageSync(){},redirectTo(o){document.querySelector('.nav').textContent='完成！'+o.url.split('&score=')[1].split('&')[0]+'分'}};
 ${ts.transpile(common, { target: ts.ScriptTarget.ES2020 })}
-function useTrainingSession(){const timers=[];const clock={now:()=>Date.now(),setTimeout:(f,ms)=>{const id=setTimeout(f,ms);timers.push(id);return id},clearTimeout:id=>clearTimeout(id),clearInterval:id=>clearInterval(id),setInterval:(f,ms)=>{const id=setInterval(f,ms);timers.push(id);return id},dispose:()=>timers.forEach(clearTimeout)};onUnmounted(()=>clock.dispose());return{clock,paused:ref(false),navigating:ref(false),setStartedCheck(){},playFeedback(){},pause(){},resume(){},restart(){},exit(){},back(){}}}
+function useTrainingSession(){const timers=[];const clock={now:()=>Date.now(),setTimeout:(f,ms)=>{const id=setTimeout(f,ms);timers.push(id);return id},clearTimeout:id=>clearTimeout(id),clearInterval:id=>clearInterval(id),setInterval:(f,ms)=>{const id=setInterval(f,ms);timers.push(id);return id},dispose:()=>timers.forEach(clearTimeout)};onUnmounted(()=>clock.dispose());return{clock,paused:ref(false),navigating:ref(false),setStartedCheck(){},playFeedback(){},stopIntro(){},pause(){},resume(){},restart(){},exit(){},back(){}}}
 const app=Vue.createApp({setup(){
 ${ts.transpile(script, { target: ts.ScriptTarget.ES2020 })}
 ${start ? 'setTimeout(()=>begin(),80);' : ''}

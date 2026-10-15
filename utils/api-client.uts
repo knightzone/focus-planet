@@ -8,6 +8,8 @@ export type HttpMethod = 'POST'
 const DEVICE_ID_KEY = 'focus_planet_device_id'
 const ACCESS_TOKEN_KEY = 'focus_planet_access_token'
 const REFRESH_TOKEN_KEY = 'focus_planet_refresh_token'
+// 会话对象与令牌同属一份登录态；导出让 utils/auth.uts 共用，避免两处写死同一个键。
+export const AUTH_SESSION_KEY = 'focus_planet_auth_session'
 
 export function getDeviceId(): string {
   const stored = uni.getStorageSync(DEVICE_ID_KEY)
@@ -48,10 +50,15 @@ export function getRefreshToken(): string {
   return value == null || value == '' ? '' : value as string
 }
 
-export function clearTokens() {
+// 令牌与会话对象必须一起清：成绩、课程、难度、统计、补传等模块直接读
+// focus_planet_auth_session；只清令牌会留下「界面已退出、数据仍按旧账号读写」的半登录状态。
+function clearAuthStorage() {
   uni.removeStorageSync(ACCESS_TOKEN_KEY)
   uni.removeStorageSync(REFRESH_TOKEN_KEY)
+  uni.removeStorageSync(AUTH_SESSION_KEY)
 }
+
+export function clearTokens() { clearAuthStorage() }
 
 function responseObject(value: any): UTSJSONObject {
   return JSON.parse<UTSJSONObject>(JSON.stringify(value))!
@@ -129,16 +136,51 @@ export function apiRequest(path: string, method: HttpMethod, body: UTSJSONObject
   performRequest(path, method, body, authenticated, idempotencyKey, false, success, failure)
 }
 
+// 冷启动/回前台时会有多个鉴权请求同时拿到 401（会员状态 /vip/status、成绩补传 /training/records/sync、
+// 首页课程…）。若服务端的刷新令牌是「用一次就换」，并发刷新会让后到的请求拿着已作废的旧令牌去换，
+// 换失败就清会话 → 用户刚打开就被踢回登录页。所以刷新必须单飞：同一刻只发一个刷新请求，
+// 其余请求排队等同一个结果，再各自带着新令牌重试。
+let refreshPending = false
+let refreshSuccessWaiters = [] as (() => void)[]
+let refreshFailureWaiters = [] as ApiFailure[]
+
+function settleRefresh(ok: boolean, message: string, code: string) {
+  const successes = refreshSuccessWaiters.slice()
+  const failures = refreshFailureWaiters.slice()
+  refreshSuccessWaiters = []
+  refreshFailureWaiters = []
+  refreshPending = false
+  if (ok) {
+    for (let i = 0; i < successes.length; i++) successes[i]()
+    return
+  }
+  for (let i = 0; i < failures.length; i++) failures[i](message, code)
+}
+
 export function refreshAccessToken(success: () => void, failure: ApiFailure) {
   const refreshToken = getRefreshToken()
   if (refreshToken == '') { failure('登录已过期，请重新登录', 'UNAUTHORIZED'); return }
+  refreshSuccessWaiters.push(success)
+  refreshFailureWaiters.push(failure)
+  // 已经在刷：只排队，不再发第二个请求。
+  if (refreshPending) {
+    console.log('[auth-refresh] queued waiters=' + refreshSuccessWaiters.length.toString())
+    return
+  }
+  refreshPending = true
+  console.log('[auth-refresh] start waiters=' + refreshSuccessWaiters.length.toString())
   performRequest('/auth/token/refresh', 'POST', { refreshToken: refreshToken }, false, '', true, (data: UTSJSONObject) => {
     const access = data['accessToken'] as string
     const refresh = data['refreshToken'] as string
     saveTokens(access, refresh)
-    success()
+    // rotated 直接回答「服务端是不是用一次换一次」，出问题时一眼能对上。
+    console.log('[auth-refresh] ok waiters=' + refreshSuccessWaiters.length.toString() + ' rotated=' + (refresh != refreshToken).toString())
+    settleRefresh(true, '', '')
   }, (message: string, code: string) => {
-    if (code == 'UNAUTHORIZED' || code == 'INVALID_TOKEN' || code == 'TOKEN_EXPIRED') clearTokens()
-    failure(message, code)
+    // 只有服务端明确说刷新令牌无效/过期才清会话；网络错误、超时、5xx 不清，避免把用户误踢。
+    const cleared = code == 'UNAUTHORIZED' || code == 'INVALID_TOKEN' || code == 'TOKEN_EXPIRED'
+    console.log('[auth-refresh] failed code=' + code + ' clearedSession=' + cleared.toString())
+    if (cleared) clearAuthStorage()
+    settleRefresh(false, message, code)
   })
 }

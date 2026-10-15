@@ -1,6 +1,7 @@
 import { getMembershipStatus } from './server-api.uts'
 import { getAuthSession } from './auth.uts'
 import { ApiFailure } from './api-client.uts'
+import { scheduleRenewalReminder, cancelRenewalReminder } from '@/uni_modules/focus-face-detector'
 
 export type VipProduct = { productId: string, name: string, type: string }
 export type MembershipState = {
@@ -102,11 +103,31 @@ export function membershipStale(): boolean {
   return syncedAt <= 0 || Date.now() - syncedAt >= REFRESH_INTERVAL_MS
 }
 
+// 自动续费提醒：本地通知（iOS UNUserNotificationCenter），到期前 5 天提醒一次。
+// 只在 App 至少打开过一次后生效，属轻量方案；远程推送能力本版本未接入。
+export const RENEWAL_REMINDER_ID = 'focus_planet_renewal_reminder'
+export const RENEWAL_REMIND_DAYS = 5
+const DAY_MILLISECONDS = 24 * 60 * 60 * 1000
+
+export function syncRenewalReminder(state: MembershipState) {
+  if (!state.active || state.expiresAt == '') { cancelRenewalReminder(RENEWAL_REMINDER_ID); return }
+  const expiresAt = parseServerTime(state.expiresAt)
+  const now = Date.now()
+  if (expiresAt <= now) { cancelRenewalReminder(RENEWAL_REMINDER_ID); return }
+  const remindAt = expiresAt - RENEWAL_REMIND_DAYS * DAY_MILLISECONDS
+  const daysLeft = Math.max(1, Math.ceil((expiresAt - now) / DAY_MILLISECONDS))
+  const body = '你的会员将在 ' + daysLeft.toString() + ' 天后自动续费。如需取消，请在 App Store 的订阅管理中关闭自动续订。'
+  // 还没到提醒日就排在提醒日；已经进入 5 天窗口就稍后立即提醒。
+  const fireAt = remindAt > now ? remindAt : now + 10000
+  scheduleRenewalReminder(RENEWAL_REMINDER_ID, '会员续费提醒', body, fireAt, (_granted: boolean) => {})
+}
+
 export function saveMembership(state: MembershipState) {
   const userId = currentUserId()
   if (userId == '') return
   uni.setStorageSync(CACHE_PREFIX + userId, state)
   uni.$emit('focus-membership-updated', state)
+  syncRenewalReminder(state)
 }
 
 export function refreshMembership(success: (state: MembershipState) => void, failure: ApiFailure) {

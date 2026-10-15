@@ -71,7 +71,7 @@ function begin() {
   if (trainingPaused.value || started.value) return
   started.value = true; phase.value = 'play'; round.value = 1; results.value = []; totalHints.value = 0; gameStart = trainingClock.now(); prepare()
 }
-function beginTrial() { if (trainingPaused.value || started.value) return; phase.value = 'trial'; prepare() }
+function beginTrial() { if (trainingPaused.value || started.value) return; training.stopIntro(); phase.value = 'trial'; prepare() }
 function choose(index: number) {
   if (trainingPaused.value || solved.value || phase.value == 'finished' || phase.value == 'ready') return
   if (isLocked(index)) return

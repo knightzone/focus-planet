@@ -2,11 +2,154 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
    PrivacyInfo.xcprivacy
-   FocusPlanet
+   FocusPlanet（专注星伴）
 
-   Created by wangzhitong on 2024/6/19.
-   Copyright (c) 2024 ___ORGANIZATIONNAME___. All rights reserved.
+   内容与线上《隐私政策》第二节「我们如何收集和使用个人信息」以及 App Store Connect
+   的隐私标签保持一致。修改本文件时请同时核对这两处，避免三处口径不一致。
+
+   取值来自 Apple 官方文档，不要在未核对的情况下手改字符串：
+   - 收集到的数据类型（NSPrivacyCollectedDataType*）、用途（NSPrivacyCollectedDataTypePurpose*）
+     https://developer.apple.com/documentation/bundleresources/describing-data-use-in-privacy-manifests
+   - 必需理由 API 的 Reason 代码
+     https://developer.apple.com/documentation/bundleresources/describing-use-of-required-reason-api
 -->
 <plist version="1.0">
-<dict/>
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+
+	<!--
+	   应用自身的收集行为。全部仅用于提供 App 功能（AppFunctionality），不做追踪、不做广告。
+	   - 手机号 / 账号标识：注册登录、找回、跨设备同步（隐私政策 2.1）
+	   - 昵称、出生年月、性别、头像、监护人同意记录：儿童档案与难度匹配（隐私政策 2.2）
+	   - 训练交互指标与陪伴计时：成绩、报告与历史对比（隐私政策 2.3 / 2.4 / 2.5）
+	   - 订阅交易：服务端验单与授予权益（iOS 会员订阅）
+	   - 设备标识 X-Device-Id：计划解析与陪伴记录关联（utils/api-client.uts）
+	   未列入：麦克风音频（仅端侧处理、不上传）、崩溃与性能日志（友盟 U-APM 尚未接入）。
+	-->
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePhoneNumber</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeUserID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeName</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherDataTypes</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeProductInteraction</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePurchaseHistory</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeDeviceID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+
+	<!--
+	   必需理由 API。本 App 自身不使用这些 API，声明用于覆盖打包进 App 但未自带隐私清单的
+	   DCloud 运行库（打包后位于 FocusPlanet.app/Frameworks）：
+	   - DCloudUniappRuntime：standardUserDefaults（UserDefaults）、systemUptime（SystemBootTime）
+	   - DCloudUTSExtAPI：creationDate（FileTimestamp）、_stat（FileTimestamp）
+	   随包携带的 SDWebImage / KSCrash / DCloudUTSFoundation 自带 PrivacyInfo.xcprivacy，不在此重复。
+	-->
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>35F9.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
 </plist>

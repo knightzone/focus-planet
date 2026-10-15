@@ -41,9 +41,9 @@ export function memoryLinkMatches(items: MemoryLinkItem[], order: number[], answ
   for (let i = 0; i < order.length; i++) if (answers[i] == items[order[i]].number) correct += 1
   return correct
 }
-// 部分连对按比例得分；全部连对才奖励更快回忆，慢一些也能达标。
-export function memoryLinkScore(correct: number, count: number, elapsedMs: number): number {
-  if (correct < count) return Math.floor(100 * correct / count)
-  const target = count * 3500
-  return Math.min(200, 100 + Math.max(0, Math.floor(100 * (target - Math.max(0, elapsedMs)) / target)))
+// 与上天入海同口径的「起始分 − 扣分」模型：起始 120、每错一次扣 10、下限 0。
+// 所以 0~2 次错误仍 ≥100（允许小错），3 次起低于过关线；作答超时由页面直接记 0 分。
+export function memoryLinkScore(errors: number): number {
+  const wrong = Math.max(0, Math.round(Number.isFinite(errors) ? errors : 0))
+  return Math.max(0, 120 - wrong * 10)
 }

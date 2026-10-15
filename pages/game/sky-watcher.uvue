@@ -21,7 +21,7 @@
             </view>
           </view>
           <text class="demo-hint">{{ demoHint }}</text>
-          <view class="demo-replay-row"><text v-if="demoDone" class="demo-replay training-preview-secondary" @click="resetDemo">再试一次</text></view>
+          <button v-if="demoDone" class="demo-replay training-preview-secondary" @click="resetDemo">再试一次</button>
           <button class="tap-target primary training-preview-primary" @click="begin">开始训练</button>
         </view>
         <view v-else-if="loadFailed" class="instruction">
@@ -194,7 +194,6 @@ training.setStartedCheck((): boolean => started.value)
 .demo-choice { width: 118px; height: 118px; margin: 0 4px; align-items: center; justify-content: center; }
 .demo-planet { width: 110px; height: 110px; }
 .demo-hint { margin-top: 12px; color: #25314a; font-size: 13px; }
-.demo-replay-row { height: 32px; justify-content: center; }
 .demo-replay { padding: 8px 20px; color: #344b75; font-size: 12px; }
 .primary { margin-top: 10px; width: 140px; height: 48px; line-height: 48px; border-radius: 16px; background-color: #55b895; color: #ffffff; font-size: 15px; font-weight: 700; }
 .stimulus { width: 190px; height: 220px; align-items: center; justify-content: center; }
@@ -209,5 +208,5 @@ training.setStartedCheck((): boolean => started.value)
 /* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
 .training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
 .training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
-.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
+.training-preview-secondary { margin-top: 12px; width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

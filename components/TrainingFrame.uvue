@@ -23,6 +23,7 @@
 <script setup lang="uts">
 import { computed, onMounted, onUnmounted, watch } from 'vue'
 import { GAMES, TrainingGame } from '../utils/catalog.uts'
+import { playTrainingIntro, stopTrainingIntro, releaseTrainingIntro } from '../utils/training-intro.uts'
 const props = defineProps<{ paused: boolean, busy: boolean, title: string, difficulty: number, preparing: boolean }>()
 const topInset = Math.max(0, uni.getWindowInfo().statusBarHeight)
 const emit = defineEmits(['pause', 'resume', 'restart', 'exit', 'back'])
@@ -30,19 +31,15 @@ const introPath = computed((): string => {
   const game = GAMES.find((item: TrainingGame): boolean => item.name == props.title)
   return game == null ? '' : '/static/audio/training-intro/' + game.id + '.mp3'
 })
-let introAudio: InnerAudioContext | null = null
 function playIntro() {
   if (!props.preparing || props.paused || introPath.value == '') return
-  if (introAudio == null) introAudio = uni.createInnerAudioContext()
-  introAudio!.stop()
-  introAudio!.src = introPath.value
-  introAudio!.play()
+  playTrainingIntro(introPath.value)
 }
-watch((): boolean => props.preparing, (preparing: boolean) => { if (!preparing && introAudio != null) introAudio!.stop() })
-watch((): boolean => props.paused, (paused: boolean) => { if (paused && introAudio != null) introAudio!.stop() })
+watch((): boolean => props.preparing, (preparing: boolean) => { if (!preparing) stopTrainingIntro() })
+watch((): boolean => props.paused, (paused: boolean) => { if (paused) stopTrainingIntro() })
 watch((): string => introPath.value, (path: string) => { if (path != '' && props.preparing) playIntro() })
 onMounted(() => { if (props.preparing) playIntro() })
-onUnmounted(() => { if (introAudio != null) { introAudio!.stop(); introAudio!.destroy(); introAudio = null } })
+onUnmounted(() => { releaseTrainingIntro() })
 function ignore() {}
 </script>
 <style>

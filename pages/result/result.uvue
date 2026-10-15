@@ -6,6 +6,7 @@
       <view v-if="!resultInvalid" class="reward-card">
         <ResultCelebration v-if="dialogueIndex >= 0" :score="score" :character="characterImage"></ResultCelebration>
         <view class="stars-row"><ScoreStars v-if="!specialCelebration" :score="score" :report="false" :size="36"></ScoreStars><text v-else class="special-label">星光环绕，为你闪耀</text></view>
+        <view class="score-line"><text class="score-text">{{ scoreLine }}</text></view>
         <ResultVoice v-if="dialogueIndex >= 0" :dialogue="dialogueIndex" :key="dialogueIndex"></ResultVoice>
       </view>
       <button class="tap-target primary" @click="continuePlan">{{ resultInvalid || nextPlan == null ? '回到首页' : '继续今日训练' }}</button>
@@ -40,6 +41,12 @@ const score = ref(0)
 const earnedStars = computed((): number => resultStarCount(score.value))
 const passed = computed((): boolean => hasPassStar(score.value))
 const specialCelebration = computed((): boolean => hasStarCelebration(score.value))
+// 结束页把「分数 / 星 / 星环」都说清楚：星由 ScoreStars 展示，这里补分数；上报了星环的游戏再补星光与星环。
+const ringsCount = ref(0)
+const hasRings = ref(false)
+const scoreLine = computed((): string => hasRings.value
+  ? '本局 ' + score.value.toString() + ' 分 · 星光 ' + completedCount.value.toString() + ' · 星环 ' + ringsCount.value.toString()
+  : '本局 ' + score.value.toString() + ' 分')
 const accuracy = ref(0)
 const reaction = ref(0)
 const duration = ref(0)
@@ -106,6 +113,9 @@ onLoad((options: UTSJSONObject) => {
   interferenceErrors.value = optionNumber(options, 'interferenceErrors')
   completedCount.value = optionNumber(options, 'completed')
   totalCount.value = optionNumber(options, 'total')
+  // rings 只在游戏上报时存在（当前是呼吸小星球）；没有就不显示星环，避免别的游戏显 0。
+  hasRings.value = optionString(options, 'rings', '') != ''
+  ringsCount.value = optionNumber(options, 'rings')
   passedFlag.value = optionNumber(options, 'passed')
   targetDuration.value = optionNumber(options, 'targetDuration')
   score.value = performance.value.score
@@ -246,7 +256,7 @@ function again() {
 .page { flex: 1; position: relative; background-color: #edf4ff; }.result-sky { position: absolute; width: 100%; height: 100%; }.result-scroll { flex: 1; position: relative; }.result-content { padding: 24px 20px 32px; align-items: center; }
 .title { color: #35476f; font-size: 27px; font-weight: 700; }.subtitle { margin-top: 8px; color: #7f8dac; font-size: 14px; }
 .reward-card { margin-top: 24px; width: 100%; padding: 10px 0 25px; border-radius: 30px; background-color: rgba(255,255,255,0.76); align-items: center; }
-.stars-row { height: 48px; align-items: center; justify-content: center; }.special-label { color: #9b86c2; font-size: 16px; font-weight: 700; }
+.stars-row { height: 48px; align-items: center; justify-content: center; }.score-line { margin-top: 2px; align-items: center; }.score-text { color: #7c87ba; font-size: 13px; font-weight: 600; }.special-label { color: #9b86c2; font-size: 16px; font-weight: 700; }
 .reward-copy { margin-top: 13px; color: #58698a; font-size: 19px; font-weight: 700; }
 .primary { margin-top: 20px; width: 100%; height: 50px; line-height: 50px; border-radius: 25px; border-width: 0; background-color: #8c9bda; color: #ffffff; font-size: 16px; font-weight: 700; }
 .secondary { margin-top: 10px; width: 100%; height: 48px; line-height: 48px; border-radius: 24px; border-width: 0; background-color: rgba(255,255,255,0.72); color: #8393ba; font-size: 15px; }

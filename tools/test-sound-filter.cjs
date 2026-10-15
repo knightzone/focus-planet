@@ -229,13 +229,15 @@ check(api.soundFilterRoundScore(3,3,1,20)===80,'点错扣分不变')
  const c={Math,JSON,console,ref:value=>({value}),computed:cb=>({get value(){return cb()}}),nextTick:cb=>cb(),watch(){},
  onLoad:cb=>onload=cb,onUnload(){},onResize(){},getGameDifficulty:()=>5,
  averageRoundScore:s=>Math.round(s.reduce((a,b)=>a+b,0)/s.length),scoreQuery:()=>'',
- useTrainingSession:()=>({clock,paused,navigating:{value:false},setStartedCheck(){},playFeedback(){}}),
+ useTrainingSession:()=>({clock,paused,navigating:{value:false},setStartedCheck(){},playFeedback(){},stopIntro(){}}),
  uni:{getWindowInfo:()=>({windowWidth:390,windowHeight:844,statusBarHeight:47}),getElementById:()=>null,redirectTo:o=>redirect=o.url}}
  vm.createContext(c)
- vm.runInContext(ts.transpile(source+'\n'+voiceSource+'\n'+script+'\nglobalThis.p={begin,tick,tapBubble,armBubble,replayAnnouncement,getField:()=>field,getSwitch:()=>switching.value}',{target:ts.ScriptTarget.ES2020}),c)
+ vm.runInContext(ts.transpile(source+'\n'+voiceSource+'\n'+script+'\nglobalThis.p={begin,tick,tapBubble,armBubble,replayAnnouncement,startDemo,getField:()=>field,getSwitch:()=>switching.value}',{target:ts.ScriptTarget.ES2020}),c)
  const p=c.p
  const advance=ms=>{for(let n=0;n<ms;n+=33){now+=33;for(const [i,t] of [...tasks]) if(t.at<=now){tasks.delete(i);t.cb()}p.tick()}}
  onload()
+ // 不再进页面就自动试玩：点「先试一下」才会出题/播报
+ p.startDemo()
  const stale=audios[0]
  p.begin()
  stale.end()

@@ -12,6 +12,8 @@
     "ios/.derived/**",
     "ios/CustomFrameworks/**",
     "ios/Plugins/**",
+    "uni_modules/*/utssdk/app-ios/*.swift",
+    "uni_modules/*/utssdk/app-ios/**/*.swift",
     "ios/FocusPlanet/FocusPlanet/uni-app-x/apps/**",
     "outputs/**",
     "content/ai-assets/archive/**",

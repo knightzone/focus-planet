@@ -23,3 +23,10 @@ export const fetchAppleStoreProducts: FetchAppleStoreProducts = function (_produ
 export const fetchAppleSignedTransaction: FetchAppleSignedTransaction = function (_transactionId: string, _productId: string, completed: (result: AppleSignedTransactionResult) => void) {
   completed({ jws: '', errorMessage: '请在 iPhone 上读取 Apple 签名交易' })
 }
+
+// 本地通知只在 iOS/Android 原生端实现；其它平台保持无操作，不阻塞调用方。
+export function scheduleRenewalReminder(_identifier: string, _title: string, _body: string, _atEpochMs: number, completed: (granted: boolean) => void) {
+  completed(false)
+}
+
+export function cancelRenewalReminder(_identifier: string) {}

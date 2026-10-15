@@ -36,7 +36,7 @@
               <text class="nt-track-rule tap-content">{{ secondLabel }}</text>
             </ActionSurface>
           </view>
-          <text v-if="demoDone" class="nt-demo-replay training-preview-secondary" @click="resetDemo">再试一次</text>
+          <button v-if="demoDone" class="nt-demo-replay training-preview-secondary" @click="resetDemo">再试一次</button>
           <button class="nt-start training-preview-primary" @click="begin">开始训练</button>
         </view>
 
@@ -228,7 +228,7 @@ training.setStartedCheck((): boolean => started.value)
 .nt-counter-text { color: #785bb7; font-size: 13px; font-weight: 700; }
 .nt-progress { margin-top: 16px; height: 8px; border-radius: 4px; background-color: rgba(255, 255, 255, 0.65); overflow: hidden; }
 .nt-progress-fill { height: 8px; border-radius: 4px; background-color: #9b7ede; }
-.nt-intro { margin-top: 18px; align-items: center; }
+.nt-intro { margin-top: 18px; padding: 18px 16px 20px; align-items: center; }
 .nt-demo-title { color: #1f2a44; font-size: 18px; font-weight: 700; }
 .nt-demo-hint { margin-top: 8px; color: #69758d; font-size: 13px; text-align: center; }
 .nt-rule-card { margin-top: 14px; width: 100%; padding: 15px 17px; border-radius: 20px; background-color: rgba(234, 240, 255, 0.95); position: relative; }
@@ -259,5 +259,5 @@ training.setStartedCheck((): boolean => started.value)
 /* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
 .training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
 .training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
-.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
+.training-preview-secondary { margin-top: 12px; width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

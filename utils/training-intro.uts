@@ -1,0 +1,19 @@
+// 训练说明语音（准备页自动播放的那句）在页面级共享一份。
+// 试玩或正式训练一旦开始，必须立刻停掉它，否则会和题目/播报音频叠在一起听不清。
+let introAudio: InnerAudioContext | null = null
+
+export function playTrainingIntro(path: string) {
+  if (path == '') return
+  if (introAudio == null) introAudio = uni.createInnerAudioContext()
+  introAudio!.stop()
+  introAudio!.src = path
+  introAudio!.play()
+}
+
+export function stopTrainingIntro() {
+  if (introAudio != null) introAudio!.stop()
+}
+
+export function releaseTrainingIntro() {
+  if (introAudio != null) { introAudio!.stop(); introAudio!.destroy(); introAudio = null }
+}

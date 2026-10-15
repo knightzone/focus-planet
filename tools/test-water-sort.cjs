@@ -178,6 +178,48 @@ console.log('PASS: 试玩两根试管，一次倒水完成，且不修改传入�
 }
 console.log('PASS: 倒水规则（空瓶/同色/整段/容量/满瓶/越界）')
 
+// ---------- 孩子玩的宽松规则：允许倒在别的颜色上 ----------
+{
+  const state = [[0, 0, 1], [1, 0, 0], []]
+  assert.equal(api.waterSortPour(state, 0, 1).ok, false, '默认（生成/求解）仍然拒绝不同颜色')
+  const loose = api.waterSortPour(state, 0, 1, true)
+  assert.equal(loose.ok, true, '宽松规则允许倒在别的颜色上')
+  assert.equal(loose.moved, 1, '宽松规则也只搬源瓶顶端的整段同色')
+  assert.deepEqual(loose.tubes[0], [0, 0])
+  assert.deepEqual(loose.tubes[1], [1, 0, 0, 1], '倒过去的水叠在目标瓶顶端')
+  assert.deepEqual(state, [[0, 0, 1], [1, 0, 0], []], '宽松倒水不能改动传入局面')
+  // 容量仍是硬限制；判定也更严格：空瓶仍不能倒、满瓶仍不能再接。
+  const capped = api.waterSortPour([[0, 0, 1, 1], [1, 1, 1]], 0, 1, true)
+  assert.equal(capped.ok, true)
+  assert.equal(capped.moved, 1, '宽松规则也要受目标瓶剩余空间限制')
+  assert.equal(api.waterSortPour(state, 2, 0, true).ok, false, '空瓶仍然不能倒水')
+  assert.equal(api.waterSortPour([[0], [1, 1, 1, 1]], 0, 1, true).ok, false, '满瓶仍然不能再接水')
+  // 宽松是严格的超集：严格能倒的，宽松必须结果完全一致，否则最少步数会变。
+  const samples = [
+    [[0, 0, 1, 1], [1], []],
+    [[0, 1, 1, 1], []],
+    [[0, 0], [1, 1], []],
+    [[2, 1, 1, 1], [1, 1], []]
+  ]
+  for (const tubes of samples) {
+    for (let from = 0; from < tubes.length; from++) {
+      for (let to = 0; to < tubes.length; to++) {
+        const strict = api.waterSortPour(tubes, from, to)
+        const wide = api.waterSortPour(tubes, from, to, true)
+        if (strict.ok) {
+          assert.equal(wide.ok, true, '严格能倒的宽松也必须能倒')
+          assert.equal(wide.moved, strict.moved)
+          assert.deepEqual(wide.tubes, strict.tubes)
+        }
+      }
+    }
+  }
+  // 正式玩用的就是宽松规则。
+  const page = fs.readFileSync(path.join(root, 'pages/game/water-sort.uvue'), 'utf8')
+  assert.match(page, /waterSortPour\(tubes\.value, from, index, true\)/, '正式玩的时候要传宽松规则')
+}
+console.log('PASS: 宽松规则（可混色挡卡死，容量与严格规则保持超集一致）')
+
 // ---------- 每档生成题目 ----------
 {
   const rounds = 6

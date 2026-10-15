@@ -27,7 +27,8 @@ function loadStats(options) {
   const storage = new Map(options.storage || [])
   const requests = []
   const deps = [
-    strip(read('utils/local-test.uts')),
+    // 本地测试开关钉在发布值：开关打开时存储键会变成 _local_test 后缀，用例会跟着漂移。
+    strip(read('utils/local-test.uts')).replace(/LOCAL_TEST_MODE = (true|false)/, 'LOCAL_TEST_MODE = false'),
     strip(read('utils/star-rating.uts')),
     strip(read('utils/storage.uts')),
     strip(read('utils/training-stats.uts'))

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 2026-10-15 本版本不支持摄像头：不再声明 CAMERA 权限（客户端无相机调用）。 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
   package="uts.focusdetector.android">
-  <uses-permission android:name="android.permission.CAMERA" />
 </manifest>

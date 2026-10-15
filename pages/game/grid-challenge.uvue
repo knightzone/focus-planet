@@ -31,7 +31,7 @@
         <view v-if="phase == 'preview' && mode == 'memory-search'" class="preview-mask"><image class="preview-target tap-content" :src="objectPath(targetSymbol)" mode="aspectFit"></image></view>
         <view v-else-if="phase == 'mask'" class="preview-mask"><image class="mask-star tap-content" src="/static/images/runtime/brand/focus-star-solo-v1.webp" mode="aspectFit"></image></view>
         <view v-else class="board-stage">
-          <view class="board"><view v-for="(symbol, index) in board" :key="index" class="cell" :class="(mode == 'symbol-detective' ? foundIndices.indexOf(index) >= 0 ? 'cell-correct' : wrongIndices.indexOf(index) >= 0 ? 'cell-wrong' : '' : feedback != '' && index == answerIndex ? 'cell-correct' : '') + (mode == 'symbol-detective' ? ' detective-cell' : '')" :style="{ width: ((mode == 'symbol-detective' ? 90 : 84) / columns) + '%', height: columns >= 7 ? '40px' : columns == 6 ? '46px' : columns == 5 ? '54px' : columns == 2 ? '104px' : columns == 3 ? '84px' : '68px' }" @click="choose(index)"><text v-if="mode == 'symbol-detective' && foundIndices.indexOf(index) >= 0" class="found-check">✓</text><image v-else :class="'cell-image tap-content' + (mode == 'symbol-detective' ? ' detective-cell-image' : '')" :src="objectPath(symbol)" mode="aspectFit"></image></view></view>
+          <view class="board"><view v-for="(symbol, index) in board" :key="index" class="cell" :class="cellClass(index)" :style="{ width: ((mode == 'symbol-detective' ? 90 : 84) / columns) + '%', height: columns >= 7 ? '40px' : columns == 6 ? '46px' : columns == 5 ? '54px' : columns == 2 ? '104px' : columns == 3 ? '84px' : '68px' }" @click="choose(index)"><text v-if="mode == 'symbol-detective' && foundIndices.indexOf(index) >= 0" class="found-check">✓</text><image v-else :class="'cell-image tap-content' + (mode == 'symbol-detective' ? ' detective-cell-image' : '')" :src="objectPath(symbol)" mode="aspectFit"></image></view></view>
         </view>
       </view>
       <text v-if="started" class="footer">已找到 {{ mode == 'symbol-detective' ? totalFound : correct }} 个</text>
@@ -98,13 +98,14 @@ function finish() { clearTimers(); const accuracy = mode.value == 'symbol-detect
 function prepare() {
   if (roundIndex.value >= totalRounds.value) { finish(); return }
   feedback.value = ''; accepting.value = false
+  // 每轮重置试错记录：找出变化用 wrongIndices 标红点错的格子，并把点错次数当 mistakes 扣分。
+  foundIndices.value = []; wrongIndices.value = []; targetIndices = []
   if (mode.value == 'symbol-detective') {
     const levelIndex = Math.max(0, Math.min(9, scoringLevel.value - 1))
     gridSize.value = [9,12,16,20,25,30,36,42,48,48][levelIndex]
     oddCount.value = [1,2,2,3,3,4,5,6,7,8][levelIndex]
     columns.value = [3,3,4,4,5,5,6,6,6,6][levelIndex]
     answerTargetMs.value = searchTargetMs(mode.value, scoringLevel.value) * oddCount.value
-    foundIndices.value = []; wrongIndices.value = []; targetIndices = []
     roundSymbols = spotChangePool(scoringLevel.value, roundIndex.value, assetSeed)
     const common = roundSymbols[Math.floor(Math.random() * roundSymbols.length)]; targetSymbol.value = randomSymbol(common); answerIndex.value = Math.floor(Math.random() * gridSize.value)
     const values = [] as string[]; for (let i = 0; i < gridSize.value; i++) values.push(i < oddCount.value ? randomSymbol(common) : common)
@@ -146,7 +147,40 @@ function chooseDetective(index: number) {
   roundScores.push(Math.round(timedRoundScore(true, elapsed, answerTargetMs.value) * oddCount.value / (oddCount.value + wrongIndices.value.length)))
   nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepare() }, 520)
 }
-function choose(index: number) { if (trainingPaused.value) return; if (!accepting.value) return; if (mode.value == 'symbol-detective') { chooseDetective(index); return }; accepting.value = false; if (phaseTimer > 0) trainingClock.clearTimeout(phaseTimer); roundScores.push(timedRoundScore(index == answerIndex.value, trainingClock.now() - shownAt, answerTargetMs.value)); reactions.value.push(trainingClock.now() - shownAt); if (index == answerIndex.value) { { correct.value += 1; training.playFeedback('correct') } feedback.value = '正确' } else { { errors.value += 1; training.playFeedback('wrong') } feedback.value = '再仔细观察' }; nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepare() }, 520) }
+function choose(index: number) {
+  if (trainingPaused.value) return
+  if (!accepting.value) return
+  if (mode.value == 'symbol-detective') { chooseDetective(index); return }
+  if (index != answerIndex.value) {
+    // 点错不结束本轮：允许一直试到找对为止；同一个错格重复点只算一次（不重复扣分）。
+    if (wrongIndices.value.indexOf(index) >= 0) return
+    wrongIndices.value.push(index); errors.value += 1
+    training.playFeedback('wrong'); feedback.value = '再仔细观察，还能继续找'
+    return
+  }
+  // 找对才结算：沿用原有速度公式（越快分越高、上限 200），把点错次数当 mistakes 额外扣分。
+  accepting.value = false
+  if (phaseTimer > 0) trainingClock.clearTimeout(phaseTimer)
+  const elapsed = trainingClock.now() - shownAt
+  roundScores.push(timedRoundScore(true, elapsed, answerTargetMs.value, wrongIndices.value.length))
+  reactions.value.push(elapsed)
+  correct.value += 1
+  training.playFeedback('correct'); feedback.value = '正确'
+  nextTimer = trainingClock.setTimeout(() => { roundIndex.value += 1; prepare() }, 520)
+}
+// 格子配色：侦探模式标出已找对/点错的格子；找出变化只在「本轮结束」（找到或超时）后才亮出正确格，
+// 试错过程中只把点错的格子标红，不能提前泄露答案。
+function cellClass(index: number): string {
+  if (mode.value == 'symbol-detective') {
+    if (foundIndices.value.indexOf(index) >= 0) return 'cell-correct detective-cell'
+    if (wrongIndices.value.indexOf(index) >= 0) return 'cell-wrong detective-cell'
+    return 'detective-cell'
+  }
+  let result = ''
+  if (wrongIndices.value.indexOf(index) >= 0) result = 'cell-wrong'
+  if (!accepting.value && index == answerIndex.value) result = 'cell-correct'
+  return result
+}
 onLoad((options: UTSJSONObject) => { const option = options['gameId']; mode.value = option == null || option == '' ? 'spot-change' : option as string; gameName.value = getGameName(mode.value); dimensionId.value = getGameDimensionId(mode.value); configureDifficulty() })
 onUnload(() => clearTimers())
 // 准备/试玩阶段直接返回；进入正式训练后才拦截返回。
@@ -174,5 +208,5 @@ training.setStartedCheck((): boolean => started.value)
 /* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
 .training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
 .training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
-.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
+.training-preview-secondary { margin-top: 12px; width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

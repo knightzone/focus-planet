@@ -10,7 +10,7 @@
         </view>
         <view class="sf-header-right">
           <view v-if="started" class="sf-level"><text class="sf-level-text">难度 {{ level }}</text></view>
-          <view class="sf-counter"><text class="sf-counter-text">{{ started ? displayRound.toString() + '/' + totalRounds.toString() : '试玩' }}</text></view>
+          <view class="sf-counter"><text class="sf-counter-text">{{ started ? displayRound.toString() + '/' + totalRounds.toString() : '准备' }}</text></view>
         </view>
       </view>
       <view class="sf-progress"><view class="sf-progress-fill" :style="{ width: progressWidth }"></view></view>
@@ -38,9 +38,10 @@
         <view class="sf-stat"><text class="sf-stat-value">{{ missedCount }}</text><text class="sf-stat-label">漏掉</text></view>
       </view>
 
-      <view v-if="!started" class="sf-start-row">
-        <text class="sf-demo-hint">{{ demoDone ? '试玩好了，开始正式训练吧' : '点气泡试一下：对勾是点对、叉号是点错' }}</text>
-        <button class="tap-target sf-start training-preview-primary" @click="begin">开始训练</button>
+      <view v-if="!started" class="sf-start-col">
+        <text class="sf-demo-hint">{{ demoDone ? '试玩好了，开始正式训练吧' : '先试一下：对勾是点对、叉号是点错' }}</text>
+        <button class="tap-target training-preview-primary" @click="begin">开始训练</button>
+        <button class="tap-target training-preview-secondary" @click="startDemo">{{ demoDone ? '再试一次' : '先试一下' }}</button>
       </view>
     </view>
   </view>
@@ -73,7 +74,7 @@ const started = ref(false)
 const demoDone = ref(false)
 const level = ref(1)
 const totalRounds = ref(4)
-const announceText = ref('')
+const announceText = ref('先试一下，把同类气泡点掉')
 const hitCount = ref(0), wrongCount = ref(0), missedCount = ref(0)
 const bubbleViews = ref([] as BubbleView[])
 const voiceReady = ref(false)
@@ -246,11 +247,17 @@ function createField(config: SoundFilterConfig) {
   startTicker()
 }
 
-// 试玩：页面一进来就跑一小段单列气泡流，让孩子先看懂规则（不扣分、不计成绩）。
+// 试玩：点「先试一下」后跑一小段单列气泡流，让孩子先看懂规则（不扣分、不计成绩）。
+// 不再进页面就自动跑，避免没打算试玩时音频和说明语音叠在一起。
 function startDemo() {
+  if (trainingPaused.value || started.value) return
+  training.stopIntro()
   demoMode = true
   demoDone.value = false
-  createField(soundFilterDemoConfig())
+  nextTick(() => {
+    measureField()
+    createField(soundFilterDemoConfig())
+  })
 }
 
 function configure() {
@@ -259,6 +266,7 @@ function configure() {
 
 function begin() {
   if (trainingPaused.value) return
+  training.stopIntro()
   stopTicker()
   demoMode = false
   started.value = true
@@ -311,7 +319,6 @@ onLoad(() => {
   configure()
   totalRounds.value = soundFilterConfig(level.value).rounds
   measureField()
-  startDemo()
 })
 onResize(() => measureField())
 onUnload(() => {
@@ -324,9 +331,9 @@ training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>
-.sf-page { flex: 1; position: relative; background-color: #dbe7ff; }
+.sf-page { flex: 1; min-height: 0; position: relative; background-color: #dbe7ff; }
 .sf-scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
-.sf-content { position: relative; flex: 1; padding: 18px 16px 12px; }
+.sf-content { position: relative; flex: 1; min-height: 0; padding: 18px 16px 12px; }
 .sf-header { flex-direction: row; justify-content: space-between; align-items: center; }
 .sf-header-right { flex-direction: row; align-items: center; }
 .sf-eyebrow { color: #8062bf; font-size: 12px; font-weight: 700; }
@@ -343,7 +350,7 @@ training.setStartedCheck((): boolean => started.value)
 .sf-callout-speaker { font-size: 16px; }
 .sf-callout-type { flex: 1; margin-left: 8px; color: #4a3b86; font-size: 19px; font-weight: 700; }
 .sf-replay { padding: 8px 12px; border-radius: 14px; background-color: #efe9fb; color: #6b53ad; font-size: 12px; font-weight: 700; }
-.sf-field { margin-top: 10px; position: relative; overflow: hidden; flex: 1; }
+.sf-field { margin-top: 10px; position: relative; overflow: hidden; flex: 1; min-height: 0; }
 .sf-bubble { position: absolute; background-color: rgba(255, 255, 255, 0.86); border-width: 2px; border-color: rgba(255, 255, 255, 0.95); align-items: center; justify-content: center; }
 .sf-bubble-art { flex-shrink: 0; }
 .sf-mark { position: absolute; left: 0; top: 0; width: 100%; height: 100%; align-items: center; justify-content: center; }
@@ -354,12 +361,11 @@ training.setStartedCheck((): boolean => started.value)
 .sf-stat { flex: 1; align-items: center; }
 .sf-stat-value { color: #25314a; font-size: 16px; font-weight: 700; }
 .sf-stat-label { margin-top: 1px; color: #7d8a9c; font-size: 10px; }
-.sf-start-row { margin-top: 8px; flex-direction: row; align-items: center; justify-content: space-between; }
-.sf-demo-hint { flex: 1; color: #5d6a80; font-size: 12px; }
-.sf-start { width: 132px; height: 44px; line-height: 44px; border-radius: 22px; background-color: #7f66c4; color: #ffffff; font-size: 15px; font-weight: 700; }
+.sf-start-col { margin-top: 8px; margin-bottom: 6px; align-items: center; }
+.sf-demo-hint { margin-bottom: 10px; color: #5d6a80; font-size: 12px; }
 
 /* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
 .training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
 .training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
-.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
+.training-preview-secondary { margin-top: 12px; width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

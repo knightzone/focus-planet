@@ -1,16 +1,80 @@
+// 家长验证：大写数字加减题（如「壹 + 柒 = ？」，家长用数字键盘输入答案）。
+// 目的：孩子读得懂阿拉伯数字，但读不出大写数字，所以低龄孩子过不了；家长看人民币/发票就认得。
+// 通过后 5 分钟内家长区放行；连续答错 3 次锁 60 秒，防止孩子穷举 0~18。
+const PARENT_SESSION_MILLISECONDS = 5 * 60 * 1000
+const PARENT_FAIL_LIMIT = 3
+const PARENT_LOCK_MILLISECONDS = 60 * 1000
+const PARENT_FAIL_KEY = 'focus_planet_parent_fail_count'
+const PARENT_LOCK_UNTIL_KEY = 'focus_planet_parent_lock_until'
+
+// 零~玖 对应 0~9；题目操作数只用单个大写数字，答案用阿拉伯数字输入。
+const UPPER_DIGITS: string[] = ['零', '壹', '贰', '叁', '肆', '伍', '陆', '柒', '捌', '玖']
+
+export type ParentChallenge = {
+  text: string,
+  answer: number
+}
+
 let parentUnlockedUntil = 0
 
-const PARENT_SESSION_MILLISECONDS = 5 * 60 * 1000
+function upperDigit(value: number): string {
+  if (value < 0 || value > 9) return value.toString()
+  return UPPER_DIGITS[value]
+}
 
-// 家长验证门暂时下线：产品侧对验证形式不满意，先不作限制，所有家长区操作直接放行。
-// 恢复限制时把下面的 return 改回 `parentUnlockedUntil > Date.now()` 即可，
-// pages/parent-lock 页面、unlock/lock 会话逻辑都保留未动。
+// 加减随机；减法保证被减数大于减数，答案恒为正。
+export function createParentChallenge(): ParentChallenge {
+  if (Math.random() < 0.5) {
+    const a = 1 + Math.floor(Math.random() * 9)
+    const b = 1 + Math.floor(Math.random() * 9)
+    return { text: upperDigit(a) + ' + ' + upperDigit(b) + ' = ？', answer: a + b }
+  }
+  const a = 2 + Math.floor(Math.random() * 8)
+  const b = 1 + Math.floor(Math.random() * (a - 1))
+  return { text: upperDigit(a) + ' − ' + upperDigit(b) + ' = ？', answer: a - b }
+}
+
+function failCount(): number {
+  const raw = uni.getStorageSync(PARENT_FAIL_KEY)
+  return raw == null || raw == '' ? 0 : raw as number
+}
+
+export function parentLockRemainingSeconds(): number {
+  const raw = uni.getStorageSync(PARENT_LOCK_UNTIL_KEY)
+  if (raw == null || raw == '') return 0
+  const remaining = (raw as number) - Date.now()
+  if (remaining <= 0) {
+    uni.removeStorageSync(PARENT_LOCK_UNTIL_KEY)
+    uni.removeStorageSync(PARENT_FAIL_KEY)
+    return 0
+  }
+  return Math.ceil(remaining / 1000)
+}
+
+// 记一次答错；返回剩余锁定秒数，0 表示还没到锁定阈值。
+export function recordParentFailure(): number {
+  const count = failCount() + 1
+  if (count >= PARENT_FAIL_LIMIT) {
+    uni.removeStorageSync(PARENT_FAIL_KEY)
+    uni.setStorageSync(PARENT_LOCK_UNTIL_KEY, Date.now() + PARENT_LOCK_MILLISECONDS)
+    return Math.ceil(PARENT_LOCK_MILLISECONDS / 1000)
+  }
+  uni.setStorageSync(PARENT_FAIL_KEY, count)
+  return 0
+}
+
+export function clearParentFailures() {
+  uni.removeStorageSync(PARENT_FAIL_KEY)
+  uni.removeStorageSync(PARENT_LOCK_UNTIL_KEY)
+}
+
 export function isParentAreaUnlocked(): boolean {
-  return true
+  return parentUnlockedUntil > Date.now()
 }
 
 export function unlockParentArea() {
   parentUnlockedUntil = Date.now() + PARENT_SESSION_MILLISECONDS
+  clearParentFailures()
 }
 
 export function lockParentArea() {

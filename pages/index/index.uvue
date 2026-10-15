@@ -16,7 +16,7 @@
     <view class="hero-card">
       <view class="hero-copy">
         <text class="hero-title">{{ heroTitle }}</text>
-        <view class="hero-time"><text class="hero-time-icon">{{ membershipActive ? '◷' : '★' }}</text><text class="hero-meta">{{ membershipActive ? '已练 ' + todayDurationText : '新用户7天免费试用' }}</text></view>
+        <view class="hero-time"><text class="hero-time-icon">{{ membershipActive ? '◷' : '★' }}</text><text class="hero-meta">{{ membershipActive ? '已练 ' + todayDurationText : '会员可玩全部训练' }}</text></view>
         <button class="tap-target start-button" @click="startTraining">{{ planButtonLabel }}</button>
       </view>
       <view class="hero-visual">

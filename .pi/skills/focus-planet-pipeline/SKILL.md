@@ -67,6 +67,7 @@ node tools/build-audio-match.cjs          # 216 段合成乐器音（6 音色 ×
 node tools/build-training-feedback.cjs    # correct / wrong / missed 三类反馈音
 node tools/build-story-runtime.cjs        # 故事图运行时素材
 node tools/build-character-dialogues.cjs  # 跃跃/暖暖、三档分数、每档两句结算语音
+node tools/build-training-intro-voice.cjs # 30 个游戏的开场规则语音（晓晓）；--force --only=a,b 只重生成指定片段
 node tools/build-xiaoxiao-finish.cjs      # 晓晓声线试听版
 python3 tools/install-sound-source.py     # 把审核通过的音效装到 static/audio/sound-source（需 ffmpeg）
 ```
@@ -80,6 +81,8 @@ EDGE_TTS_CLI=/private/tmp/focus-natural-voice-env/bin/edge-tts node tools/build-
 ```
 
 音频规则：题目音优先于反馈音；暂停、后台、退出不补播；提示音跨平台只用普通音频资源，不依赖 iOS 专属 API。参考 `docs/TRAINING_AUDIO.md`、`docs/RESULT_CHARACTER_VOICES.md`、`docs/SOUND_ASSET_CREDITS.md`。
+
+`build-training-intro-voice.cjs` 在 loudnorm 前用 `silenceremove` 剪掉 edge-tts 垫的首尾静音（每段约 0.19s + 0.63s）——只去空白，**语速与音色不变**；呼吸小星球的两段提示音因此是 0.66s / 0.60s（原 1.85s），能落在最紧的 750ms 按住窗口内。ffmpeg 路径统一走 `tools/media-tools.cjs`，不要再写死 `/usr/local/bin`。
 
 ## 4. 故事图（找茬）题库生成
 

@@ -5,6 +5,8 @@
       <image class="intro-mascot" src="/static/images/runtime/brand/duo-star-v1.webp" mode="aspectFit"></image>
     </view>
 
+    <view v-if="testHint != ''" class="test-banner"><text class="test-banner-text">{{ testHint }}</text></view>
+
     <view v-for="dimension in visibleDimensions" :key="dimension.id" class="dimension-block">
       <view class="dimension-head">
         <view class="color-mark" :style="{ backgroundColor: dimension.color }"></view>
@@ -31,11 +33,15 @@
 <script setup lang="uts">
 import { ref } from 'vue'
 import { onLoad, onShow } from '@dcloudio/uni-app'
-import { DIMENSIONS, gamesForDimension, getGameThumbnail, TrainingGame } from '../../utils/catalog.uts'
+import { DIMENSIONS, gamesForDimension, getGameThumbnail, getGameRoute, TrainingGame } from '../../utils/catalog.uts'
 import { resumeMembership } from '../../utils/membership.uts'
+import { LOCAL_TEST_MODE } from '../../utils/local-test.uts'
 
 const visibleDimensions = ref(DIMENSIONS)
 const pageTitle = ref('五维专注力')
+// 模板里不要写 v-if="LOCAL_TEST_MODE"：编译器对模板中的开关常量一律按 false 处理，提示条不会显示。
+// 改成脚本层三元：开关打开时显示，关闭时字面量被折叠掉，发布包不留痕迹。
+const testHint = LOCAL_TEST_MODE ? '本地测试：点任意游戏直接进入' : ''
 function gameList(id: string): TrainingGame[] { return gamesForDimension(id) }
 function thumbnailFor(id: string): string { return getGameThumbnail(id) }
 onLoad((options: UTSJSONObject) => {
@@ -49,7 +55,12 @@ onLoad((options: UTSJSONObject) => {
 })
 // 训练列表是会员限制的入口之一，回到本页时刷一次会员状态（节流在 resumeMembership 内部）。
 onShow(() => resumeMembership())
-function openGame(id: string) { uni.navigateTo({ url: '/pages/dimensions/game-showcase?gameId=' + id }) }
+// 本地测试时从五维页直接进游戏，方便逐个验收 30 个小游戏；测完把 LOCAL_TEST_MODE 改回 false。
+// 发布包（LOCAL_TEST_MODE=false）编译不出这个分支，行为与改前一致。
+function openGame(id: string) {
+  if (LOCAL_TEST_MODE) { uni.navigateTo({ url: getGameRoute(id) }); return }
+  uni.navigateTo({ url: '/pages/dimensions/game-showcase?gameId=' + id })
+}
 </script>
 
 <style>
@@ -73,4 +84,6 @@ function openGame(id: string) { uni.navigateTo({ url: '/pages/dimensions/game-sh
 .game-action { width: 30px; height: 30px; margin-left: 8px; border-radius: 15px; align-items: center; justify-content: center; }
 .game-action-icon { margin-top: -2px; color: #ffffff; font-size: 25px; font-weight: 500; }
 .bottom-space { height: 30px; }
+.test-banner { margin: 12px 16px 0; padding: 10px 14px; border-radius: 14px; background-color: #fff2dc; align-items: center; }
+.test-banner-text { color: #b57416; font-size: 12px; font-weight: 700; }
 </style>

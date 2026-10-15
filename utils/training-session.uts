@@ -2,10 +2,13 @@ import { ref } from 'vue'
 import { onHide, onUnload, onBackPress } from '@dcloudio/uni-app'
 import { TrainingClock } from './training-clock.uts'
 import { createTrainingFeedback } from './training-feedback.uts'
+import { stopTrainingIntro } from './training-intro.uts'
 
 export function useTrainingSession() {
   const clock = new TrainingClock()
   const sounds = createTrainingFeedback(clock)
+  // 题目音一开始就压掉准备页的说明语音，避免两句叠着听不清。
+  function playFeedback(kind: string) { stopTrainingIntro(); sounds.play(kind) }
   const paused = ref(false)
   const navigating = ref(false)
   let hasStarted: () => boolean = (): boolean => true
@@ -46,5 +49,5 @@ export function useTrainingSession() {
     if (navigating.value || !hasStarted()) return false
     pause(); return true
   })
-  return { clock, paused, navigating, pause, resume, restart, exit, back, setStartedCheck, playFeedback: sounds.play }
+  return { clock, paused, navigating, pause, resume, restart, exit, back, setStartedCheck, playFeedback, stopIntro: stopTrainingIntro }
 }

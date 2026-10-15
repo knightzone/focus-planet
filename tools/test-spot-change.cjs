@@ -2,7 +2,7 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),asse
 const root=path.resolve(__dirname,'..'),ts=require('/Applications/HBuilderX.app/Contents/HBuilderX/plugins/unicloud/node_modules/typescript/lib/typescript.js');
 const assetCode=['sky-planets','spot-change-assets'].map(n=>fs.readFileSync(path.join(root,'utils',n+'.uts'),'utf8').replace(/^import .*$/gm,'').replace(/^export /gm,'')).join('\n');
 const page=fs.readFileSync(path.join(root,'pages/game/grid-challenge.uvue'),'utf8');
-function harness(level,mode='spot-change'){let now=10000,id=0,url='',load,unload;const timers=new Map();const ctx={Math,Number,Date:{now:()=>now},parseFloat,ref:value=>({value}),computed:f=>({get value(){return f()}}),getGameDifficulty:()=>level,getGameTuningAge:()=>level+4,getGameName:x=>x,getGameDimensionId:()=>'focused',GAME_OBJECT_IDS:['bunny','kitten','car','boat'],getGameObjectPath:x=>x,onLoad:f=>load=f,onUnload:f=>unload=f,onHide:()=>{},setTimeout:(f,ms)=>{timers.set(++id,{f,at:now+ms});return id},clearTimeout:i=>timers.delete(i),uni:{redirectTo:o=>url=o.url}};vm.createContext(ctx);require('./training-test-env.cjs').install(ctx);vm.runInContext(ts.transpile(assetCode+'\n'+page.match(/<script setup lang="uts">([\s\S]*?)<\/script>/)[1].replace(/^import .*$/gm,'')+'\nglobalThis.api={begin,choose,training,phase,gridSize,columns,previewDuration,answerTargetMs,board,originalBoard,answerIndex,roundScores,correct,spotChangeConfig,tryDetective,demoFound,foundIndices,wrongIndices}',{target:ts.ScriptTarget.ES2020}),ctx);load({gameId:mode});function tick(ms){const end=now+ms;for(let guard=0;guard<10000;guard++){const due=[...timers].filter(([,t])=>t.at<=end).sort((a,b)=>a[1].at-b[1].at)[0];if(!due)break;timers.delete(due[0]);now=due[1].at;due[1].f()}now=end}return{t:ctx.api,tick,timers,url:()=>url,unload:()=>unload()};}
+function harness(level,mode='spot-change'){let now=10000,id=0,url='',load,unload;const timers=new Map();const ctx={Math,Number,Date:{now:()=>now},parseFloat,ref:value=>({value}),computed:f=>({get value(){return f()}}),getGameDifficulty:()=>level,getGameTuningAge:()=>level+4,getGameName:x=>x,getGameDimensionId:()=>'focused',GAME_OBJECT_IDS:['bunny','kitten','car','boat'],getGameObjectPath:x=>x,onLoad:f=>load=f,onUnload:f=>unload=f,onHide:()=>{},setTimeout:(f,ms)=>{timers.set(++id,{f,at:now+ms});return id},clearTimeout:i=>timers.delete(i),uni:{redirectTo:o=>url=o.url}};vm.createContext(ctx);require('./training-test-env.cjs').install(ctx);vm.runInContext(ts.transpile(assetCode+'\n'+page.match(/<script setup lang="uts">([\s\S]*?)<\/script>/)[1].replace(/^import .*$/gm,'')+'\nglobalThis.api={begin,choose,training,phase,gridSize,columns,previewDuration,answerTargetMs,board,originalBoard,answerIndex,roundScores,correct,spotChangeConfig,tryDetective,demoFound,foundIndices,wrongIndices,cellClass,errors,accepting}',{target:ts.ScriptTarget.ES2020}),ctx);load({gameId:mode});function tick(ms){const end=now+ms;for(let guard=0;guard<10000;guard++){const due=[...timers].filter(([,t])=>t.at<=end).sort((a,b)=>a[1].at-b[1].at)[0];if(!due)break;timers.delete(due[0]);now=due[1].at;due[1].f()}now=end}return{t:ctx.api,tick,timers,url:()=>url,unload:()=>unload()};}
 for(let level=1;level<=10;level++){const h=harness(level),t=h.t,c=t.spotChangeConfig(level);assert.equal(t.gridSize.value,c.cells);assert.equal(c.cells%c.columns,0);if(level>1){const prev=t.spotChangeConfig(level-1);assert(c.cells>=prev.cells);assert(c.previewMs<prev.previewMs);assert(c.targetMs<prev.targetMs)}t.begin();t.begin();for(let r=0;r<6;r++){assert.equal(t.phase.value,'preview');t.choose(0);assert.equal(t.roundScores.length,r);h.tick(c.previewMs);assert.equal(t.phase.value,'mask');t.choose(0);h.tick(500);assert.equal(t.phase.value,'search');assert.equal(t.board.value.filter((v,i)=>v!==t.originalBoard.value[i]).length,1);h.tick(c.targetMs/2);t.choose(t.answerIndex.value);t.choose(t.answerIndex.value);assert.equal(t.roundScores[r],200);h.tick(520)}assert(h.url().includes('scoreVersion=goal-v2'));assert.equal(t.correct.value,6);assert.equal(h.timers.size,0);h.unload();}
 {const h=harness(1),t=h.t;t.begin();h.tick(1000);t.training.pause();h.tick(50000);assert.equal(t.phase.value,'preview');t.training.resume();h.tick(3500);assert.equal(t.phase.value,'search');h.tick(18000);assert.equal(t.roundScores[0],0);t.choose(t.answerIndex.value);assert.equal(t.roundScores.length,1);h.unload();h.tick(50000);assert.equal(h.timers.size,0);}
 {const h=harness(3,'memory-search'),t=h.t;t.begin();h.tick(1100);h.tick(1000);t.choose(t.answerIndex.value);assert.equal(t.roundScores.length,1);h.unload();}
@@ -27,4 +27,27 @@ for(let level=1;level<=10;level++){
  t.choose(targets[0]);t.training.pause();h.tick(50000);t.choose(targets[1]);assert.equal(t.foundIndices.value.length,1);t.training.resume();
  h.tick(t.answerTargetMs.value);for(const i of targets.slice(1))t.choose(i);assert.equal(t.roundScores.length,1);assert.equal(t.roundScores[0],89);assert.equal(t.correct.value,1);h.unload();
 }
-console.log('PASS: change detection/memory regression; detective 9–48 images/1–8 targets, all-target completion, assets, planet rotation, duplicate/mistake penalty, optional trial, pause and cleanup');
+// 找出变化：点错不结束本轮、可以一直试到找对；点错次数按 mistakes 额外扣分；试错中不泄露答案
+{
+ const h=harness(1),t=h.t,c=t.spotChangeConfig(1);t.begin()
+ h.tick(c.previewMs);assert.equal(t.phase.value,'mask');h.tick(500);assert.equal(t.phase.value,'search')
+ const wrong=(t.answerIndex.value+1)%t.board.value.length
+ t.choose(wrong)
+ assert.equal(t.roundScores.length,0,'点错不结算本轮')
+ assert.equal(t.accepting.value,true,'点错后本轮继续，可以再试')
+ assert.equal(t.wrongIndices.value.length,1,'点错的格子被记下')
+ assert.equal(t.cellClass(wrong),'cell-wrong','点错的格子标红')
+ assert.equal(t.cellClass(t.answerIndex.value),'','试错中不能提前亮出正确格')
+ t.choose(wrong);assert.equal(t.wrongIndices.value.length,1,'同一个错格重复点不重复计次')
+ h.tick(c.targetMs/2)
+ t.choose(t.answerIndex.value)
+ assert.equal(t.roundScores.length,1,'找对才结算')
+ assert.equal(t.roundScores[0],100,'点错 1 次 = 半数目标时间内得分的 1/(1+1)（100×9000/4500/2）')
+ assert.equal(t.correct.value,1);assert.equal(t.cellClass(t.answerIndex.value),'cell-correct','找到后亮出正确格')
+ h.tick(520)
+ assert.equal(t.wrongIndices.value.length,0,'每轮重置试错记录')
+ h.tick(c.previewMs);h.tick(500);h.tick(c.targetMs/2);t.choose(t.answerIndex.value)
+ assert.equal(t.roundScores[1],200,'干净命中仍是满分 200，说明 mistakes 按轮统计')
+ h.unload()
+}
+console.log('PASS: change detection/memory regression; detective 9–48 images/1–8 targets, all-target completion, assets, planet rotation, duplicate/mistake penalty, spot-change retry-until-found with per-round mistakes, optional trial, pause and cleanup');

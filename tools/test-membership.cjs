@@ -18,15 +18,20 @@ class FakeDate extends Date {
 }
 const failures = []
 const exportsObject = {}
-const source = `${stripTypeScriptTypes(read('utils/membership.uts').replace(/^import .*$/gm, '').replace(/export /g, ''))}\nObject.assign(exports, { parseMembership, cachedMembership, saveMembership, refreshMembership, membershipStale, membershipSyncedAt, resumeMembership });`
+const scheduled = []
+const cancelled = []
+const source = `${stripTypeScriptTypes(read('utils/membership.uts').replace(/^import .*$/gm, '').replace(/export /g, ''))}\nObject.assign(exports, { parseMembership, cachedMembership, saveMembership, refreshMembership, membershipStale, membershipSyncedAt, resumeMembership, syncRenewalReminder, RENEWAL_REMINDER_ID, RENEWAL_REMIND_DAYS });`
 const store = success => { requests += 1; respond = success }
 vm.runInNewContext(source, {
   exports: exportsObject,
   getMembershipStatus: (success, failure) => { requests += 1; respond = success; failWith = failure },
   getAuthSession: () => account ? { userId: account } : null,
   require: name => name.includes('server-api') ? { getMembershipStatus: store } : { getAuthSession: () => account ? { userId: account } : null },
+  // 本地通知插件在 vm 里用桩记录，不真的调原生。
+  scheduleRenewalReminder: (id, title, body, at, completed) => { scheduled.push({ id, title, body, at }); completed(true) },
+  cancelRenewalReminder: id => { cancelled.push(id) },
   uni: { getStorageSync: k => storage.get(k), setStorageSync: (k,v) => storage.set(k,v), $emit: () => {}, navigateTo: () => {} },
-  Date: FakeDate, Number, JSON
+  Date: FakeDate, Number, JSON, Math
 })
 const m = exportsObject
 const payload = { isVip: true, expiresAt: null, appAccountToken: 'vip-token', products: [{ productId: 'lifetime', name: '永久会员', type: 'non_consumable' }] }
@@ -56,6 +61,38 @@ assert.equal(m.cachedMembership().active, false, '确实过期要降级')
 clock = Date.parse('2026-09-22T12:00:00Z')
 m.saveMembership({ active: true, expiresAt: 'not-a-timestamp', appAccountToken: 'vip-token', products: [] })
 assert.equal(m.cachedMembership().active, true, '时间解析失败时保留服务端结论，交给刷新纠正')
+
+// 自动续费提醒：本地通知排在到期前 5 天；进入窗口就快提醒；未开通/过期就取消。
+clock = Date.parse('2026-09-22T12:00:00Z')
+account = 'user-reminder'
+scheduled.length = 0
+cancelled.length = 0
+m.saveMembership({ active: true, expiresAt: '2026-10-22T12:00:00Z', appAccountToken: 'vip-token', products: [] })
+assert.equal(scheduled.length, 1, '开通会员后排一条本地续费提醒')
+assert.equal(scheduled[0].id, m.RENEWAL_REMINDER_ID, '提醒用固定 id，重排时覆盖')
+assert.equal(scheduled[0].at, Date.parse('2026-10-22T12:00:00Z') - m.RENEWAL_REMIND_DAYS * 24 * 60 * 60 * 1000, '提醒时间 = 到期日前 5 天')
+assert(scheduled[0].body.includes('自动续费'), '提醒文案要说到自动续费')
+assert(scheduled[0].body.includes('订阅管理'), '提醒文案要指引去 App Store 订阅管理')
+scheduled.length = 0
+m.saveMembership({ active: true, expiresAt: '2026-09-25T12:00:00Z', appAccountToken: 'vip-token', products: [] })
+assert.equal(scheduled.length, 1, '已进入 5 天窗口也要提醒')
+assert.ok(scheduled[0].at > clock && scheduled[0].at - clock <= 60000, '进入窗口时很快就提醒，不排到过去')
+scheduled.length = 0
+m.saveMembership({ active: false, expiresAt: '', appAccountToken: '', products: [] })
+assert.equal(scheduled.length, 0, '未开通不排提醒')
+assert.ok(cancelled.includes(m.RENEWAL_REMINDER_ID), '未开通时取消已排的提醒')
+cancelled.length = 0
+m.saveMembership({ active: true, expiresAt: '2000-01-01T00:00:00Z', appAccountToken: 'vip-token', products: [] })
+assert.equal(scheduled.length, 0)
+assert.ok(cancelled.includes(m.RENEWAL_REMINDER_ID), '已过期时取消提醒')
+// 插件声明：iOS 用 UNUserNotificationCenter，不接第三方推送 SDK；且不再声明相机。
+const pluginNative = read('uni_modules/focus-face-detector/utssdk/app-ios/FocusFaceDetectorNative.swift')
+assert.match(pluginNative, /import UserNotifications/)
+assert.match(pluginNative, /scheduleRenewalReminder/)
+assert.doesNotMatch(pluginNative, /UNUserNotificationCenter.*removeAll/, '只移除自己排的提醒')
+const pluginPkg = read('uni_modules/focus-face-detector/package.json')
+assert.doesNotMatch(pluginPkg, /相机权限由使用本插件的页面明确申请/)
+assert.match(pluginPkg, /本地通知/)
 
 // 主动刷新：从未同步过 → stale；节流、并发去重、失败重试都要成立。
 assert.equal(m.membershipStale(), true, '从未成功同步过视为过期')

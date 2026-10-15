@@ -33,11 +33,17 @@ find "$target_dir" \( -name '.DS_Store' -o -name '._*' \) -delete
 
 # HBuilderX 导出生成的宿主 Info.plist 会重置为模板、丢掉手工维护的键（权限文案、
 # 竖屏锁定、显示名），上架必需；这里在每次同步后幂等补回。
+# 2026-10-15 本版本不支持摄像头/相册：宿主不再声明相机与相册权限（客户端无
+# uni.camera / uni.chooseImage / uni.previewImage 调用，ExtAPI 也已不编译
+# uni-camera / uni-media）。若模板补回这些键就在同步后删掉，否则上架上传会因
+# 缺少用途说明报 ITMS-90683。其它 NS* 文案（通讯录/健康/位置/追踪）同样不要。
 host_plist="$IOS_DIR/FocusPlanet/FocusPlanet/Info.plist"
 plutil -replace CFBundleDisplayName -string "专注星伴" "$host_plist"
-plutil -replace NSCameraUsageDescription -string "用于在专注陪伴时进行本地面部与坐姿检测，视频画面不会上传。" "$host_plist"
-plutil -replace NSFaceIDUsageDescription -string "用于安全完成 Apple 账号登录。" "$host_plist"
-plutil -replace NSLocalNetworkUsageDescription -string "用于连接同一局域网内的专注星伴测试服务。" "$host_plist"
+plutil -remove NSCameraUsageDescription "$host_plist" 2>/dev/null || true
+plutil -remove NSPhotoLibraryUsageDescription "$host_plist" 2>/dev/null || true
+plutil -remove NSPhotoLibraryAddUsageDescription "$host_plist" 2>/dev/null || true
+plutil -remove NSFaceIDUsageDescription "$host_plist" 2>/dev/null || true
+plutil -remove NSLocalNetworkUsageDescription "$host_plist" 2>/dev/null || true
 plutil -replace UISupportedInterfaceOrientations -json '["UIInterfaceOrientationPortrait"]' "$host_plist"
 # 标准加密（仅 https），上传时自动回答出口合规问题。
 plutil -replace ITSAppUsesNonExemptEncryption -bool NO "$host_plist"

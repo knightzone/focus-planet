@@ -237,6 +237,19 @@ const DT = 1 / 30
       for (const event of api.redGreenStep(state, DT, cfg, layout)) if (event.kind == 'runRed') parkedHits += 1
     }
     check(parkedHits == 0, '停着不动不应判闯红灯，实际 ' + parkedHits)
+    // (a2) 停过线时不能判定「下一盏」灯的绿灯超时：前方最近的灯是下一盏，玩家还没到它跟前
+    //      （过线本身已扣过分；而车停着不会推进圈数，所以不会变成无惩罚等待）
+    const nextLight = (state.lights.indexOf(light) + 1) % state.lights.length
+    state.lights[nextLight].phase = 'green'
+    state.lights[nextLight].timer = Math.max(0.15, cfg.green - cfg.startWindow - 0.2)
+    let overTimeouts = 0
+    for (let i = 0; i < 5; i++) {
+      for (const event of api.redGreenStep(state, DT, cfg, layout)) if (event.kind == 'greenTimeout') overTimeouts += 1
+    }
+    check(overTimeouts == 0, '停在过线处不应按下一盏灯判绿灯超时，实际 ' + overTimeouts)
+    check(state.deductions == overLine, '停过线时只扣过线分，实际 ' + state.deductions)
+    api.redGreenGo(state, cfg)
+    check(state.moving == true && state.stoppedOverLine == false, '启动后应恢复常规判定')
     // (b) 重新开出去 → 整辆车过线，追加一次闯红灯（两次扣分是允许的）
     api.redGreenGo(state, cfg)
     let runs = 0

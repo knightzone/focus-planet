@@ -4,6 +4,15 @@ export function openUpdateLink(url: string, completed: (success: boolean) => voi
   FocusFaceDetectorNative.openUpdateLink(url, completed)
 }
 
+// 本地续费提醒：UNUserNotificationCenter，不发远程推送、不接第三方推送 SDK。
+export function scheduleRenewalReminder(identifier: string, title: string, body: string, atEpochMs: number, completed: (granted: boolean) => void) {
+  FocusFaceDetectorNative.scheduleRenewalReminder(identifier, title, body, atEpochMs, completed)
+}
+
+export function cancelRenewalReminder(identifier: string) {
+  FocusFaceDetectorNative.cancelRenewalReminder(identifier)
+}
+
 export const detectFaceFrame: DetectFaceFrame = function (rgba: ArrayBuffer, width: number, height: number): FaceFrameResult {
   const value = JSON.parse<FaceFrameResult>(FocusFaceDetectorNative.detectRgba(rgba.toData(), width.toInt(), height.toInt()))
   if (value != null) return value

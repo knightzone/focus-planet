@@ -51,6 +51,9 @@ base_sources = %w[
   uni-form-UniTextareaView.swift
 ]
 
+# 2026-10-15 本版本不支持摄像头/相册：不编译 uni-camera 与 uni-media，否则 ExtAPI 会引用
+# AVCaptureDevice / PHPhotoLibrary，上架包必须声明相机与相册权限。客户端没有任何
+# uni.chooseImage / uni.previewImage / createCameraContext 调用。
 module_sources = %w[
   uni-showLoading-index.swift
   uni-network-index.swift
@@ -58,11 +61,6 @@ module_sources = %w[
   uni-getNetworkType-UniNetWorkManager.swift
   uni-createInnerAudioContext-index.swift
   uni-createInnerAudioContext-UniAudioPlayer.swift
-  uni-camera-index.swift
-  uni-camera-CameraImpl.swift
-  uni-camera-CameraManager.swift
-  uni-media-index.swift
-  uni-media-utils-UniChooseFileManager.swift
   uni-getProvider-index.swift
   uni-oauth-index.swift
   uni-oauth-apple-index.swift
@@ -121,7 +119,7 @@ config_ref = resources_group.new_file(config_path)
 target.resources_build_phase.add_file_reference(config_ref)
 
 frameworks_group = project.frameworks_group
-%w[DCloudUniappRuntime.xcframework DCloudUTSFoundation.xcframework KSCrash.xcframework storage.xcframework KTVHTTPCache.xcframework DCloudMediaPicker.xcframework].each do |name|
+%w[DCloudUniappRuntime.xcframework DCloudUTSFoundation.xcframework KSCrash.xcframework storage.xcframework KTVHTTPCache.xcframework].each do |name|
   ref = frameworks_group.new_file(File.join(ios_dir, 'SDK', 'Libs', name))
   build_file = target.frameworks_build_phase.add_file_reference(ref)
   build_file.settings = { 'ATTRIBUTES' => ['Weak'] } if name == 'KTVHTTPCache.xcframework'

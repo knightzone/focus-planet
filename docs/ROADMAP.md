@@ -1,5 +1,176 @@
 # 专注星球：后续补充清单
 
+### 2026-10-15 发版决策：去摄像头 + 本地续费通知
+
+按产品确认的三条决策落地（数据导出第一版不上、客服联系方式暂不改）：
+
+- **摄像头从这一版彻底移除**（本版本不支持）。
+  - `uni_modules/focus-face-detector/utssdk/app-ios/Info.plist` 与宿主 `Info.plist` 删掉 `NSCameraUsageDescription`，同时删掉已无引用的 `NSPhotoLibraryUsageDescription` / `NSPhotoLibraryAddUsageDescription`；`scratch` 同步脚本 `sync-resources.sh` 每次同步后显式删掉这三个键（HBuilderX 导出会把宿主 plist 重置为模板并可能回填）。
+  - `ios/scripts/build-extapi.sh` 不再编译 `uni-camera-*` / `uni-media-*`，也不再链接 `DCloudMediaPicker.xcframework`；宿主机不再链接 `DCloudPermissionCamera.xcframework`（从 pbxproj 删线）。插件 Android 端删掉 `<uses-permission android:name="android.permission.CAMERA" />`。
+  - `verify.sh` 新增四道闸：宿主 Info.plist 不得有相机/相册键、宿主不得链接 DCloudPermissionCamera、ExtAPI 二进制不得引用 `AVCaptureDevice`/`UIImagePickerController`/`PHPhotoLibrary`。
+  - 实测：ExtAPI 从 39M 降到 **34M**；app 主二进制与全部嵌入 framework 的 `nm -u` 均无相机/相册符号；iPhone 18 Pro 模拟器安装启动正常。修复了此前删除 `DCloudPermissionCamera` 后用 `codesign --deep` 手动重签导致的 SDWebImage 签名无效崩溃（改用正常签名构建）。
+- **自动续费到期前 5 天改成本地通知**（轻量，不接第三方推送 SDK）。
+  - 插件 `focus-face-detector` 新增 `scheduleRenewalReminder` / `cancelRenewalReminder`：iOS 用 `UNUserNotificationCenter`（新增 `RenewalReminderPresenter` 让前台也弹横幅），Android/Harmony/web 先给无操作 stub。生成桥接把 `number` 映射成 `NSNumber`，所以 Swift 签名用 `NSNumber` 再 `.doubleValue`。
+  - `utils/membership.uts` 的 `saveMembership` 调用 `syncRenewalReminder`（导出 `RENEWAL_REMINDER_ID` / `RENEWAL_REMIND_DAYS`）：到期前 5 日提醒；已进入 5 天窗口则稍后立即提醒；未开通/已过期则取消。固定 id，重排时覆盖。
+  - `tools/test-membership.cjs` 新增本地通知断言（提醒时间 = 到期前 5 天、窗口内提前提醒、未开通/过期取消、文案含“自动续费/订阅管理”、插件含 `import UserNotifications` 且不再声明相机权限）。全量回归 54 项通过。
+  - 保留限制：本地通知只在 App 至少打开过一次后生效，换机/卸载重装会丢；协议里的远程推送提醒仍未实现，需产品确认合规口径。
+- `.pi-lens.json` 新增忽略 `uni_modules/*/utssdk/app-ios/*.swift`：插件 Swift 要在 iOS SDK 下编译，SourceKit 在仓库根会报假的 “No such module 'UIKit'”（实际 `build-plugin.sh` 编译通过）；与已有“忽略 `ios/Plugins/**` 里的 Xcode 产物 Swift”同一原因。
+
+### 2026-10-15 上线准备审计与审核账号
+
+- 新增 [上线准备清单](RELEASE_READINESS.md)：分「本仓库已就绪 / 客户端建议处理 / 服务端必须完成 / App Store Connect 配置 / 审核账号与备注 / 出包命令」。
+- 已就绪部分均为可复现验证：签名（Team `4N5RUYQ48R` + dev/dis 描述文件）、版本号三处一致（1.0.0/1000）、AppIcon-1024、竖屏锁定、隐私清单 7 类 + 3 个 Required Reason API、Apple 登录与订阅模块、账号注销入口、四份法律文档、包内无测试文案、`LOCAL_TEST_MODE=false`。
+- 客户端还建议处理：客服联系方式仍是个人微信（`pages/account/account.uvue:63`）；相机权限文案与当前不触发的端侧能力需要二选一；自动续费到期提醒缺推送模块；第三方清单与 ASC 隐私标签一致性；数据导出无入口；法律外链未过家长门；`[auth-refresh]/[lesson-sync]` 调试日志可选清理。
+- 服务端发布前必须：生产域名全量可用；**把审核账号 `18866668888` 加入固定验证码/审核白名单并预置儿童档案 `infoCompleted=true`**；`/vip/products` 对齐 App Store 商品；`/config` 更新接口与渠道链接；注销接口生效。
+- 审核账号定为 `18866668888`（暂定）。客户端无需改代码：登录页拿到服务端审核通道返回的 `debugCode` 会自动填入验证码框，审核员只需输入手机号→获取验证码→登录；中英文审核备注模板已写进清单。
+
+### 2026-10-15 准备上线：关闭本地测试入口
+
+- `utils/local-test.uts` 的 `LOCAL_TEST_MODE` 由 `true` 改为 `false`。关掉的是发版前临时开的本地测试通道：
+  - 五维页点游戏回到只读图鉴（`pages/dimensions/game-showcase`），不再直进训练页面（`pages/dimensions/dimensions.uvue` 的 `onGameTap`）；
+  - 设置页不再渲染「测试难度（仅测试阶段）」卡片（`pages/settings/settings.uvue` 的 `testToolsVisible`）；
+  - 启动时不再自动获得 `local-test` 身份，恢复真实登录与手机号验证码流程（`utils/auth.uts`）；
+  - 恢复真实 API 调用、成绩离线同步与更新检查（`utils/api-client.uts` / `offline-sync.uts` / `app-update.uts`），存储键也不再带 `_local_test` 后缀（`utils/storage.uts` 等）。
+- 不影响测试：`tools/test-local-login.cjs` 在内存里强制两档开关，不读文件当前值；全量回归 54 项与 `check-runtime-assets`（604 引用）仍全通过。
+- 验证：HBuilderX 5.26 重新导出 46 页成功、Xcode 资源同步并校验为 current；导出产物中已搜不到「本地测试：点任意游戏直接进入 / 测试难度 / 仅测试阶段 / 当前为本地测试登录 / local-test」任何字样；`ios/scripts/archive.sh` 的 `LOCAL_TEST_MODE = false` 开闸检查通过。手机上要看到效果必须重新安装（只同步文件不会更新已安装包）。
+- 遗留提醒：登录/绑定页仍会把服务端返回的 `debugCode` 自动填入验证码框（`pages/login/login.uvue` / `pages/account/account.uvue`）——这是服务端「审核固定验证码」通道，只有服务端下发时才会填；正式取消该通道时客户端会自然变为不填。
+
+### 2026-10-15 试玩不再自动开始 + 说明语音不再和题目音频重叠
+
+- 需求（用户反馈）：不少试玩页一进页面就直接开始试玩，导致 ① 用户本来没打算试玩；② 试玩音频和准备页的说明语音叠在一起听不清。
+- **不再自动开始试玩**：`listen-find`（听声捉图形）、`sound-filter`（声音过滤器）、`memory-search`（记忆与搜索）原来在 `onLoad`/`onShow` 里直接 `startDemo()`/`setupTrial()`（会立刻发牌/播报），`motion-challenge`（萤火虫追踪）原来在 `onShow` 里自动跑一遍演示。现在四个页面都停在准备页，必须孩子自己点「先试一下 / 看一遍」才展开试玩；试玩完成后同一个按钮变成「再试一次」。准备页右上角计数从「试玩」改成「准备」，只有真正进入试玩/正式训练才显示「试玩」或轮次。
+- **说明语音与题目音频不再重叠**：新增 `utils/training-intro.uts` 用模块级单例承载准备页那句说明语音，`TrainingFrame` 改为调用它（不再各自持有 `InnerAudioContext`）。`useTrainingSession()` 新增 `stopIntro()`，且在 `playFeedback()` 里也会先停说明语音；所有会开口或跑动的试玩入口（listen-find / sound-filter / memory-search / motion-challenge / audio-sequence / breathing-planet / memory-link / order-guess / bird-cloud / car-patrol / little-driver / dual-track / spot-difference）开始试玩时都调用 `training.stopIntro()`。正式训练开始由 `TrainingFrame` 监听 `preparing` 变化自动停掉，无需各页重复处理。
+- **试玩/重试入口统一成原生 button**：17 个页面里用 `text` 标签套 `training-preview-secondary` 假装按钮的写法（如「再试一次」）全部换成真正的 `button` 标签（bird-cloud / car-patrol / little-driver / magic-rule / sky-watcher / number-track / shape-match / star-catcher / spot-difference / puzzle / sorting-station / forest-search / color-command / water-sort / pattern-find）。`text` 在原生端撑不出稳定的 200×42 命中区，改成原生按钮后点击区域、行高与视觉与其他试玩入口一致；`sky-watcher` 的 `.demo-replay-row` 高度从 32px 调到 42px 以容纳按钮。
+- **准备页“贴边”与“按钮上下连接”（用户第二轮反馈）**：① 主/次按钮原来没有统一间距——`.training-preview-secondary` 没有 `margin-top`，导致「开始训练」和「先试一下/再试一次」在 bird-cloud / car-patrol / little-driver / spot-difference / listen-find / sound-filter 等页直接贴在一起；现在给各页 `.training-preview-secondary` 统一加 `margin-top: 12px`（各页自带的不同上间距会被覆盖成统一值，反而更一致）。② `magic-rule` / `number-track` / `pattern-find` 三页的准备卡只用了无内边距的 `.training-preview-card`（只有圆角+背景），内容与按钮直接贴到卡片左/右/下边缘（“定边”）；给 `.mr-intro` / `.nt-intro` / `.pf-intro` 补上 `padding: 18px 16px 20px`。③ `star-catcher` / `sky-watcher` 原来把「再试一次」放在固定高度 42px 的行里，按钮换成原生 button 后会被割边；去掉 `.sc-demo-replay-row` / `.demo-replay-row` 包装，让按钮直接子节点参与统一间距。④ `bird-cloud` 准备卡下内边距从 8px 补到 18px；`listen-find`/`sound-filter` 的提示与按钮列补上下间距，最后一颗按钮不再贴着页底。⑤ 主按钮保持各页原有 10—25px 上间距，没有统一加 `margin-top`（否则会连同 bird-cloud/car-patrol/little-driver 顶部的试玩跳过按钮一起下移）。用 15 个准备页的浏览器截图逐个复核（500×1000 真实视口）：按钮间距、卡片内边距、页底留白都一致。
+- **回归**：`tools/test-training-preview-style.cjs` 新增五条静态断言——① 任何 `text` 标签都不得带 `training-preview-secondary`（试玩入口必须是原生 button）；② 四个自动开始过的页面不得在 `onLoad`/`onShow`/`onReady` 里调用 `startDemo`/`setupTrial`（用括号配平提取回调体判定，负向验证：把 `startDemo()` 加回 `listen-find.onLoad` 立刻报错）；③ 各试玩入口函数体必须包含 `stopIntro`；④ 每个 `.training-preview-secondary` 必须带 `margin-top: 12px`；⑤ `mr-intro`/`nt-intro`/`pf-intro` 必须带 `padding`（负向验证：去掉任一项立刻报错）。`tools/test-listen-find.cjs`、`tools/test-sound-filter.cjs`、`tools/test-memory-search.cjs` 由「进页面就试玩」改成先断言未开始时不出题、不播语音，再显式调 `startDemo()`/`setupTrial()` 继续原有整局校验；`tools/training-test-env.cjs` 与各 preview / page 测试的 `useTrainingSession` 桩补上 `stopIntro`。全量回归 54 项、`check-runtime-assets`（604 引用）通过。
+
+### 2026-10-14 红绿指令：降速 + 停过线不再误判「下一盏灯」的绿灯超时
+
+- 需求：降低车速；停车过线时不能按下一个红绿灯的绿灯超时判罚。
+- 车速：`redGreenConfig().speedFactor` 由 **0.11 降到 0.09**（每秒走周长的 9%，约 9s → 11s 一圈）。安全区长度 = 容差 × 车速，所以减速后安全区的**时间宽度不变**，只是整圈更长、看到安全区再点「暂停」的余裕更大（也就是本次过线问题的诱因）。全档仍一致。
+- 误判修复：`checkGreenTimeout` 原来“只要车停着就按前方最近那盏灯判”，但**停车过线**时前方最近的灯其实是**下一盏**，玩家还没到它跟前——按它的绿灯窗口扣分是误判（过线本身已扣 8，还会再叠 6）。现在新增 `RedGreenState.stoppedOverLine`：`redGreenPause` 判为 `overLine` 时置真，`redGreenGo` 与行驶中置假，`checkGreenTimeout` 遇真直接返回。
+- 保留防拖延：停在**路中间**（stopWrong）时仍照旧按前方那盏灯判绿灯超时（原测试 `state3` 用例继续验证），所以“停在路中间白蹭等待”仍然不成立；停过线虽不判超时，但车不推进圈数，拖下去只会耗掉自己的时间。
+- 顺带：过线提示改成「停过线了，要停在安全区里 · 按「启动」继续开」，把孩子下一步该做什么说清楚。
+- 回归：`tools/test-red-green.cjs` 新增断言——把「下一盏」设成已过起步窗口的绿灯、再跑若干帧：**过线停车必须零 greenTimeout 且扣分只有过线 8**，启动后 `stoppedOverLine` 复位。负向验证（去掉跳过）：立刻报「停在过线处不应按下一盏灯判绿灯超时，实际 1」「停过线时只扣过线分，实际 14」，并连带把「过线 + 闯红灯 = 两次扣分」污染成 26，说明这个误判确实会串到后续判定。降速后 80 局完美玩家仍然零扣分、卡点 0 次。
+
+### 2026-10-14 找出变化：点错可继续尝试，按点错次数额外扣分
+
+- 需求：点错后可以继续尝试直到找对；每轮分数整体求平均；在现有计算下每次点错额外扣分——原本积分也可以超过 100，现在从「单题只有对错」升级为「错了几次后做对」，分辨更清楚。
+- 改法（`pages/game/grid-challenge.uvue`，只动非侦探分支，即找出变化与遗留的 memory-search 兼容分支；记忆与搜索线上已是独立页面，不受影响）：
+  - `choose()`：点错不再结算本轮，改为「标红该格 + 计一次 mistakes + 提示『再仔细观察，还能继续找』」，可以一直试到点对（同一个错格重复点不重复计次）；点对后才结算：`timedRoundScore(true, 耗时, 目标, 点错次数)`——沿用原有速度公式（越快越高、上限 200），点错次数作为 mistakes 额外扣分（÷(1+mistakes)）。
+  - 新增 `cellClass(index)`：侦探模式照旧标已找对/点错；找出变化只在**本轮结束**（找到或超时）后才亮出正确格，试错过程中只标红点错的格子，**不会提前泄露答案**（原实现用 `feedback != ''` 当结束信号，在可重试流程下第一次点错就会亮出答案，必须改掉）。
+  - `prepare()` 顶部统一重置 `foundIndices/wrongIndices/targetIndices`，mistakes 按轮统计（试错记录不跨轮累积）。
+  - 每轮分数照旧进 `roundScores`，结果页用 `averageRoundScore` 取平均（0–200），所以「每轮整体求平均」不变；两倍目标时间没找到仍记 0。
+- 回归：`tools/test-spot-change.cjs` 新增断言：点错不结算本轮、点错后仍可继续、错格标红、试错中不亮正确格、同一错格不重复计次、错 1 次在半数目标时间内得 100（200÷2）、下一轮试错记录清零（干净命中仍是 200）；原有 10 档梯度、侦探模式、超时记 0、暂停、试玩等全部继续通过。
+
+### 2026-10-14 记忆连线：实时判定 + 绿锁红可撤 + 按错误次数计分
+
+- 需求：每次连线实时给对错（对绿错红）、错的可以取消修正、绿色不允许取消、最终按错误次数计分。
+- 改法（`pages/game/memory-link.uvue` + `utils/memory-link.uts`）：
+  - 每行实时判定 `rowVerdict(row)`（0 未连 / 1 错 / 2 对），形状与连线颜色随之：对=绿 `#49b57f`、错=红 `#e06b6b`（颜色写进连线内联样式）；数字在正确连线后也标绿。
+  - 交互：点图形选中 → 点数字连线；**连对立即变绿并锁定**（点它不再响应，且该数字被锁定、别的行抢不走）；**连错变红并计 1 次错误**，点红色那行（或那个红色数字）取消重连。删除了原来的「连好了」提交按钮。
+  - 全部连对后自动进入 1.8 秒回顾（`completeRound(false)`）；作答超时走 `completeRound(true)`，记 0 分并计一次未通过——所以容错上限的语义现在是「连续超时」。
+  - 计分改为按错误次数，用与上天入海同口径的「起始分 − 扣分」模型：`memoryLinkScore(errors)` = **max(0, 120 − 10 × errors)**。所以 0/1/2 次错误 = 120/110/100，**错两次仍到过关线（允许小错）**，3 次起低于 100，12 次起为 0；不再按回忆速度加分（零错固定 120，恰好也是环绕动画门槛）。accuracy 改为「一次就连对的比例」= 总对数 ÷（总对数 + 总错误数）。
+- 回归：`tools/test-memory-link.cjs` 跟着改（`linkRow`/`wrongLink`/`linkAll` 助手、超时取代原来的“整轮连错”作为失败路径），新增断言：连错立即标红+计次、红色可取消、连对立即标绿且点不掉、连对的数字抢不走、全部连对自动完成、起始 120 与错 1/2/3/12 次 = 110/100/90/0、单轮错 1 次 = 110 分、错 3 次 = 90 分。
+- 顺带：记忆阶段的剩余时间改成**进度条**（按本轮记忆总时长从满格递减到空，100ms 更新一次），不再显示数字倒数；新增 `memoryLeftPercent`，用例断言 100→约 50→排空且页面不再出现数字倒数。
+- 顺带修一个**测试脆弱点**：`test-training-stats.cjs`/`test-puzzle.cjs`/`test-auth-refresh.cjs` 会把 `utils/local-test.uts` 一起加载，开关打开时存储键变 `_local_test` 后缀、取 token 返回空串，用例会随开关漂移。现在三处都把开关**钉在发布值 `false`**（`test-local-login.cjs` 本来就两值都跑），所以开着开关跑全量也全绿。
+- 回归：开关 **on/off 两种状态**下 `tools/test-*.cjs`（53）+ `tests/*.cjs`（3）都全通过；`check-runtime-assets`（604 引用）通过；发布配置导出 + Release `xcodebuild` 通过且包内无测试文案；随后已切回测试配置并重新导出（`点任意游戏直接进入`/`仅测试阶段`/新记忆连线的脚本文案均已进包）。
+
+### 2026-10-14 本地测试：五维页直进 30 个小游戏
+
+- 需求：要逐个验收 30 个小游戏，不想每次先走登录 + 课程流。
+- 做法：`pages/dimensions/dimensions.uvue` 的 `openGame()` 加一条 **LOCAL_TEST_MODE 门控**分支——测试模式下点五维列表里任意游戏直接 `getGameRoute(id)` 进游戏；正常配置仍只进只读图鉴。30 个 ready 游戏的 `getGameRoute` 全部指向已注册页面（`grid-challenge` 承载找出变化/图案侦探，`motion-challenge` 承载萤火虫追踪），且**没有任何游戏页在加载时依赖登录或课时上下文**，所以直进可玩。
+- 为什么不做成无条件直进：`tools/test-training-categories.cjs` 有一条刻意的产品约束「浏览列表不得直接开始游戏」（训练只能从课程流进）。现在把该断言改成「直进分支必须正好被 LOCAL_TEST_MODE 包住」——发布包行为不变，而且比原断言多了一条「必须带开关」的检查（负向验证：去掉开关立刻报 `browse list may only start a game behind LOCAL_TEST_MODE`）。
+- 新增发布闸：`ios/scripts/archive.sh` 在 verify 之后检查 `utils/local-test.uts` 必须为 `false`，否则拒绝出包（测试模式下 `mine`/`settings` 里被开关包住的测试文案会真的进包）。负向验证：开关打开时 `archive exit=1` 且不开始构建。
+- 相应放宽：`verify.sh` 的「包内不得有测试文案」哨兵改为**只在发布配置下检查**（测试模式下这些文案本就在产物里，调试需要），发布闸由 `archive.sh` 守住。
+- 本地测试步骤：把 `utils/local-test.uts` 的 `LOCAL_TEST_MODE` 改成 `true` → `bash ios/scripts/prepare-xcode.sh`（HBuilderX 真机运行同样可行）→ 五维页顶部会出现黄色提示条「本地测试：点任意游戏直接进入」，点任意游戏行直进游戏。测完改回 `false` 再 `prepare-xcode.sh`。注意测试模式下登录是桩、接口不连服务器，结果页会显示「本次未记录」（没有课时上下文），游戏本体可完整试玩。
+- **踩到的编译器坑（重要）**：模板里的 `v-if="LOCAL_TEST_MODE"` 会被编译器**一律按 false 处理**，开关打开也不会显示。实测产物逐条对照：`mine.uvue` 的**脚本层** `if (LOCAL_TEST_MODE)` 文案在（`本地测试登录` 命中），而 `settings.uvue` **模板层**的 `仅测试阶段`/`测试难度` 与刚加的五维提示条**都不在**。
+  - 后果一：我最初加的提示条在测试模式下也不会显示，看起来就像“没有入口、都不可点”（当时五维点游戏只能进只读图鉴）。
+  - 后果二：顺带暴露一个既有 bug——设置页那张 `LOCAL_TEST_MODE` 卡片（测试难度锁定）**从来没有显示过**，锁难度一直是失效的。
+  - 修法：两处都改成**脚本层常量**驱动模板（`const testHint = LOCAL_TEST_MODE ? '…' : ''`、`testToolsVisible/testToolsTitle/testToolsBadge`）。实测：测试模式下 `点任意游戏直接进入`/`测试难度`/`仅测试阶段` 全部进包；切回 `false` 后全部为空（字面量被折叠，发布包不留痕迹）。新增 UI 时应遵循这个写法，不要再在模板里写 `v-if="LOCAL_TEST_MODE"`。
+- 回归：`tools/test-*.cjs`（53）+ `tests/*.cjs`（3）全通过；`check-runtime-assets`（604 引用）通过；发布配置下 `prepare-xcode.sh` 与 Release `xcodebuild` 通过，成包无测试文案。
+
+### 2026-10-14 呼吸小星球：松手容差封顶，修正「早边容错过大」
+
+- 现象：松手时机总体偏前，早边容错明显大于晚边。量化后得到证实：旧口径把**按下容差**直接当**松手容差**用（`|releasedAt − 3000| ≤ tolerance`），低档 tolerance=1500ms 时窗口是 [1500, 4500]——早边吃掉吸气的 **50%**（星球刚过半就能松手还算星环），晚边只占呼气的 37.5%；到高档早边占比升到 75%、晚边降到 19%。最小按住只要 1.2s，等于没练到完整吸气。毫秒上是对称的，但**相对各自相位严重偏前**。
+- 改法（两轮修正后定稿）：`utils/breathing-planet.uts` 新增 `breathingReleaseWindow(tolerance)`，把松手容错**挂在「呼气提示音」上**：窗口 = 提示音片段（3s 起、约 600ms）前后各 `slack = (容差 − 600ms)/2`，总宽度仍等于该档容差，两边等量；理想松手点从「3 秒瞬间」改成提示音中点（3.3s），`reaction` 也跟着改成相对该中点的偏差。对照表（指令前/指令读完后）：
+
+  | 档 | 容差 | 旧窗口 | 旧：前/后 | 新窗口 | 新：前/后 |
+  | --- | --- | --- | --- | --- | --- |
+  | 1 | 1500 | [1500,4500] | 1500 / 900ms | [2550,4050] | 450 / 450ms |
+  | 6 | 1000 | [2000,4000] | 1000 / 400ms | [2800,3800] | 200 / 200ms |
+  | 10 | 750 | [2250,3750] | 750 / 150ms | [2925,3675] | 75 / 75ms |
+
+  按下规则不变（`[0, 容差]`，吸气指令在 0 秒，前面没有可提前的余地）。中间试探过「容差封顶 1000ms」的版本，但那只治了「早边吃进吸气」，没治「容错没挂在指令上」这个根因，已被本方案取代。
+- 页面同步：时间轴的松开窗口条、`releaseOnTime` 标记色、「松得刚好/松早/松晚」阈值与文案（改成「等听到『呼气』再松手」）全部用同一个 `breathingReleaseWindow`；另外把时间轴百分比定到 4 位小数，避免 `2550/8000*100` 的浮点尾数（31.874999999999996）写进内联样式。3s/4s/1s 抽成 `BREATHING_INHALE_MS`/`BREATHING_EXHALE_MS`/`BREATHING_FEEDBACK_MS`。
+- `tools/test-breathing-planet.cjs` 断言：窗口总宽度 = 容差、前后 slack 相等（L1 450/450、L10 75/75）、1 档 [2550,4050]、10 档 [2925,3675]、`(0,2000,1500)` 不再算星环（旧口径是 2）、`(0,3750,750)` 已超窗；窗口条 `left 31.875% width 18.75%`（L1）与 `left 36.5625% width 9.375%`（L10）。负向验证：把判定换回 `|releasedAt − 3000| ≤ 容差`，立刻报「比窗口再早就不算星环 2 !== 1」。
+- 待产品确认：真机试玩后如果觉得「指令前 450ms（1 档）」还是宽，改 `BREATHING_RELEASE_CUE_MS`（提示音时长，当前 600ms）或把 slack 改成非均分即可；两个常量都在 `utils/breathing-planet.uts`。
+- 回归：`tools/test-*.cjs`（53）+ `tests/*.cjs`（3）全通过；`check-runtime-assets`（604 引用）通过；`prepare-xcode.sh` 与 Release `xcodebuild` 通过。
+
+### 2026-10-14 登录态总是消失：并发 401 刷新竞态
+
+- 现象：日志显示刚冷启动/回前台就会被踢回登录页。查到客户端有一个确定的竞态：`App.uvue` 的 `onShow` 会同时触发 `/vip/status`（resumeMembership）、`/training/records/sync`（resumeOfflineSync）、首页课程等多个鉴权请求；访问令牌过期时它们**同时拿到 401**，而 `refreshAccessToken` 没有单飞锁，于是**并发发出多个 `/auth/token/refresh`**。只要服务端的刷新令牌是「用一次就换」（或带轮换），后到的请求拿着已作废的旧令牌去换，就被判 UNAUTHORIZED/INVALID_TOKEN → `clearTokens()` → 用户刚打开就被退登。这是客户端侧主因。
+- 改法：`utils/api-client.uts` 的 `refreshAccessToken` 改成**单飞**：同一刻只发一个刷新请求，其余请求把 `success`/`failure` 回调排进队列，等同一个结果后各自带新令牌重试；成功时轮换后的 access/refresh 令牌照旧 `saveTokens` 落盘。
+- 同时修了「半登录」问题：原 401 路径只调 `clearTokens()`（只删两个令牌），而 `focus_planet_auth_session` 被 `storage/difficulty/course-plan/training-stats/offline-sync/server-api` 等模块**直接读取**，于是会出现「界面已退出、成绩仍写进旧账号」。现在令牌与会话对象一起清（`clearAuthStorage`），并把 `AUTH_SESSION_KEY` 从 `api-client` 导出给 `auth.uts` 共用，不再两处写死。刷新失败只在服务端**明确说刷新令牌无效/过期**时才清会话；网络错误/超时/5xx 保留登录态，避免误踢。
+- 新增 `tools/test-auth-refresh.cjs`（挂起队列手动回放响应，不联网）：并发 401 只能触发一次刷新且三个请求都带新令牌重试成功；刷新被拒则 `access/refresh/auth_session` 三个键全部清掉；网络失败保留登录态；没有刷新令牌时不发刷新请求。做过负向验证：去掉单飞后用例立刻报「并发 401 只能发一个刷新请求 3 !== 1」。
+- 仍存疑（需确认场景）：若用户指的是**删除重装**，iOS 会清空 App 沙盒，`uni.setStorageSync` 的数据（含令牌）必然全丢，这是系统行为；要在删装后仍保持登录，需把刷新令牌写进 **Keychain**（当前没有），属于原生改动。
+- 加了定位日志：`[auth-refresh] start/queued waiters=N`（确认单飞）、`ok ... rotated=true|false`（直接回答服务端刷不轮换刷新令牌）、`failed code=xxx clearedSession=true|false`。全项目自动清登录只有这一条路（其余三处是用户主动退出/注销），所以再复现时看日志就能分清是并发竞态（已修）还是服务端奥真把刷新令牌作废了。
+- 回归：`tools/test-*.cjs`（53）+ `tests/*.cjs`（3）全通过；`check-runtime-assets`（604 引用）通过；`prepare-xcode.sh` 与 Release `xcodebuild` 通过。
+
+### 2026-10-13 呼吸小星球：按/松进度条与快慢方向反馈
+
+- 问题定位：星环（满分的一半）要求 `pressedAt <= tolerance`——按下必须在每轮吸气开始后 0.75~1.5s 内，而开局唯一的信号是那段 **1.848s** 的「慢慢吸气。」语音（`ffprobe` 实测），**提示比窗口还长**，孩子跟着语音按下去常常已经超窗，于是只有星光没有星环、整局 50 分上下。而五星门槛是 90 分、`UPGRADE_SCORE=100` 才升档，所以“做得挺对”的孩子拿 2~4 星、不升档，还可能因连续 <60 分降档。同时按在呼气段会被 `press()` 静静吞掉（这一轮直接 0 分），结束页不显示分数、上报的 accuracy 又是星环率，孩子完全感觉不到差在哪。
+- 改法（**不动计分口径、不动容差、不动节奏与时长**，`breathingCycleQuality` 与总分公式一行未改）：
+  - 页面底部把原来的 7 秒进度条换成 **8 秒时间轴**：蓝＝按住窗口（0~容差）、紫＝松开时间（3s±容差）、灰＝准备（7~8s）；竖线是当前进度，按/松之后把实际时刻标在轴上，准时是绿色、偏了是橙色。孩子既能看到“该在哪按、该在哪松”，也能看到自己实际按/松在哪。
+  - **方向反馈**：按下偏晚 →「按晚了 X 秒，吸气一开始就要按住」；松手 →「松得刚好」/「松早了 X 秒」/「松晚了 X 秒」；结算再说明差在哪一侧（按晚 / 按太短 / 松早 / 松晚）。偏差统一报到 0.1 秒。
+  - **准备段**：奖励阶段最后 0.5 秒标题变「准备，马上开始」，配灰色准备段，让“该按了”变成可预期事件；在吸气以外按下提示「这一轮要在吸气一开始按住，等下一轮吧」，不再静默。
+- `tools/test-breathing-planet.cjs` 增加：按下偏晚 / 松早 / 松晚 三个方向都要有明确文案且拿不到星环；吸气管外按下有原因提示；时间轴窗口宽度随档位容差变化（L1 1500ms=18.75%、L10 750ms=9.375%、松开窗口 3s±容差）。原有 136 轮满分流程、暂停/恢复/不重复发奖、试玩等断言继续通过，证明计分与节奏没被改动。
+- 回归：HBuilderX 5.26 导出与 Release `xcodebuild` 通过；`check-runtime-assets`（604 引用）、`tools/test-*.cjs`（52）+ `tests/*.cjs`（3）全通过。真机手感待验收。
+- 同日继续（产品拍板）：①**星环专属奖励**——专属星光音 `static/audio/cues/star.mp3` + 金环放大收束动效（`useTrainingTween` 700ms）+ 星环计数跳动，拿到星环的音/画不再和普通星光一样。②**本轮/本局得分展示**——结算反馈附「本轮 100/50 分」，时间轴图例旁显示「本局 X 分」（`runningScore` 与总分同口径 `(星光+星环)/(轮数×2)`）。③**结束页三样都显示**——`pages/result/result.uvue` 新增 `scoreLine`：显示「本局 X 分」，上报了星环的游戏（当前呼吸）再显示「· 星光 X · 星环 X`；`tools/test-star-rating.cjs` 模板断言从「隐藏分数」改为「必须显示分数，accuracy/reaction 仍不上屏」。④**accuracy 口径修正**——accuracy 改为有效轮次占比（星光数/轮数），星环率单列 `precision` 参数上报，做对动作不再是 0–30%。
+- 提示音改短（保证音色不变）：`silencedetect` 实测 edge-tts 每段都垫了 **0.19s 开头 + 0.63s 结尾**静音，「慢慢吸气。」1.85s 里真正的语音只有 1.02s。改成 `build-training-intro-voice.cjs` 在 loudnorm 前用 `silenceremove=start_threshold=-45dB:start_duration=0.02:stop_threshold=-45dB:stop_duration=0.05` 剪掉首尾空白，并把文案收短为「吸气。」/「呼气。」——**语速、音色、响度处理都不变**，只去空白。结果：吸气 **0.658s**、呼气 **0.595s**（原 1.85s），都落在最紧的 750ms 按住窗口内；起音 RMS（-29dB）与集成响度（-21.4 LUFS）与旧版一致，没有削字。同时修了脚本里写死的 `/usr/local/bin/ffmpeg`（Apple Silicon 上是 `/opt/homebrew`），改用 `tools/media-tools.cjs` 解析，并新增 `--only=a,b` 只重生成指定片段（避免为两段语音重写其余 30 段）。
+
+### 2026-10-13 倒水小实验：孩子玩时允许混色倒水，避免卡死
+
+- 现象：严格规则下（目标瓶顶端必须同色或为空），孩子一旦把空瓶也填满、每根非空瓶顶端颜色又互不相同，就没有任何合法倒法，这一轮做不下去。
+- 改法：`utils/water-sort.uts` 的 `waterSortApply` / `waterSortPour` 增加 `allowDifferentColor` 参数（默认 `false`）。**生成关卡、求解器、最少步数与目标步数全部沿用默认严格规则，一行没改**；只有 `pages/game/water-sort.uvue` 的正式倒水传 `true`，允许把水倒在顶端不同颜色的瓶子上（会混色），仍受目标瓶容量限制。
+- 为什么不会把题做死：每种颜色总水量固定、试管数 = 颜色数 + 空瓶数，所以永远有空位；宽松规则下「有空位」就等于「有合法倒法」，孩子不会再遇到无解可走。宽松是严格的超集，严格能倒的那一手结果完全一致，所以最优解法和 100 分门槛都没变；试玩仍用严格规则（两根瓶子只有一个倒法）。
+- `tools/test-water-sort.cjs` 增加宽松规则用例：默认仍拒绝不同颜色；宽松允许混色且只搬顶端整段、受容量限制、空瓶/满瓶判定不变；严格能倒的宽松结果必须逐格一致（超集一致性）；并断言正式玩传的是宽松规则。原有的「关卡表 284 关最少步数与预设一致」「精确解 60/60」继续通过，证明生成与最少步数没受影响。
+- 顺带：`tools/preview-water-sort.cjs` 的 `?auto=1` 自动倒水改用宽松规则，和真实玩一致。
+- 回归：`tools/test-water-sort.cjs`、`check-runtime-assets`（604 引用）、`tools/test-*.cjs`（52）+ `tests/*.cjs`（3）全通过；HBuilderX 5.26 导出与 Release `xcodebuild` 通过。真机手感待验收。
+
+### 2026-10-13 家长验证门恢复：大写数字加减题
+
+- 之前的滑动/长按门（按住跃跃向右滑过三颗星）被产品否掉后一直 `isParentAreaUnlocked()` 直接 `return true`，等于没有门。滑动/长按是纯动作模仿，孩子看一遍就会，苹果文档也明确不认；数学题能挡低龄但挡不住 10 岁以上。现改为**大写数字加减题**：`壹 + 柒 = ？`，家长用数字键盘填阿拉伯数字，如 `8`。
+- 判别力：孩子读得懂阿拉伯数字但读不出大写数字，所以低龄（3–8 岁，也是误触/误购的主要来源）过不了；家长看人民币/发票就认得。注意它仍是「能力题」：低年级数学「认识人民币」后就认得了，对 12+ 无效——要真正区分家长（防大孩子自购/注销）仍需 PIN 或设备密码，后续如需要再叠。
+- `utils/parent-lock.uts`：`createParentChallenge()` 随机出「大写 ± 大写」（减法保证答案为正，答案 0~18）；通过后 5 分钟会话；连错 3 次锁 60 秒（`focus_planet_parent_fail_count` / `focus_planet_parent_lock_until`）；答错换新题，防止孩子穷举 19 个数字。`isParentAreaUnlocked()` 恢复为真实会话判断。
+- `pages/parent-lock/parent-lock.uvue`：滑动门整页替换为大写题 + `type="number"` 数字键盘输入 + 确定/返回；锁定期间显示倒计时。验证通过后的动作（退出登录 / 提交注销 / 返回上级）原样保留，注销仍先过门（`tools/test-legal-pages.cjs` 继续覆盖）。
+- 扣费前加门：`pages/membership/membership.uvue` 的 `purchase()` 在 `requestVirtualPayment` 前检查 `isParentAreaUnlocked()`，未解锁先进家长验证页；「恢复购买」不扣费，不挂门。
+- 未挂门：法律文档（`<web-view>` 是 App 内页面，不算「离开 App」，且登录页的同意链接必须随时可读）。注销保留二次确认且已过家长门，需留意苹果 5.1.1(v)「注销要容易找到」不是障碍——若审核提出，可考虑把注销从题门上摘掉。
+- 新增 `tools/test-parent-gate.cjs`：在 vm 里跑 `utils/parent-lock.uts`，断言门默认关闭且不是常量 true、出题格式/答案/减法为正、连错 3 次锁定与解锁清理、页面用数字键盘且不再有滑动门、扣费前过门而恢复购买不过门、设置/退出/注销入口都过门。做过负向验证：把 `isParentAreaUnlocked` 改回 `return true` 能拦住。
+- 回归：HBuilderX 5.26 导出通过（新页面/UTS 编译无误）、Release `xcodebuild` 成功、`verify.sh` 通过；`check-runtime-assets`（604 引用）、`tools/test-*.cjs`（52）+ `tests/*.cjs`（3）全通过。
+
+### 2026-10-13 iOS 打包脚本签名冲突修复与 App 隐私清单补齐
+
+- `ios/scripts/archive.sh` 修复签名风格冲突：原实现只要传 `DEVELOPMENT_TEAM` 就覆盖 `CODE_SIGN_STYLE=Automatic`，与 target 里固定的手动描述文件（`专注星伴dis`）冲突，报 `UniAppX has conflicting provisioning settings ... has been manually specified`，README 的 `DEVELOPMENT_TEAM=… ios/scripts/archive.sh` 实际跑不通。现改为只覆盖 `DEVELOPMENT_TEAM`、保留工程手动签名。实测 Release 构建、Archive、`-exportArchive` 出 IPA 全部成功：产物签名 `Apple Distribution: Shanghai Flapping Information Technology Co., Ltd (4N5RUYQ48R)`、Bundle ID `com.zhuanzhuapp.mate`、嵌 `专注星伴dis`（有效至 2027-05-15，含 `applesignin` 与 `beta-reports-active`）。
+- `ios/FocusPlanet/FocusPlanet/PrivacyInfo.xcprivacy` 由空 `<dict/>` 补齐：`NSPrivacyTracking=false` + 7 项 `NSPrivacyCollectedDataTypes`（手机号 / UserID / 昵称 / 其他档案数据 / 训练与陪伴交互 / 订阅交易 / 设备标识，全部 linked、仅 `AppFunctionality`）与 3 项 `NSPrivacyAccessedAPITypes`（UserDefaults `CA92.1`、SystemBootTime `35F9.1`、FileTimestamp `C617.1`）。
+- 理由 API 来自对打包后 `FocusPlanet.app/Frameworks` 的 `strings`/`nm` 扫描：`DCloudUniappRuntime` 用 `standardUserDefaults` + `systemUptime`、`DCloudUTSExtAPI` 用 `creationDate` + `_stat`，这两个 framework 不带隐私清单，由 App 级清单代为声明；随包的 SDWebImage / KSCrash / DCloudUTSFoundation 自带 `PrivacyInfo.xcprivacy`，不重复声明。收集类型与 Reason 代码均按 Apple 官方文档取值，收集范围与线上《隐私政策》第二节对齐；麦克风音频（仅端侧、不上传）与尚未接入的友盟 U-APM 不计入。
+- 回归：`ios/scripts/verify.sh`、`node tools/check-runtime-assets.mjs`（604 静态引用）通过；Release 构建后 `PrivacyInfo.xcprivacy` 已进包，`codesign --verify --deep --strict` 通过。
+- `pages/membership/membership.uvue` 订阅界面内补《用户协议》《隐私政策》入口（复用 `utils/legal.uts` 的 `openLegalDoc`，与设置页同一份线上文案），补齐自动续订对「订阅页可见条款与隐私链接」的要求；`tools/test-membership.cjs`、`tools/test-legal-pages.cjs` 通过。
+- iOS 权限文案收敛与竖屏修复：Xcode 工程里的 `INFOPLIST_KEY_NS*`（模板默认 30 条，`通讯录`/`健康`/`位置`/`HomeKit`/`Siri`/`NSUserTrackingUsageDescription` 等）与 `INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone/_iPad` 全部删除。打包产物实际引用的受保护 API 只有 **相机**（`FocusPlanet` 与 `DCloudUTSExtAPI` 都引用 `AVCaptureDevice`）和 **相册**（`DCloudUTSExtAPI` 引用 `PHAsset`/`PHPhotoLibrary`/`UIImagePickerController`），因此只保留 `NSCameraUsageDescription`/`NSPhotoLibraryUsageDescription`/`NSPhotoLibraryAddUsageDescription` 三项，去掉 `NSFaceIDUsageDescription`（未引用 `LAContext`）与 `NSLocalNetworkUsageDescription`（未用 Bonjour/NWBrowser，原文案里的「专注星伴测试服务」也就此消失）。`sync-resources.sh` 改为幂等补这三项并 `plutil -remove` 那两个键；`verify.sh` 新增哨兵：工程里再出现 `INFOPLIST_KEY_NS*`、横屏方向变体或 Info.plist 里的「测试服务/项目真机运行期间」文案就直接报错。
+- 竖屏：源码 `Info.plist` 的 `UISupportedInterfaceOrientations=[Portrait]` 已生效，成包不再有 `~iphone`/`~ipad` 横屏变体（此前 `_iPhone` 含左右横屏、`_iPad` 四方向，覆盖了竖屏锁定）。
+- 验证：`prepare-xcode.sh`（HBuilderX 5.26 导出 + 同步）通过；Release `xcodebuild` 成功，成包 `plutil` 只剩上述三项权限文案、`UISupportedInterfaceOrientations` 仅 Portrait、无「测试」字样，`codesign --verify --deep --strict` 通过；`node tools/check-runtime-assets.mjs`（604 引用）、`tools/test-*.cjs`（51）与 `tests/*.cjs`（3）全通过。
+- 注意：Debug 真机运行若需要连局域网调试服务，`NSLocalNetworkUsageDescription` 需临时补回；发布包不需要。
+- 设置页「测试难度 / 仅测试阶段」卡片改为 `v-if="LOCAL_TEST_MODE"`，发布包（`LOCAL_TEST_MODE=false`）不再出现测试文案；难度覆写代码与 `utils/difficulty.uts` 保留给本地调试。
+- 上架包内容审计：重新导出并构建后扫描 `FocusPlanet.app`，只剩一处测试文案——`utils/auth.uts` 在服务端返回 `debugCode` 时显示的「本地验证码：」。现已改为：保留服务端审核通道的静默回填（不破坏审核登录），但不展示任何验证码文案；`loginWithWechat` 的「接口待接入」改为「微信登录暂未开放」。`LOCAL_TEST_MODE` 相关的「当前为本地测试登录」「测试难度/仅测试阶段」被编译器常量折叠，本来就未进包。
+- `verify.sh` 新增包内文案哨兵：导出产物（`uni-app-x/apps/__UNI__B5780B0`）里出现 `本地验证码|仅测试阶段|本地测试登录|测试服务|项目真机运行期间|临时测试` 就报错并打印命中行，`archive.sh` 在 xcodebuild 前会先跑它。已做过负向验证（往导出目录放一行「本地验证码：123456」能拦住，删除后恢复通过）。
+- 最终扫描（Release 成包）：`uni-app-x` 全量、主二进制与全部 framework 的 `strings`、`**/*.plist` 均无上述标记，也无「测试」二字；权限文案三条（相机/相册读/相册写）、方向仅 `Portrait`。
+- 版本号统一为 **1.0.0（构建号 1000）**，三处一致：`manifest.json` 的 `versionName`/`versionCode`、Xcode 的 `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION`（Debug 与 Release 都是）、HBuilderX 导出资源 manifest 的 `version.name`/`version.code`；成包 `Info.plist` 为 `CFBundleShortVersionString=1.0.0`、`CFBundleVersion=1000`。`verify.sh` 新增一致性哨兵：三处任一不一致就报错（已做过负向验证：只改 manifest 的 `versionCode=101`、或只改 Release 的 `MARKETING_VERSION=1.0.1` 都能拦住）。客户端不做版本比较，是否提示更新完全由服务端 `POST /config` 的 `minimumVersion`/`latestVersion`/`forceUpdate`/`optionalUpdate` 决定。
+- 构建号约定：`1.0.0` 的基础构建号是 **1000**，**同一个小版本重复提交只递增最后一位**（1000 → 1001 → … → 1009），`versionName`/`MARKETING_VERSION` 保持 `1.0.0` 不动；升到 `1.0.1` 时换新基段（如 1010）。这样同一版本可以多次上传而不会被 App Store Connect 以“构建号重复”拒收。改构建号需同时改 `manifest.json` 的 `versionCode` 与 pbxproj 两处 `CURRENT_PROJECT_VERSION`，然后 `prepare-xcode.sh` 重新导出。
+- 待确认：若 App Store Connect 隐私标签与上述 7 项收集类型不一致，以 ASC 为准回改本文件；友盟 U-APM / 微信开放 SDK 接入当天需补 `CrashData`/`PerformanceData` 等类型并同步线上政策与 ASC。
+
+- iPad 支持去掉：`TARGETED_DEVICE_FAMILY` 由 `"1,2"` 改为 `"1"`（Debug/Release 两处），第一期只发 iPhone，省掉 iPad 布局验收与 iPad 截图；成包 `Info.plist` 只剩 `UIDeviceFamily = [1]`，方向仍仅 Portrait。以后要上 iPad 再改回并补截图。
+- 首页去掉无资格判断的试用文案：`pages/index/index.uvue:19` 非会员时由「新用户7天免费试用」改为中性的「会员可玩全部训练」。首页只有服务端商品（`VipProduct` 无 Apple 优惠资格字段），试用资格来自 StoreKit，只能在会员页判断；不要在首页承诺试用，避免 2.3.1「描述不准」。会员页仍按 `introOfferEligible` 显示「符合资格可免费试用…」。
+
 ### 2026-10-12 会员页返回键与恢复购买入口合并
 
 - 会员页左上角返回键改为始终可用。原来 `goBack()` 在 `paying` 为真时直接不响应，而「恢复购买」最长会占住 `paying` 90 秒（看门狗），期间返回、刷新都被挡住——这就是「返回键无效、只能刷新」。现在返回带 `fail` 兜底：`navigateBack` 失败时 `reLaunch` 首页。

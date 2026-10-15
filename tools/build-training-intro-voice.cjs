@@ -1,10 +1,17 @@
 // One short, game-specific spoken rule on the preview screen. Same Xiaoxiao voice
 // and mastering as the existing memory-search instructions.
+// edge-tts 每段会垫首尾静音（约 0.19s + 0.63s），全部保留会把短提示音拖长一倍：
+// 这里用 silenceremove 只剪空白，语速、音色、响度处理都不变；呼吸小星球的
+// 「吸气/呼气」提示音因此从 1.85s 缩到 0.66s，能落在最紧的按键窗口（750ms）内。
+// 只重生成个别片段：node tools/build-training-intro-voice.cjs --force --only=breathing-inhale,breathing-exhale
 const fs = require('node:fs')
 const path = require('node:path')
 const os = require('node:os')
 const cp = require('node:child_process')
+const { ffmpeg } = require('./media-tools.cjs')
 const root = path.resolve(__dirname, '..')
+// 剪首尾静音：-45dB 阈值下保留 0.02s 起音、0.05s 尾巴，避免削掉辅音或突然断声。
+const TRIM_SILENCE = 'silenceremove=start_periods=1:start_threshold=-45dB:start_duration=0.02:stop_periods=1:stop_threshold=-45dB:stop_duration=0.05'
 const out = path.join(root, 'static/audio/training-intro')
 const cli = process.env.EDGE_TTS_CLI || path.join(os.homedir(), 'Library/Python/3.13/bin/edge-tts')
 const lines = [
@@ -23,20 +30,24 @@ const lines = [
   ['order-guess','先看有几个位置放对了，再交换图片猜顺序。'],['little-driver','一边躲开路锥，一边留意车窗外。'],
   ['listen-find','听清要找的图形，再点正确的位置。'],['memory-search','先记住目标，再把它们找齐。'],
   ['memory-link','先记住图片和数字，打乱后重新连起来。'],['dual-track','同时照看上面和下面，避开障碍。'],
-  ['breathing-inhale','慢慢吸气。'],['breathing-exhale','缓缓呼气。']
+  ['breathing-inhale','吸气。'],['breathing-exhale','呼气。']
 ]
+// 默认全量；带 --only=a,b 时只处理这两段，不动其余片段的字节。
+const onlyArg = process.argv.find((arg) => arg.startsWith('--only='))
+const only = onlyArg == null ? null : onlyArg.slice('--only='.length).split(',').map((id) => id.trim()).filter((id) => id.length > 0)
+const targets = only == null ? lines : lines.filter(([id]) => only.includes(id))
 if (!fs.existsSync(cli)) throw new Error('edge-tts unavailable: ' + cli)
 fs.mkdirSync(out, {recursive:true})
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'training-intro-'))
 try {
-  for (const [id, text] of lines) {
+  for (const [id, text] of targets) {
     const target = path.join(out, id + '.mp3')
     if (fs.existsSync(target) && !process.argv.includes('--force')) continue
     const raw = path.join(tmp, id + '-raw.mp3')
     cp.execFileSync(cli, ['--voice','zh-CN-XiaoxiaoNeural','--rate=-8%','--text',text,'--write-media',raw], {timeout:60000})
-    cp.execFileSync('/usr/local/bin/ffmpeg', ['-y','-v','error','-i',raw,'-af','loudnorm=I=-21:TP=-3:LRA=7','-ar','24000','-ac','1','-c:a','libmp3lame','-b:a','64k',target], {timeout:20000})
+    cp.execFileSync(ffmpeg, ['-y','-v','error','-i',raw,'-af',TRIM_SILENCE + ',loudnorm=I=-21:TP=-3:LRA=7','-ar','24000','-ac','1','-c:a','libmp3lame','-b:a','64k',target], {timeout:20000})
     fs.unlinkSync(raw)
     console.log(id)
   }
 } finally { fs.rmSync(tmp,{recursive:true,force:true}) }
-console.log('Training voice clips ready: ' + lines.length)
+console.log('Training voice clips ready: ' + targets.length)

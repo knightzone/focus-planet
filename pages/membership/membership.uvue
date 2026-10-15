@@ -20,6 +20,12 @@
     </view>
     <text v-if="message != ''" class="product-message">{{ message }}</text>
     <view class="restore-link" @click="restore"><text class="restore-text">恢复购买</text></view>
+    <!-- 自动续订要求在订阅界面内可见条款与隐私入口，与设置页指向同一份线上文档。 -->
+    <view class="legal-links">
+      <text class="legal-link tap-content" @click="openDoc('terms')">《用户协议》</text>
+      <text class="legal-divider">·</text>
+      <text class="legal-link tap-content" @click="openDoc('privacy')">《隐私政策》</text>
+    </view>
     <view class="bottom-space"></view>
   </scroll-view>
 </template>
@@ -30,6 +36,8 @@ import { onShow, onUnload } from '@dcloudio/uni-app'
 import { MembershipState, VipProduct, cachedMembership, refreshMembership } from '../../utils/membership.uts'
 import { verifyAppleTransaction } from '../../utils/server-api.uts'
 import { getAuthSession, requireLogin } from '../../utils/auth.uts'
+import { openLegalDoc } from '../../utils/legal.uts'
+import { isParentAreaUnlocked } from '../../utils/parent-lock.uts'
 import { fetchAppleSignedTransaction, fetchAppleStoreProducts } from '@/uni_modules/focus-face-detector'
 import { AppleSignedTransactionResult, AppleStoreProduct, AppleStoreProductsResult } from '../../uni_modules/focus-face-detector/utssdk/interface.uts'
 
@@ -243,6 +251,7 @@ function selectPlan(id: string) {
   selectedId.value = id
 }
 function goBack() { uni.navigateBack({ delta: 1, fail: () => uni.reLaunch({ url: '/pages/index/index' }) }) }
+function openDoc(docId: string) { openLegalDoc(docId) }
 function renewalText(): string {
   const plan = plans.value.find((p: Plan): boolean => p.productId == selectedId.value)
   if (plan == null) return '价格及优惠以 App Store 确认页面为准'
@@ -399,6 +408,8 @@ function purchase() {
   if (paying.value || loading.value || !requireLogin()) return
   // 「购买未确认」时按钮改为检查/恢复已购项目，绝不再次扣费。
   if (purchaseUncertain.value) { restore(); return }
+  // 儿童类别要求扣费前过家长门；解锁会话 5 分钟，验证通过后回来再点一次即可。
+  if (!isParentAreaUnlocked()) { uni.navigateTo({ url: '/pages/parent-lock/parent-lock?action=purchase' }); return }
   // 取消进页面时的静默核对并恢复普通提示，避免两套回调互相覆盖。
   restoreSilent = false
   restoreAttempt += 1
@@ -504,5 +515,8 @@ function restore() {
 .active-card { margin: 22px 16px 0; padding: 24px; border-radius: 22px; background-color: #e3f7ee; align-items: center; }
 .active-title { color: #287b61; font-size: 20px; font-weight: 700; }
 .active-meta { margin-top: 7px; color: #609584; font-size: 12px; }
+.legal-links { margin-top: 12px; flex-direction: row; align-items: center; justify-content: center; }
+.legal-link { color: #5b78b2; font-size: 11px; }
+.legal-divider { margin: 0 8px; color: #b6bfce; font-size: 11px; }
 .bottom-space { height: 36px; }
 </style>

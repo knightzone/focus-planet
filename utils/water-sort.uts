@@ -2,6 +2,9 @@
 // 关卡从预生成的关卡表（water-sort-levels.uts）随机抽取并随机重映射颜色；
 // 每档最少步数固定，目标步数 = 固定最少步数 + 低难度宽限。
 // 求解器与反向打乱仅用于离线生成关卡和回归测试，运行时不再实时求解。
+// 两套倒水规则：生成/求解/最少步数一律用严格规则（目标瓶顶端同色或为空）；
+// 孩子实际玩的时候用允许混色的宽松规则（allowDifferentColor=true），
+// 否则空瓶被填满后可能「没有任何同色目标」而卡死、完不成这一轮。
 
 import { WATER_SORT_LEVELS } from './water-sort-levels.uts'
 
@@ -102,11 +105,13 @@ function waterSortTopRun(tube: number[]): number {
 }
 
 // 就地倒水，返回实际倒出的格数，供搜索回滚使用。
-function waterSortApply(tubes: number[][], from: number, to: number): number {
+// allowDifferentColor=false（默认，生成/求解/最少步数用）：目标瓶顶端必须同色或为空。
+// allowDifferentColor=true（孩子玩的时候用）：可以倒在别的颜色上（会混色），只受容量限制。
+function waterSortApply(tubes: number[][], from: number, to: number, allowDifferentColor: boolean = false): number {
   const source = tubes[from], target = tubes[to]
   if (source.length == 0 || target.length >= WATER_SORT_CAPACITY) return 0
   const color = source[source.length - 1]
-  if (target.length > 0 && target[target.length - 1] != color) return 0
+  if (!allowDifferentColor && target.length > 0 && target[target.length - 1] != color) return 0
   let moved = 0
   while (source.length > 0 && source[source.length - 1] == color && target.length < WATER_SORT_CAPACITY) {
     const unit = source.pop()
@@ -125,7 +130,8 @@ function waterSortUndo(tubes: number[][], from: number, to: number, moved: numbe
   }
 }
 
-export function waterSortPour(tubes: number[][], from: number, to: number): WaterSortPourResult {
+// 孩子玩时传 allowDifferentColor=true；生成关卡与最少步数校验沿用默认的严格规则。
+export function waterSortPour(tubes: number[][], from: number, to: number, allowDifferentColor: boolean = false): WaterSortPourResult {
   const next = waterSortClone(tubes)
   if (from < 0 || to < 0 || from >= next.length || to >= next.length || from == to) {
     return { ok: false, reason: '换一个瓶子试试', tubes: next, moved: 0 }
@@ -133,7 +139,7 @@ export function waterSortPour(tubes: number[][], from: number, to: number): Wate
   const source = next[from], target = next[to]
   if (source.length == 0) return { ok: false, reason: '这个瓶子是空的', tubes: next, moved: 0 }
   if (target.length >= WATER_SORT_CAPACITY) return { ok: false, reason: '这个瓶子已经倒满了', tubes: next, moved: 0 }
-  const moved = waterSortApply(next, from, to)
+  const moved = waterSortApply(next, from, to, allowDifferentColor)
   if (moved <= 0) return { ok: false, reason: '颜色不一样，倒不过去', tubes: next, moved: 0 }
   return { ok: true, reason: '', tubes: next, moved: moved }
 }

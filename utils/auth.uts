@@ -1,6 +1,6 @@
 import { LOCAL_TEST_MODE } from './local-test.uts'
 import { sendLoginCode, loginByPhone, loginByAppleToken, skipApplePhoneBinding, sendAppleBindCode, bindAppleToPhone, getAccountSummary, saveServerProfile, clearServerState } from './server-api.uts'
-import { saveTokens, clearTokens, getAccessToken } from './api-client.uts'
+import { saveTokens, clearTokens, getAccessToken, AUTH_SESSION_KEY } from './api-client.uts'
 import { saveProfile, ChildProfile } from './storage.uts'
 import { calculateAge } from './profile-options.uts'
 import { enforceUpdate } from './app-update.uts'
@@ -18,7 +18,6 @@ export type AuthAttemptResult = {
   message: string
 }
 
-const AUTH_SESSION_KEY = 'focus_planet_auth_session'
 const APPLE_BIND_TOKEN_KEY = 'focus_planet_apple_bind_token'
 const APPLE_BIND_NAME_KEY = 'focus_planet_apple_bind_name'
 
@@ -42,6 +41,8 @@ export function clearAuthSession() {
   uni.removeStorageSync(AUTH_SESSION_KEY)
   clearTokens()
   clearServerState()
+  // 待绑定的 Apple 凭证也要丢，否则下次登录可能带着上一次的 bind token 继续。
+  clearPendingAppleBinding()
 }
 
 export function canStartTraining(): boolean {
@@ -58,8 +59,9 @@ export function requireLogin(): boolean {
 
 export function requestPhoneCode(phone: string, completed: (result: AuthAttemptResult, debugCode: string) => void) {
   sendLoginCode(phone, (data: UTSJSONObject) => {
+    // 服务端在审核通道会回传 debugCode，客户端只做静默回填，不再展示任何“本地验证码”文案。
     const debugValue = data['debugCode']
-    completed({ success: true, message: debugValue == null ? '验证码已发送' : '本地验证码：' + (debugValue as string) }, debugValue == null ? '' : debugValue as string)
+    completed({ success: true, message: '验证码已发送' }, debugValue == null ? '' : debugValue as string)
   }, (message: string, _code: string) => completed({ success: false, message: message }, ''))
 }
 
@@ -149,8 +151,9 @@ export function loginWithApple(completed: (result: AuthAttemptResult, needsProfi
 export function requestAppleBindingCode(phone: string, completed: (result: AuthAttemptResult, debugCode: string) => void) {
   if (getPendingAppleBindToken() == '') { completed({ success: false, message: 'Apple 验证已失效，请重试' }, ''); return }
   sendAppleBindCode(phone, (data: UTSJSONObject) => {
+    // 同上：只静默回填，不向使用者展示验证码本身。
     const debugValue = data['debugCode']
-    completed({ success: true, message: debugValue == null ? '验证码已发送' : '本地验证码：' + (debugValue as string) }, debugValue == null ? '' : debugValue as string)
+    completed({ success: true, message: '验证码已发送' }, debugValue == null ? '' : debugValue as string)
   }, (message: string, _code: string) => completed({ success: false, message: message }, ''))
 }
 
@@ -207,5 +210,5 @@ export function authorizeAppleAccountLink(completed: (result: AuthAttemptResult,
 }
 
 export function loginWithWechat(): AuthAttemptResult {
-  return { success: false, message: '微信登录接口待接入' }
+  return { success: false, message: '微信登录暂未开放' }
 }

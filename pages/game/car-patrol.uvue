@@ -16,7 +16,7 @@
         <text class="message-title">{{ state == 'demo-done' ? '躲开啦！' : '换条车道，躲开路锥' }}</text>
         <text v-if="assetFailed" class="message-note">图片未加载，请返回后重试</text>
         <button class="primary training-preview-primary" :disabled="!assetsReady" @click="begin">{{ assetsReady ? '开始训练' : '准备中…' }}</button>
-        <text v-if="assetsReady" class="replay training-preview-secondary" @click="startDemo">{{ state == 'demo-done' ? '再试一次' : '先试玩' }}</text>
+        <button v-if="assetsReady" class="replay training-preview-secondary" @click="startDemo">{{ state == 'demo-done' ? '再试一次' : '先试玩' }}</button>
       </view>
       <view v-if="state == 'demo'" class="demo-skip"><button class="demo-skip-button training-preview-primary" @click="begin">开始训练</button></view>
     </view>
@@ -170,6 +170,7 @@ function resetRun() {
 }
 function startDemo() { if (trainingPaused.value) return;
   if (!assetsReady.value) return
+  training.stopIntro()
   resetRun(); config.value = getPatrolConfig(1); state.value = 'demo'; demoBlocked = 0
   demoHint.value = '点右边车道 →'
   waves.push({ id: 0, bornAt: 0, lanes: [0], safeLane: 1, hit: false, scored: false, reactedAt: -1 })
@@ -237,5 +238,5 @@ training.setStartedCheck((): boolean => state.value == 'running' || state.value 
 /* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
 .training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
 .training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
-.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
+.training-preview-secondary { margin-top: 12px; width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

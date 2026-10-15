@@ -10,7 +10,7 @@
     <view v-if="!started" class="trial-actions training-preview-card">
       <text class="trial-title">{{ roundComplete ? '找齐啦！' : '点一点，找出 2 处不同' }}</text>
       <button class="training-preview-primary" @click="begin">开始训练</button>
-      <text v-if="roundComplete" class="training-preview-secondary" @click="setupTrial">再试一次</text>
+      <button v-if="roundComplete" class="training-preview-secondary" @click="setupTrial">再试一次</button>
     </view>
     <view v-else class="tip"><view><text class="tip-title">找出 {{ targetCount }} 处不同</text></view><button class="tap-target hint-button" :disabled="found.length >= targetCount" @click="showHint">提示</button></view>
 
@@ -138,6 +138,7 @@ function showHint() { if (trainingPaused.value || !imageShown.value) return; if 
 function resizeScene() { const info = uni.getWindowInfo(); sceneWidth.value = info.windowWidth - 48; sceneHeight.value = sceneWidth.value * 9 / 16 }
 function setupTrial() {
   if (trainingPaused.value || started.value) return
+  training.stopIntro()
   currentScene.value = LEGACY_DIFFERENCE_SCENES[0]
   activeIds.value = ['can', 'ball'] as string[]
   found.value = [] as string[]; roundComplete.value = false; topUsesAlternate.value = false
@@ -184,5 +185,5 @@ training.setStartedCheck((): boolean => started.value)
 /* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
 .training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
 .training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
-.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
+.training-preview-secondary { margin-top: 12px; width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

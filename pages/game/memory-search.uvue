@@ -11,30 +11,33 @@
           <view class="ms-header-right">
             <view v-if="started" class="ms-score"><text class="ms-score-text">得分 {{ liveScore }} / {{ maxScore }}</text></view>
             <view v-if="started" class="ms-level"><text class="ms-level-text">难度 {{ level }}</text></view>
-            <view class="ms-counter"><text class="ms-counter-text">{{ counterText }}</text></view>
+            <view class="ms-counter"><text class="ms-counter-text">{{ started ? (roundIndex.value + 1).toString() + '/' + rounds.value.length.toString() : (trialActive ? '试玩' : '准备') }}</text></view>
           </view>
         </view>
         <view class="ms-progress"><view class="ms-progress-fill" :style="{ width: progressWidth }"></view></view>
 
         <view v-if="!started" class="ms-intro training-preview-card">
-          <view class="ms-demo-head">
-            <text class="ms-demo-title">先试一下</text>
-            <text class="ms-demo-step">{{ trialStepLabel }}</text>
-          </view>
-          <text class="ms-demo-tip">{{ trialHint }}</text>
-          <view class="ms-chips">
-            <view v-for="(target, index) in trialNewTargets" :key="'tt-' + index" class="ms-chip ms-chip-new">
-              <image class="ms-chip-image" :src="target.path" mode="aspectFit"></image>
-              <text class="ms-chip-text">{{ target.name }}</text>
+          <text class="ms-demo-title">先试一下</text>
+          <template v-if="trialActive">
+            <view class="ms-demo-head">
+              <text class="ms-demo-step">{{ trialStepLabel }}</text>
             </view>
-          </view>
-          <view class="ms-board">
-            <view v-for="(tile, index) in trialBoardTiles" :key="'tb-' + index" class="ms-tile" :class="trialFoundIds.indexOf(tile.id) >= 0 ? 'ms-tile-found' : trialWrongIndex == index ? 'ms-tile-wrong' : ''" :style="{ width: tileSize, height: tileSize }" @click="pickTrial(index)">
-              <text v-if="trialFoundIds.indexOf(tile.id) >= 0" class="ms-check">✓</text>
-              <image v-else class="ms-tile-image" :style="{ width: tileImageSize, height: tileImageSize }" :src="tile.path" mode="aspectFit"></image>
+            <text class="ms-demo-tip">{{ trialHint }}</text>
+            <view class="ms-chips">
+              <view v-for="(target, index) in trialNewTargets" :key="'tt-' + index" class="ms-chip ms-chip-new">
+                <image class="ms-chip-image" :src="target.path" mode="aspectFit"></image>
+                <text class="ms-chip-text">{{ target.name }}</text>
+              </view>
             </view>
-          </view>
-          <text v-if="trialDone" class="ms-demo-replay training-preview-secondary" @click="setupTrial">再试一次</text>
+            <view class="ms-board">
+              <view v-for="(tile, index) in trialBoardTiles" :key="'tb-' + index" class="ms-tile" :class="trialFoundIds.indexOf(tile.id) >= 0 ? 'ms-tile-found' : trialWrongIndex == index ? 'ms-tile-wrong' : ''" :style="{ width: tileSize, height: tileSize }" @click="pickTrial(index)">
+                <text v-if="trialFoundIds.indexOf(tile.id) >= 0" class="ms-check">✓</text>
+                <image v-else class="ms-tile-image" :style="{ width: tileImageSize, height: tileImageSize }" :src="tile.path" mode="aspectFit"></image>
+              </view>
+            </view>
+          </template>
+          <text v-else class="ms-demo-tip">先玩一小段，看懂“先记目标、再找出来”的玩法</text>
+          <button class="training-preview-secondary" @click="setupTrial">{{ trialDone ? '再试一次' : '先试一下' }}</button>
           <button class="ms-start training-preview-primary" @click="begin">开始训练</button>
         </view>
 
@@ -130,6 +133,7 @@ const trialFoundIds = ref([] as string[])
 const trialWrongIndex = ref(-1)
 const trialHint = ref('')
 const trialDone = ref(false)
+const trialActive = ref(false)
 
 let gameStartedAt = 0
 let roundStartedAt = 0
@@ -240,6 +244,9 @@ function applyTrialRound() {
 }
 
 function setupTrial() {
+  if (trainingPaused.value || started.value) return
+  training.stopIntro()
+  trialActive.value = true
   trialRounds.value = generateMemorySearchTrial(Math.random)
   trialRoundIndex.value = 0
   trialDone.value = false
@@ -315,6 +322,7 @@ function beginSearch() {
 
 function begin() {
   if (started.value || trainingPaused.value) return
+  training.stopIntro()
   clearTimers()
   started.value = true
   finished = false
@@ -392,7 +400,7 @@ function finish() {
   uni.redirectTo({ url: '/pages/result/result?gameId=memory-search&dimensionId=focused&score=' + score.toString() + '&accuracy=' + accuracy.toString() + '&reaction=' + reaction.toString() + '&duration=' + duration.toString() + '&completed=' + completedRounds.value.toString() + '&total=' + total.toString() + scoreQuery([score]) })
 }
 
-onLoad(() => { configure(); setupTrial() })
+onLoad(() => { configure() })
 onUnload(() => {
   clearTimers()
   if (voiceAudio != null) { trainingClock.destroyAudio(voiceAudio); voiceAudio = null }
@@ -460,5 +468,5 @@ training.setStartedCheck((): boolean => started.value)
 /* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
 .training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
 .training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
-.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
+.training-preview-secondary { margin-top: 12px; width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

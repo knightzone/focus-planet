@@ -288,6 +288,12 @@ public typealias FetchAppleSignedTransaction = (_ transactionId: String, _ produ
 public func openUpdateLink(_ url: String, _ completed: @escaping (_ success: Bool) -> Void) {
     FocusFaceDetectorNative.openUpdateLink(url, completed)
 }
+public func scheduleRenewalReminder(_ identifier: String, _ title: String, _ body: String, _ atEpochMs: NSNumber, _ completed: @escaping (_ granted: Bool) -> Void) {
+    FocusFaceDetectorNative.scheduleRenewalReminder(identifier, title, body, atEpochMs, completed)
+}
+public func cancelRenewalReminder(_ identifier: String) {
+    FocusFaceDetectorNative.cancelRenewalReminder(identifier)
+}
 public var detectFaceFrame: DetectFaceFrame = {
 (_ rgba: ArrayBuffer, _ width: NSNumber, _ height: NSNumber) -> FaceFrameResult in
 var value = JSON.parse(FocusFaceDetectorNative.detectRgba(rgba.toData(), width.toInt(), height.toInt()), FaceFrameResult.self)
@@ -345,6 +351,15 @@ public func openUpdateLinkByJs(_ url: String, _ completed: UTSCallback) {
     completed(success)
     })
 }
+public func scheduleRenewalReminderByJs(_ identifier: String, _ title: String, _ body: String, _ atEpochMs: NSNumber, _ completed: UTSCallback) {
+    return scheduleRenewalReminder(identifier, title, body, atEpochMs, {
+    (granted: Bool) -> Void in
+    completed(granted)
+    })
+}
+public func cancelRenewalReminderByJs(_ identifier: String) {
+    return cancelRenewalReminder(identifier)
+}
 public func detectFaceFrameByJs(_ rgba: ArrayBuffer, _ width: NSNumber, _ height: NSNumber) -> FaceFrameResult {
     return detectFaceFrame(rgba, width, height)
 }
@@ -365,6 +380,12 @@ public func fetchAppleSignedTransactionByJs(_ transactionId: String, _ productId
 public class UTSSDKModulesFocusFaceDetectorIndexSwift : NSObject {
     public static func s_openUpdateLinkByJs(_ url: String, _ completed: UTSCallback) {
         return openUpdateLinkByJs(url, completed)
+    }
+    public static func s_scheduleRenewalReminderByJs(_ identifier: String, _ title: String, _ body: String, _ atEpochMs: NSNumber, _ completed: UTSCallback) {
+        return scheduleRenewalReminderByJs(identifier, title, body, atEpochMs, completed)
+    }
+    public static func s_cancelRenewalReminderByJs(_ identifier: String) {
+        return cancelRenewalReminderByJs(identifier)
     }
     public static func s_detectFaceFrameByJs(_ rgba: ArrayBuffer, _ width: NSNumber, _ height: NSNumber) -> FaceFrameResult {
         return detectFaceFrameByJs(rgba, width, height)

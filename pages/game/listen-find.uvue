@@ -10,7 +10,7 @@
         </view>
         <view class="lf-header-right">
           <view v-if="started" class="lf-level"><text class="lf-level-text">难度 {{ level }}</text></view>
-          <view class="lf-counter"><text class="lf-counter-text">{{ started ? displayRound.toString() + '/' + totalRounds.toString() : '试玩' }}</text></view>
+          <view class="lf-counter"><text class="lf-counter-text">{{ started ? displayRound.toString() + '/' + totalRounds.toString() : '准备' }}</text></view>
         </view>
       </view>
       <view class="lf-progress"><view class="lf-progress-fill" :style="{ width: progressWidth }"></view></view>
@@ -45,9 +45,10 @@
         <view class="lf-stat"><text class="lf-stat-value">{{ missedCount }}</text><text class="lf-stat-label">漏掉</text></view>
       </view>
 
-      <view v-if="!started" class="lf-start-row">
-        <text class="lf-demo-hint">{{ demoDone ? '试玩好了，开始正式训练吧' : '听指令，点出对应的图形' }}</text>
-        <button class="tap-target lf-start training-preview-primary" @click="begin">开始训练</button>
+      <view v-if="!started" class="lf-start-col">
+        <text class="lf-demo-hint">{{ demoDone ? '试玩好了，开始正式训练吧' : '先试一下，看懂规则再开始' }}</text>
+        <button class="tap-target training-preview-primary" @click="begin">开始训练</button>
+        <button class="tap-target training-preview-secondary" @click="startDemo">{{ demoDone ? '再试一次' : '先试一下' }}</button>
       </view>
     </view>
   </view>
@@ -80,7 +81,7 @@ const started = ref(false)
 const demoDone = ref(false)
 const level = ref(1)
 const totalRounds = ref(6)
-const commandText = ref('')
+const commandText = ref('先试一下，听指令点图形')
 const hint = ref('')
 const hitCount = ref(0), wrongCount = ref(0), missedCount = ref(0)
 const shapeViews = ref([] as ShapeView[])
@@ -231,10 +232,16 @@ function createField(config: ListenFindConfig) {
 }
 
 // 试玩：四个区域各 1 个图形、只 1 轮、不计时不计分，先看懂规则再开始。
+// 不再进页面就自动跑，必须孩子自己点「先试一下」，避免没打算试玩时音频和说明语音叠在一起。
 function startDemo() {
+  if (trainingPaused.value || started.value) return
+  training.stopIntro()
   demoMode = true
   demoDone.value = false
-  createField(listenFindDemoConfig())
+  nextTick(() => {
+    measureField()
+    createField(listenFindDemoConfig())
+  })
 }
 
 function configure() {
@@ -244,6 +251,7 @@ function configure() {
 
 function begin() {
   if (trainingPaused.value) return
+  training.stopIntro()
   stopTicker()
   demoMode = false
   ending = false
@@ -295,7 +303,6 @@ function finish(message: string) {
 onLoad(() => {
   configure()
   measureField()
-  startDemo()
 })
 onResize(() => measureField())
 onUnload(() => {
@@ -307,9 +314,9 @@ training.setStartedCheck((): boolean => started.value)
 </script>
 
 <style>
-.lf-page { flex: 1; position: relative; background-color: #dceafc; }
+.lf-page { flex: 1; min-height: 0; position: relative; background-color: #dceafc; }
 .lf-scene { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
-.lf-content { position: relative; flex: 1; padding: 18px 16px 12px; }
+.lf-content { position: relative; flex: 1; min-height: 0; padding: 18px 16px 12px; }
 .lf-header { flex-direction: row; justify-content: space-between; align-items: center; }
 .lf-header-right { flex-direction: row; align-items: center; }
 .lf-eyebrow { color: #8062bf; font-size: 12px; font-weight: 700; }
@@ -327,7 +334,7 @@ training.setStartedCheck((): boolean => started.value)
 .lf-timer { margin-top: 8px; height: 6px; border-radius: 3px; background-color: #e6eef5; overflow: hidden; }
 .lf-timer-fill { height: 6px; border-radius: 3px; background-color: #ffc857; }
 .lf-hint { margin-top: 6px; color: #6d7789; font-size: 12px; }
-.lf-field { margin-top: 10px; position: relative; overflow: hidden; border-radius: 24px; background-color: rgba(255, 255, 255, 0.9); flex: 1; }
+.lf-field { margin-top: 10px; position: relative; overflow: hidden; border-radius: 24px; background-color: rgba(255, 255, 255, 0.9); flex: 1; min-height: 0; }
 .lf-axis-h { position: absolute; left: 4%; top: 50%; width: 92%; height: 3px; border-radius: 2px; background-color: rgba(128, 98, 191, 0.3); }
 .lf-axis-v { position: absolute; left: 50%; top: 4%; width: 3px; height: 92%; border-radius: 2px; background-color: rgba(128, 98, 191, 0.3); }
 .lf-quadrant { position: absolute; color: rgba(128, 98, 191, 0.5); font-size: 11px; font-weight: 700; }
@@ -347,12 +354,11 @@ training.setStartedCheck((): boolean => started.value)
 .lf-stat { flex: 1; align-items: center; }
 .lf-stat-value { color: #25314a; font-size: 16px; font-weight: 700; }
 .lf-stat-label { margin-top: 1px; color: #7d8a9c; font-size: 10px; }
-.lf-start-row { margin-top: 8px; flex-direction: row; align-items: center; justify-content: space-between; }
-.lf-demo-hint { flex: 1; color: #5d6a80; font-size: 12px; }
-.lf-start { width: 132px; height: 44px; line-height: 44px; border-radius: 22px; background-color: #7f66c4; color: #ffffff; font-size: 15px; font-weight: 700; }
+.lf-start-col { margin-top: 8px; margin-bottom: 6px; align-items: center; }
+.lf-demo-hint { margin-bottom: 10px; color: #5d6a80; font-size: 12px; }
 
 /* Shared preview palette: breathing-planet. Keep gameplay geometry unchanged. */
 .training-preview-card { border-radius: 30px; background-color: rgba(255,255,255,0.65); }
 .training-preview-primary { width: 200px; height: 50px; line-height: 50px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 25px; background-color: #8d9bdb; color: #ffffff; font-size: 17px; font-weight: 700; text-align: center; }
-.training-preview-secondary { width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
+.training-preview-secondary { margin-top: 12px; width: 200px; height: 42px; line-height: 42px; padding: 0; margin-left: auto; margin-right: auto; border-width: 0; border-radius: 21px; background-color: rgba(255,255,255,0.6); color: #7584b5; font-size: 14px; text-align: center; }
 </style>

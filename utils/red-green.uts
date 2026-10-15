@@ -39,6 +39,8 @@ export type RedGreenState = {
   moving: boolean,
   stoppedAt: number,
   stoppedFor: number,
+  // 本次停车被判为「停车过线」：此时前方最近的灯是下一盏，不能按它的绿灯窗口判超时。
+  stoppedOverLine: boolean,
   lap: number,
   elapsed: number,
   deductions: number,
@@ -62,8 +64,9 @@ export function redGreenConfig(level: number): RedGreenConfig {
     level: index + 1,
     lights: [2, 2, 3, 3, 3, 4, 4, 4, 5, 5][index],
     laps: 3,
-    // 车速固定：每秒走周长的 11%（约 9 秒一圈），与难度无关。
-    speedFactor: 0.11,
+    // 车速固定：每秒走周长的 9%（约 11 秒一圈），与难度无关。
+    // 2026-10-14 由 11% 降到 9%：快车速下孩子常看不到安全区就冲过线，减速后点「暂停」的余裕更大。
+    speedFactor: 0.09,
     // 停车容差：安全区长度 = 容差 × 车速，随难度收紧。
     stopTolerance: [0.55, 0.50, 0.45, 0.40, 0.34, 0.30, 0.26, 0.22, 0.18, 0.15][index],
     // 绿灯起步窗口：超时未起步按「非红灯停车」计。
@@ -205,6 +208,7 @@ export function redGreenCreate(config: RedGreenConfig, layout: RedGreenLayout, r
     moving: true,
     stoppedAt: -1,
     stoppedFor: 0,
+    stoppedOverLine: false,
     lap: 0,
     elapsed: 0,
     deductions: 0,
@@ -324,10 +328,12 @@ function advanceLights(state: RedGreenState, dt: number, config: RedGreenConfig,
   }
 }
 
-// 绿灯起步窗口：**只要车停着**，就按它前方最近那盏灯的绿灯超时判罚 —— 不管停在哪儿。
-// （否则停在路中间就能一直躲过超时扣分。）窗口从绿灯亮起那刻算，每盏灯每个绿灯周期最多记一次。
+// 绿灯起步窗口：只要车停着，就按它前方最近那盏灯的绿灯超时判罚（否则停在路中间就能一直躲过超时扣分）；
+// 例外：本次停车被判为「停车过线」时不判 —— 那时前方最近的灯是**下一盏**，玩家还没到它跟前，
+// 按它的绿灯窗口扣分是误判（过线本身已经扣过一次；而车停着不会推进圈数，所以也不会变成无惩罚等待）。
 function checkGreenTimeout(state: RedGreenState, config: RedGreenConfig, layout: RedGreenLayout) {
   if (state.moving) return
+  if (state.stoppedOverLine) return
   const ahead = redGreenAheadLight(state, config, layout)
   if (ahead < 0) return
   const light = state.lights[ahead]
@@ -366,6 +372,7 @@ export function redGreenStep(state: RedGreenState, dt: number, config: RedGreenC
       }
     }
     state.stoppedFor = 0
+    state.stoppedOverLine = false
   } else {
     state.stoppedFor += dt
     checkGreenTimeout(state, config, layout)
@@ -381,6 +388,7 @@ export function redGreenPause(state: RedGreenState, config: RedGreenConfig, layo
   if (!state.moving) return state.events
   state.moving = false
   state.stoppedFor = 0
+  state.stoppedOverLine = false
   const p = layout.pathLength
   const front = redGreenFront(state, config, layout)
   const safe = redGreenSafeZone(config, layout)
@@ -401,7 +409,8 @@ export function redGreenPause(state: RedGreenState, config: RedGreenConfig, layo
   const behind = behindLight(state, config, layout)
   if (behind >= 0 && redGreenBlocks(state.lights[behind].phase)) {
     state.stoppedAt = -1
-    pushEvent(state, 'overLine', behind, '停过线了，要停在安全区里')
+    state.stoppedOverLine = true
+    pushEvent(state, 'overLine', behind, '停过线了，要停在安全区里 · 按「启动」继续开')
     return state.events
   }
   state.stoppedAt = -1
@@ -417,6 +426,7 @@ export function redGreenGo(state: RedGreenState, config: RedGreenConfig): RedGre
   state.moving = true
   state.stoppedAt = -1
   state.stoppedFor = 0
+  state.stoppedOverLine = false
   return state.events
 }
 

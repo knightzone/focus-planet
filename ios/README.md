@@ -49,5 +49,8 @@ Archive 完成后在 Organizer 中执行 Validate App 和 Distribute App。命�
 - `<web-view>` 在 iOS 上是按需 ExtAPI 元素：`build-extapi.sh` 的 `web_view_sources` 与 `ios/ExtAPI/uts-config.json` 的 `UniWebViewElementRegister` 必须同时保留，少一个 iOS 上就渲染不出法律文档页（Android 由运行时自带）。改动这两处后 `prepare-xcode.sh` 会自动重编 ExtAPI，HBuilderX 侧需重新制作/运行自定义基座，热更新不会带上新的原生框架。
 - 插件源代码会提交。`sync-resources.sh` 会用当前 HBuilderX 生成的 `index.swift` 更新桥接层，再由 `build-plugin.sh` 编译出真机（arm64）与模拟器（arm64/x86_64）双切片的 `Plugins/unimoduleFocusFaceDetector.xcframework`。
 - 插件必须是 xcframework：真机与模拟器切片同为 arm64 但平台不同，单个 `.framework` 装不下。只有真机切片时模拟器启动会因 `Library not loaded ... incompatible platform (have 'iOS', need 'iOS-simulator')` 闪退；`verify.sh` 会提前报缺切片。
+- `FocusPlanet/PrivacyInfo.xcprivacy` 的收集类型与必需理由 API 必须与线上《隐私政策》第二节和 App Store Connect 隐私标签保持一致。打包进 App 但未自带清单的 DCloud 运行库（`DCloudUniappRuntime`、`DCloudUTSExtAPI`）由本文件代为声明；改 Reason 代码前先按 Apple 的《Describing use of required reason API》核对，不要手写字符串。
+- 权限文案只保留打包产物真正引用到的受保护 API（当前是相机与相册）；模板残留的 `INFOPLIST_KEY_NS*` 会带进通讯录/健康/位置/HomeKit/追踪等用不到的权限，`verify.sh` 会直接拦住。竖屏由 `UISupportedInterfaceOrientations`（Portrait）单键锁定，不要再加 `_iPhone`/`_iPad` 变体，否则会重新放开横屏。
+- 版本号三处必须一致：`manifest.json` 的 `versionName`/`versionCode`、pbxproj 的 `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION`（Debug 与 Release）、导出资源 manifest 的 `version.name`/`version.code`，`verify.sh` 会对不上就报错。构建号约定：`1.0.0` 基础构建号为 **1000**，同一小版本重复提交只递增最后一位（1000 → 1001 → …），`versionName` 不动；改完必须重跑 `prepare-xcode.sh` 重新导出。
 - 模拟器可以构建并运行 UI（终端 `xcodebuild -scheme UniAppX -destination 'platform=iOS Simulator,name=...'`），模拟器使用 ad-hoc 签名、不需要 Team。相机与端侧检测仍以真机为准。
 - 不直接运行 `sync-resources.sh` 作为日常入口；统一运行 `prepare-xcode.sh`，确保“导出、同步、插件按需重编、校验”是一条完整链路。
