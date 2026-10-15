@@ -133,6 +133,11 @@ target.build_configurations.each do |config|
   settings['ENABLE_MODULE_VERIFIER'] = 'NO'
   settings['FRAMEWORK_SEARCH_PATHS'] = ['$(inherited)', '$(PROJECT_DIR)/../SDK/Libs']
   settings['GENERATE_INFOPLIST_FILE'] = 'YES'
+  # GENERATE_INFOPLIST_FILE 生成的 framework Info.plist 会用这两个值填
+  # CFBundleShortVersionString / CFBundleVersion；不设 MARKETING_VERSION 会缺
+  # CFBundleShortVersionString，App Store 上传校验直接报 ITMS-90056。
+  settings['MARKETING_VERSION'] = '1.0.0'
+  settings['CURRENT_PROJECT_VERSION'] = '1'
   settings['INSTALL_PATH'] = '$(LOCAL_LIBRARY_DIR)/Frameworks'
   settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.0'
   settings['MACH_O_TYPE'] = 'mh_dylib'

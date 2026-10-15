@@ -102,6 +102,21 @@ if nm -gj "$plugin_framework/ios-arm64/unimoduleFocusFaceDetector.framework/unim
 fi
 # 首页渐变已改为静态 SVG，不再要求原生渐变类；端侧检测仍保留完整校验。
 
+# 嵌入的自研 framework 必须自带 CFBundleShortVersionString / CFBundleVersion。
+# 用 GENERATE_INFOPLIST_FILE 生成 plist 时如果没设 MARKETING_VERSION，就会漏掉
+# short version，App Store 上传直接报 ITMS-90056（missing required key）。
+for xcframework in "$IOS_DIR/CustomFrameworks/DCloudUTSExtAPI.xcframework" "$plugin_framework"; do
+  for plist in "$xcframework"/ios-*/*.framework/Info.plist; do
+    [[ -f "$plist" ]] || continue
+    short_version="$(plutil -extract CFBundleShortVersionString raw "$plist" 2>/dev/null || true)"
+    bundle_version="$(plutil -extract CFBundleVersion raw "$plist" 2>/dev/null || true)"
+    if [[ -z "$short_version" || -z "$bundle_version" ]]; then
+      echo "Embedded framework $plist is missing CFBundleShortVersionString/CFBundleVersion; rebuild it (App Store rejects with ITMS-90056)." >&2
+      exit 1
+    fi
+  done
+done
+
 plist_appid="$(/usr/libexec/PlistBuddy -c 'Print :uniapp-x:appid' "$IOS_DIR/FocusPlanet/FocusPlanet/Info.plist")"
 [[ "$plist_appid" == "$APP_ID" ]] || { echo "Info.plist appid mismatch: $plist_appid" >&2; exit 1; }
 

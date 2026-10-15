@@ -1,5 +1,14 @@
 # 专注星球：后续补充清单
 
+### 2026-10-15 修复上传报 ITMS-90056：ExtAPI 缺 CFBundleShortVersionString
+
+- 现象：App Store 上传校验报 `The bundle 'Payload/FocusPlanet.app/Frameworks/DCloudUTSExtAPI.framework' is missing plist key ... CFBundleShortVersionString`。
+- 根因：`build-extapi.sh` 用 `GENERATE_INFOPLIST_FILE=YES` 生成 framework 的 Info.plist，但没设 `MARKETING_VERSION`，Xcode 只填了 `CFBundleVersion`（默认 1），漏了 `CFBundleShortVersionString`。检测插件 `focus-face-detector` 的 xcodeproj 本来就带 `MARKETING_VERSION=1.0`，所以只有 ExtAPI 报错。
+- 修复：`build-extapi.sh` 的 target build settings 补 `MARKETING_VERSION=1.0.0` 与 `CURRENT_PROJECT_VERSION=1`；重建后两条切片（`ios-arm64` / `ios-arm64_x86_64-simulator`）的 Info.plist 都有 `CFBundleShortVersionString=1.0.0`。
+- 防回归：`verify.sh` 新增检查——两个自研 xcframework 的每个切片 Info.plist 必须同时有 `CFBundleShortVersionString` 与 `CFBundleVersion`。
+- 验证：重建 ExtAPI → 重建宿主 → 嵌入的 8 个 framework 全部有这两条键（DCloud/三方自带的 `KSCrash 1.17.5` 等不受影响）；全量回归 54 项与 `check-runtime-assets` 通过，`verify.sh` ready。
+- 提醒：**必须重新 Archive**，之前那份上传包是用旧 framework 构建的。
+
 ### 2026-10-15 发版决策：去摄像头 + 本地续费通知
 
 按产品确认的三条决策落地（数据导出第一版不上、客服联系方式暂不改）：
