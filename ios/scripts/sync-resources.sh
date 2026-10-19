@@ -48,6 +48,11 @@ plutil -replace UISupportedInterfaceOrientations -json '["UIInterfaceOrientation
 # 标准加密（仅 https），上传时自动回答出口合规问题。
 plutil -replace ITSAppUsesNonExemptEncryption -bool NO "$host_plist"
 
+# SDWebImage 的非法标识符与签名统一由 sign-vendored-sdk.sh 处理（幂等，已签好就跳过）：
+# 只改 Info.plist 不重签会把已有的根封条弄坏，Xcode 26 构建会直接报
+# "The signature of SDWebImage.xcframework cannot be verified"。
+"$SCRIPT_DIR/sign-vendored-sdk.sh"
+
 if [[ -f "$generated_plugin" ]]; then
   if [[ ! -f "$plugin_source/index.swift" ]] || ! cmp -s "$generated_plugin" "$plugin_source/index.swift"; then
     cp "$generated_plugin" "$plugin_source/index.swift"

@@ -117,6 +117,27 @@ for xcframework in "$IOS_DIR/CustomFrameworks/DCloudUTSExtAPI.xcframework" "$plu
   done
 done
 
+# 苹果「常用第三方 SDK」清单里的二进制依赖（本工程只有 SDWebImage）必须有可验证的签名：
+# Xcode 26 的 SignatureCollection 会把 .xcframework 自身的签名写进包的
+# `Signatures/<名>.xcframework-ios.signature`，未签名时 signed=false，上传报 ITMS-91065。
+# 注意签的是 .xcframework 自己的根封条，内层切片签了也不算。修法：ios/scripts/sign-vendored-sdk.sh。
+listed_xcfs=("$IOS_DIR/SDK/Libs/SDWebImage.xcframework")
+for listed_xcf in "${listed_xcfs[@]}"; do
+  [[ -d "$listed_xcf" ]] || { echo "Missing listed-SDK xcframework: $listed_xcf" >&2; exit 1; }
+  if ! codesign --verify --strict "$listed_xcf" >/dev/null 2>&1; then
+    echo "$(basename "$listed_xcf") has no verifiable signature; run ios/scripts/sign-vendored-sdk.sh (App Store rejects with ITMS-91065)." >&2
+    exit 1
+  fi
+  listed_sig="$(codesign -dvvv "$listed_xcf" 2>&1 || true)"
+  if ! printf '%s' "$listed_sig" | rg -q '^Authority=Apple (Distribution|Development):'; then
+    echo "$(basename "$listed_xcf") is not signed with an Apple-issued certificate; re-sign it with ios/scripts/sign-vendored-sdk.sh." >&2
+    exit 1
+  fi
+  if ! printf '%s' "$listed_sig" | rg -q '^Timestamp='; then
+    echo "warning: $(basename "$listed_xcf") 的签名没有安全时间戳（离线签名？）；联网重跑 ios/scripts/sign-vendored-sdk.sh 更稳妥。" >&2
+  fi
+done
+
 plist_appid="$(/usr/libexec/PlistBuddy -c 'Print :uniapp-x:appid' "$IOS_DIR/FocusPlanet/FocusPlanet/Info.plist")"
 [[ "$plist_appid" == "$APP_ID" ]] || { echo "Info.plist appid mismatch: $plist_appid" >&2; exit 1; }
 

@@ -37,14 +37,13 @@ rsync -a --delete "$source_root/SDK/Resources/" "$IOS_DIR/SDK/Resources/"
 rsync -a --delete "$source_libs/" "$IOS_DIR/SDK/Libs/"
 rsync -a --delete "$source_root/TemporarySampleFramework/" "$IOS_DIR/TemporarySampleFramework/"
 
-# The vendored SDWebImage signature is not trusted by Xcode 26 on some Macs.
-# Removing only that vendored signature lets Xcode re-sign the embedded framework at Archive time.
-if [[ -d "$IOS_DIR/SDK/Libs/SDWebImage.xcframework" ]]; then
-  codesign --remove-signature "$IOS_DIR/SDK/Libs/SDWebImage.xcframework" 2>/dev/null || true
-  while IFS= read -r framework; do
-    codesign --remove-signature "$framework" 2>/dev/null || true
-  done < <(find "$IOS_DIR/SDK/Libs/SDWebImage.xcframework" -type d -name '*.framework')
-fi
+# DCloud 自带的 SDWebImage 签名是一个已过期的个人开发证书签名（Apple Development: 赵 丰良，
+# Team YQM5H857L5，2026-08-12 过期），Info.plist 的标识符还是非法值 com.uni..SDWebImage。
+# 以前这里用 codesign --remove-signature 把它删掉，结果 Xcode 26 的 SignatureCollection 会在包里
+# 把该 XCFramework 记成 signed=false（Signatures/SDWebImage.xcframework-ios.signature），
+# 上架直接报 ITMS-91065 Missing signature —— 苹果按这份文件校验「常用第三方 SDK」的签名。
+# 现在改成：修标识符 + 用我们的分发证书重签（内层切片 + .xcframework 根封条），见脚本注释。
+"$SCRIPT_DIR/sign-vendored-sdk.sh"
 
 echo "$SDK_VERSION" > "$IOS_DIR/SDK/.uniappx-sdk-version"
 echo "Installed uni-app x iOS SDK ${SDK_VERSION} under $IOS_DIR"
