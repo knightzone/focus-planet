@@ -1,5 +1,17 @@
 # 专注星球：后续补充清单
 
+### 2026-10-15 审核账号补一个非会员号
+
+- 原来只有 `18866668888` 一个审核账号（已开通会员），审核员看不到付费墙与免费体验。现补充 `18866669999`：**非会员**、儿童档案 `infoCompleted = true`，中英文审核备注模板已同步（`docs/RELEASE_READINESS.md` E 节）。
+- 客户端无需改动：白名单在服务端，`utils/auth.uts:60` 只负责把审核通道回传的 `debugCode` 静默回填。服务端需把两个号都加入固定验证码/审核白名单，`18866669999` 不要开通会员。
+
+### 2026-10-15 修复上传报 ITMS-91065：SDWebImage 的 XCFramework 没有签名
+
+- 现象：build 1002（identifier 已改成 `org.cocoapods.SDWebImage` 之后的第一次上传）仍然收到 `ITMS-91065 Missing signature`。上传本身是成功的（分发日志 `UPLOAD SUCCEEDED with no errors`），TestFlight 也能用，但苹果对清单内 SDK 的签名要求是提审前的硬项。
+- 根因（实测，不是推测）：Xcode 26 打包时有一步 `SignatureCollection`，把每个 XCFramework **自身**的签名信息写进归档/包的 `Signatures/<名>.xcframework-ios.signature`；苹果对「常用第三方 SDK」就是按这份文件校验。包里 8 个 framework 只有 SDWebImage 在苹果清单上，而它的签名文件一直是 `signed=false`。直接原因是 `install-sdk.sh` 里那句 `codesign --remove-signature` 把 DCloud 自带的签名删了；而那份自带签名本身也不可用：`Apple Development: 赵 丰良 (LBPJ952Z8T)`（Team `YQM5H857L5`，O=Digital Heaven 即 DCloud），2025-08-12 签发、**2026-08-12 已过期**，`Info.plist` 的 `CFBundleIdentifier` 还是非法值 `com.uni..SDWebImage`。另外注意：Xcode 在嵌入/导出时对 App 里那份拷贝的重签（Apple Distribution，Team `4N5RUYQ48R`）**不算数**——`Signatures/*.signature` 记录的是源 XCFramework 的签名。
+- 修复：新增 `ios/scripts/sign-vendored-sdk.sh`（幂等）：先修非法标识符，再用分发证书（`--timestamp`）签两个切片，最后给 `.xcframework` 打根封条并自检；`install-sdk.sh` 与 `sync-resources.sh` 都改为调用它。**顺序不能反**：SignatureCollection 读的是 .xcframework 自己的根封条，只签内层 framework 仍然记 `signed=false`（已实测）；先打根封条再改切片则会让 Xcode 直接报 `The signature of "SDWebImage.xcframework" cannot be verified. A sealed resource is missing or invalid`。
+- 防回归：`verify.sh` 增闸（清单内 SDK 的 xcframework 必须 `codesign --verify --strict` 通过且签名为 Apple 颁发证书，缺安全时间戳只告警）；`preflight-archive.sh` 新增 [3.5]，直接读归档里的 `Signatures/SDWebImage.xcframework-ios.signature`，`signed != true` 或 `signatureType != AppleDeveloperProgram` 判体检不通过。实测：build 1002 的归档被拦下（`signed=false`）；重签后归档为 `signed=true / type=AppleDeveloperProgram / team=4N5RUYQ48R / source=embedded`，导出 IPA 的该文件同样是 `signed=true`，体检通过。`isSecureTimestamp` 仍是 false（Xcode 26 的收集步骤对带 `--timestamp` 的根封条也记 false，苹果自家 App Store 签名同样不带时间戳），故只告警不拦。
+- 提醒：`Signatures/` 会整目录进 IPA，因此必须**重新 Archive + 重新上传（新构建号）**，旧构建上的警告不会消失；Xcode GUI 若弹「SDWebImage.xcframework is not signed with the expected identity…」，按苹果文档点 Accept Change 即可（我们确实换了签名身份）。
 ### 2026-10-15 修复上传报 ITMS-90056：ExtAPI 缺 CFBundleShortVersionString
 
 - 现象：App Store 上传校验报 `The bundle 'Payload/FocusPlanet.app/Frameworks/DCloudUTSExtAPI.framework' is missing plist key ... CFBundleShortVersionString`。

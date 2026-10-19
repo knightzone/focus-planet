@@ -46,7 +46,7 @@
 ## C. 服务端必须在发版前完成
 
 1. 生产域名 `https://zhuanzhuapp.com/api/v1` 全量可用：验证码、`/me`、`/training`、`/reports`、`/vip`、`/config`。
-2. **审核通道**：把 `18866668888` 加入固定验证码/审核白名单；该账号预置完整儿童档案（`infoCompleted = true`），审核员登录后直接进首页，不会被引导去填档案。
+2. **审核通道**：把 `18866668888`（会员）与 `18866669999`（非会员）加入固定验证码/审核白名单（服务端 `REVIEW_PHONES`）；两个账号都预置完整儿童档案（`infoCompleted = true`，服务端已对审核号自动补档），审核员登录后直接进首页；`18866669999` 保持非会员。
 3. `/vip/products` 返回真实 App Store 商品 ID，且与 ASC 的订阅组、商品状态、销售范围一致。
 4. `/config` 更新策略接口部署 + 真实 App Store 渠道链接。
 5. 账号注销 `POST /me/delete` 生效（置 `DELETION_PENDING`、撤销 refresh token，7 天后删除）。
@@ -69,27 +69,36 @@
 
 ## E. 审核账号与审核备注
 
-**审核账号：`18866668888`**（App 启动即要求登录，当前没有游客模式）。
+App 启动即要求登录（当前没有游客模式），因此需要**两个**审核账号，一个带会员、一个不带，审核员才能同时看到免费体验和付费墙：
 
-客户端行为（无需改代码）：登录页输入该手机号 → 点「获取验证码」→ 服务端审核通道返回的 `debugCode` 会被客户端**自动填入**验证码框 → 点「登录」即可。见 `utils/auth.uts:60`（`requestPhoneCode` 静默回填）与 `pages/login/login.uvue:167`。
+| 账号 | 权益 | 预置数据 | 用途 |
+| --- | --- | --- | --- |
+| `18866668888` | 已开通会员（VIP） | 儿童档案 `infoCompleted = true` | 验证会员页、成长报告、已解锁内容 |
+| `18866669999` | **非会员（免费账号）** | 儿童档案 `infoCompleted = true`，**不开通会员** | 验证免费体验与付费墙/订阅入口（审核员看不到付费墙会被判功能不完整） |
 
-服务端要求（必须）：审核通道识别 `18866668888`、下发固定验证码（或返回 `debugCode`），且该账号 `infoCompleted = true`。
+客户端行为（无需改代码）：登录页输入手机号 → 点「获取验证码」→ 服务端审核通道返回的 `debugCode` 会被客户端**自动填入**验证码框 → 点「登录」即可。见 `utils/auth.uts:60`（`requestPhoneCode` 静默回填）与 `pages/login/login.uvue:167`。客户端没有硬编码的测试手机号，白名单完全在服务端。
+
+服务端要求（必须）：审核通道要识别 `18866668888` 与 `18866669999` 两个号、都下发固定验证码（或返回 `debugCode`），两个账号都 `infoCompleted = true`；`18866668888` 预置有效会员、`18866669999` **保持非会员**（不要顺手开通，否则付费墙又看不到了）。
 
 ### 审核备注模板（中文）
 
 ```text
-审核账号：18866668888
+审核账号（会员）：18866668888
+审核账号（非会员）：18866669999
 验证码：点「获取验证码」后页面会自动填入（审核通道）；如未自动填入，请使用固定验证码 <后端确认，例如 123456>。
-该账号已预置儿童档案，登录后可直接体验每日训练、成长报告与会员页。
+两个账号都已预置儿童档案，登录后可直接体验每日训练与成长报告；
+用 18866668888 可查看会员权益，用 18866669999 可查看未开通时的免费体验与订阅入口。
 会员购买走 Apple 沙盒；相机权限当前不会触发（星陪伴的端侧检测已关闭）。
 ```
 
 ### App Review Notes (English)
 
 ```text
-Demo account: 18866668888
+Demo account (VIP): 18866668888
+Demo account (free, non-VIP): 18866669999
 Verification code: after tapping "Get code" the code is auto-filled via our review channel. If not auto-filled, use the fixed code <confirm with backend, e.g. 123456>.
-The demo account already has a child profile, so you can start training, open the growth report and the membership page right away.
+Both accounts already have a child profile, so you can start training and open the growth report right away.
+Use 18866668888 to see the membership experience, and 18866669999 to see the free experience and the subscription entry point.
 Membership purchases use Apple Sandbox. The camera permission is not triggered in the current build (on-device posture detection is disabled).
 ```
 
